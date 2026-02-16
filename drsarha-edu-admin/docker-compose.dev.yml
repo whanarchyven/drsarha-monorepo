@@ -1,0 +1,17 @@
+services:
+  drsarha-edu-admin:
+    image: $DOCKER_IMAGE
+    env_file: $DRSARHA_EDU_ADMIN_ENV
+    networks:
+      - traefik-public
+    deploy:
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.drsarha-edu-admin.rule=Host(`edu-admin.drsarha.dev.reflectai.pro`)
+        - traefik.http.routers.drsarha-edu-admin.entrypoints=websecure
+        - traefik.http.routers.drsarha-edu-admin.service=drsarha-edu-admin-svc
+        - traefik.http.services.drsarha-edu-admin-svc.loadbalancer.server.port=3006
+
+networks:
+  traefik-public:
+    external: true

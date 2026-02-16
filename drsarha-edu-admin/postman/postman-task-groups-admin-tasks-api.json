@@ -1,0 +1,183 @@
+{
+  "info": {
+    "_postman_id": "task-groups-admin-tasks-api-collection",
+    "name": "DrSarha Task Groups & Admin Tasks API",
+    "description": "Коллекция для управления группами заданий и заданиями (админ и пользовательские роуты)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Task Groups (Группы заданий)",
+      "item": [
+        {
+          "name": "Создать группу заданий (админ)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Группа для новичков\",\n  \"description\": \"Задания для новых пользователей\",\n  \"startDate\": \"2024-06-01\",\n  \"endDate\": \"2024-12-31\",\n  \"rewardStars\": 100,\n  \"rewardExp\": 200,\n  \"level\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/task-groups/",
+              "host": ["{{base_url}}"],
+              "path": ["task-groups", ""]
+            },
+            "description": "Создаёт новую группу заданий. Сначала создайте группу, затем добавляйте задания."
+          }
+        },
+        {
+          "name": "Добавить задание в группу (админ)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Создать первый пин\",\n  \"description\": \"Пользователь должен создать свой первый пин\",\n  \"actionType\": \"create_pin\",\n  \"targetAmount\": 1,\n  \"rewardStars\": 10,\n  \"rewardExp\": 20\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/task-groups/{{groupId}}/tasks",
+              "host": ["{{base_url}}"],
+              "path": ["task-groups", "{{groupId}}", "tasks"]
+            },
+            "description": "Добавляет задание в ранее созданную группу. Подставьте groupId из ответа на создание группы."
+          }
+        },
+        {
+          "name": "Получить все группы (админ)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/task-groups/admin/all",
+              "host": ["{{base_url}}"],
+              "path": ["task-groups", "admin", "all"]
+            }
+          }
+        },
+        {
+          "name": "Обновить группу (админ)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Группа для новичков (обновлено)\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/task-groups/{{groupId}}",
+              "host": ["{{base_url}}"],
+              "path": ["task-groups", "{{groupId}}"]
+            }
+          }
+        },
+        {
+          "name": "Удалить группу (админ)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/task-groups/{{groupId}}",
+              "host": ["{{base_url}}"],
+              "path": ["task-groups", "{{groupId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin Tasks (Задания вне групп)",
+      "item": [
+        {
+          "name": "Создать задание (админ)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_jwt}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Создать папку\",\n  \"description\": \"Создать первую папку\",\n  \"timeType\": \"daily\",\n  \"actionType\": \"create_folder\",\n  \"targetAmount\": 1,\n  \"rewardStars\": 5,\n  \"rewardExp\": 10\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/tasks/",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "tasks", ""]
+            },
+            "description": "Создаёт отдельное задание (не в группе). Требует JWT токен администратора."
+          }
+        },
+        {
+          "name": "Получить все задания (админ)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_jwt}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/tasks/",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "tasks", ""]
+            }
+          }
+        },
+        {
+          "name": "Обновить задание (админ)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_jwt}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Создать папку (обновлено)\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/tasks/{{taskId}}",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "tasks", "{{taskId}}"]
+            }
+          }
+        },
+        {
+          "name": "Удалить задание (админ)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_jwt}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/tasks/{{taskId}}",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "tasks", "{{taskId}}"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "description": "Базовый URL API сервера"
+    },
+    {
+      "key": "admin_jwt",
+      "value": "YOUR_ADMIN_JWT_HERE",
+      "description": "JWT токен администратора для доступа к админским эндпоинтам"
+    },
+    {
+      "key": "groupId",
+      "value": "",
+      "description": "ID созданной группы заданий"
+    },
+    {
+      "key": "taskId",
+      "value": "",
+      "description": "ID задания для обновления/удаления"
+    }
+  ]
+}

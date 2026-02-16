@@ -1,0 +1,234 @@
+{
+  "info": {
+    "_postman_id": "pin-tags-api-collection",
+    "name": "DrSarha Pin Tags API",
+    "description": "API коллекция для работы с тегами пинов и управления любимыми тегами пользователей",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Tags Management",
+      "description": "Управление тегами - создание, редактирование, удаление",
+      "item": [
+        {
+          "name": "Получить все теги",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tags/?search=медицина&page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["tags", ""],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "медицина",
+                  "description": "Поиск по названию тега (опционально)"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Номер страницы (по умолчанию 1)"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Количество тегов на страницу (максимум 100)"
+                }
+              ]
+            },
+            "description": "Получает список всех тегов с возможностью поиска и пагинации"
+          }
+        },
+        {
+          "name": "Получить тег по ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tags/6576f1234567890123456789/",
+              "host": ["{{base_url}}"],
+              "path": ["tags", "6576f1234567890123456789", ""]
+            },
+            "description": "Получает информацию о конкретном теге по его ID"
+          }
+        },
+        {
+          "name": "Создать новый тег",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Кардиология\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/tags/",
+              "host": ["{{base_url}}"],
+              "path": ["tags", ""]
+            },
+            "description": "Создает новый тег с указанным названием"
+          }
+        },
+        {
+          "name": "Обновить тег",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Кардиология и сосудистая хирургия\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/tags/6576f1234567890123456789/",
+              "host": ["{{base_url}}"],
+              "path": ["tags", "6576f1234567890123456789", ""]
+            },
+            "description": "Обновляет название существующего тега"
+          }
+        },
+        {
+          "name": "Удалить тег",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tags/6576f1234567890123456789/",
+              "host": ["{{base_url}}"],
+              "path": ["tags", "6576f1234567890123456789", ""]
+            },
+            "description": "Удаляет существующий тег по ID"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Popular Tags",
+      "description": "Получение популярных тегов",
+      "item": [
+        {
+          "name": "Получить популярные теги",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tags/popular/?limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["tags", "popular", ""],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Количество популярных тегов для возврата (максимум 100)"
+                }
+              ]
+            },
+            "description": "Получает список самых популярных тегов, отсортированных по частоте использования"
+          }
+        }
+      ]
+    },
+    {
+      "name": "User Favorite Tags",
+      "description": "Управление любимыми тегами пользователей",
+      "item": [
+        {
+          "name": "Получить любимые теги пользователя",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/users/6576f1234567890123456789/favorite-tags/",
+              "host": ["{{base_url}}"],
+              "path": ["users", "6576f1234567890123456789", "favorite-tags", ""]
+            },
+            "description": "Получает список любимых тегов указанного пользователя"
+          }
+        },
+        {
+          "name": "Установить любимые теги пользователя",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"tagIds\": [\n        \"6576f1234567890123456789\",\n        \"6576f1234567890123456790\",\n        \"6576f1234567890123456791\"\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users/6576f1234567890123456789/favorite-tags/",
+              "host": ["{{base_url}}"],
+              "path": ["users", "6576f1234567890123456789", "favorite-tags", ""]
+            },
+            "description": "Заменяет весь список любимых тегов пользователя новым списком"
+          }
+        },
+        {
+          "name": "Добавить любимые теги пользователю",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"tagIds\": [\n        \"6576f1234567890123456792\",\n        \"6576f1234567890123456793\"\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users/6576f1234567890123456789/favorite-tags/",
+              "host": ["{{base_url}}"],
+              "path": ["users", "6576f1234567890123456789", "favorite-tags", ""]
+            },
+            "description": "Добавляет новые теги к списку любимых тегов пользователя"
+          }
+        },
+        {
+          "name": "Удалить любимые теги пользователя",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"tagIds\": [\n        \"6576f1234567890123456792\",\n        \"6576f1234567890123456793\"\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users/6576f1234567890123456789/favorite-tags/",
+              "host": ["{{base_url}}"],
+              "path": ["users", "6576f1234567890123456789", "favorite-tags", ""]
+            },
+            "description": "Удаляет указанные теги из списка любимых тегов пользователя"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "description": "Базовый URL API сервера"
+    }
+  ]
+}

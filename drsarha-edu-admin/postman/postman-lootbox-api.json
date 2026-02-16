@@ -1,0 +1,169 @@
+{
+  "info": {
+    "_postman_id": "lootbox-api-collection",
+    "name": "DrSarha Lootbox API",
+    "description": "API коллекция для работы с лутбоксами (Lootboxes) в системе DrSarha. Включает публичные и административные эндпоинты.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Public - User Access",
+      "description": "Публичные эндпоинты для просмотра лутбоксов",
+      "item": [
+        {
+          "name": "Получить все лутбоксы",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/lootboxes?page=1&limit=10&search=бонус",
+              "host": ["{{base_url}}"],
+              "path": ["lootboxes"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Номер страницы (опционально)"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Количество на страницу (опционально)"
+                },
+                {
+                  "key": "search",
+                  "value": "бонус",
+                  "description": "Поиск по названию/описанию (опционально)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Получает список всех лутбоксов с пагинацией и поиском"
+          }
+        },
+        {
+          "name": "Получить лутбокс по ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/lootboxes/6576f1234567890123456789",
+              "host": ["{{base_url}}"],
+              "path": ["lootboxes", "6576f1234567890123456789"]
+            },
+            "description": "Получает подробную информацию о лутбоксе по его ID"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Management",
+      "description": "Админские эндпоинты для управления лутбоксами (требуют авторизацию)",
+      "item": [
+        {
+          "name": "Создать лутбокс",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "authorization",
+                "value": "{{admin_token}}",
+                "description": "Токен администратора"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "title", "value": "Лутбокс новичка", "type": "text" },
+                {
+                  "key": "description",
+                  "value": "Базовый лутбокс для новых пользователей",
+                  "type": "text"
+                },
+                { "key": "image", "type": "file", "src": "" },
+                {
+                  "key": "items",
+                  "value": "[{\"type\":\"stars\",\"amount\":50,\"chance\":0.2}]",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/lootboxes",
+              "host": ["{{base_url}}"],
+              "path": ["lootboxes"]
+            },
+            "description": "Создает новый лутбокс (multipart/form-data, items - JSON строка)"
+          }
+        },
+        {
+          "name": "Обновить лутбокс",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "authorization",
+                "value": "{{admin_token}}",
+                "description": "Токен администратора"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "title", "value": "Лутбокс PRO", "type": "text" },
+                {
+                  "key": "description",
+                  "value": "Обновленное описание лутбокса",
+                  "type": "text"
+                },
+                { "key": "image", "type": "file", "src": "" },
+                {
+                  "key": "items",
+                  "value": "[{\"type\":\"exp\",\"amount\":100,\"chance\":0.5}]",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/lootboxes/6576f1234567890123456789",
+              "host": ["{{base_url}}"],
+              "path": ["lootboxes", "6576f1234567890123456789"]
+            },
+            "description": "Обновляет существующий лутбокс (multipart/form-data, items - JSON строка)"
+          }
+        },
+        {
+          "name": "Удалить лутбокс",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "authorization",
+                "value": "{{admin_token}}",
+                "description": "Токен администратора"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/lootboxes/6576f1234567890123456789",
+              "host": ["{{base_url}}"],
+              "path": ["lootboxes", "6576f1234567890123456789"]
+            },
+            "description": "Удаляет лутбокс по ID (только для админов)"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "description": "Базовый URL API сервера"
+    },
+    {
+      "key": "admin_token",
+      "value": "YOUR_ADMIN_TOKEN_HERE",
+      "description": "Токен администратора для доступа к админским эндпоинтам"
+    }
+  ]
+}

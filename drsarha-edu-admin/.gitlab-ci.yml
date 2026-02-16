@@ -1,0 +1,59 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  DOCKER_BUILDKIT: 1
+  STACK: drsarha
+  SERVICE: drsarha-edu-admin
+  STACK_DIR: '${CI_PROJECT_DIR}'
+  SERVICE_DIR: '${STACK_DIR}'
+  DOCKER_IMAGE: '${CI_REGISTRY}/${STACK}:${SERVICE}-${CI_COMMIT_SHORT_SHA}'
+
+build-image:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: ['']
+  script:
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"auth\":\"$(echo -n "json_key:${CI_REGISTRY_KEY}" | base64 | tr -d '\n' )\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor
+      --context "$SERVICE_DIR"
+      --dockerfile "${SERVICE_DIR}/Dockerfile"
+      --destination "${DOCKER_IMAGE}"
+      --cache=true
+      --snapshot-mode=time
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: always
+    - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "deploy"'
+      when: always
+    # Не запускать в других случаях
+    - when: never
+
+.deploy:
+  stage: deploy
+  image: docker:latest
+  variables:
+    DOCKER_HOST: ''
+  script:
+    - echo "${CI_REGISTRY_KEY}" | docker login ${CI_REGISTRY} -u json_key --password-stdin
+    - docker context create swarm-${ENV} --docker "host=tcp://${HOST},ca=${CA_FILE},cert=${CERT_FILE},key=${KEY_FILE}"
+    - docker --context swarm-${ENV} stack deploy -c ${FILE} --with-registry-auth ${STACK}-${ENV}
+
+deploy-to-dev:
+  extends: .deploy
+  environment:
+    name: dev
+  variables:
+    ENV: dev
+    HOST: dev.reflectai.pro:2376
+    FILE: $SERVICE_DIR/docker-compose.dev.yml
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: always
+    - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "deploy"'
+      when: always
+    # Не запускать в других случаях
+    - when: never

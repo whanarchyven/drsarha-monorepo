@@ -1,0 +1,242 @@
+{
+  "info": {
+    "_postman_id": "prizes-api-collection",
+    "name": "DrSarha Prizes API",
+    "description": "API коллекция для работы с наградами/призами в системе DrSarha. Включает публичные эндпоинты для просмотра и админские для управления.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Public - User Access",
+      "description": "Эндпоинты доступные всем пользователям для просмотра призов",
+      "item": [
+        {
+          "name": "Получить все призы",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/prizes?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["prizes"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Номер страницы (опционально)"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Количество призов на страницу (опционально)"
+                },
+                {
+                  "key": "level",
+                  "value": "5",
+                  "description": "Фильтр по уровню (опционально)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Получает список всех призов с возможностью пагинации и фильтрации по уровню"
+          }
+        },
+        {
+          "name": "Получить приз по ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/prizes/6576f1234567890123456789",
+              "host": ["{{base_url}}"],
+              "path": ["prizes", "6576f1234567890123456789"]
+            },
+            "description": "Получает подробную информацию о конкретном призе по его ID"
+          }
+        },
+        {
+          "name": "Получить призы по уровню",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/prizes/level/5",
+              "host": ["{{base_url}}"],
+              "path": ["prizes", "level", "5"]
+            },
+            "description": "Получает все призы, доступные для определенного уровня пользователя"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Management",
+      "description": "Административные эндпоинты для управления призами (требуют авторизацию)",
+      "item": [
+        {
+          "name": "Создать новый приз",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "authorization",
+                "value": "{{admin_token}}",
+                "description": "Токен администратора"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Золотая медаль\",\n    \"image\": \"/images/prizes/gold-medal.png\",\n    \"description\": \"Престижная награда за выдающиеся достижения в изучении медицины\",\n    \"level\": 10,\n    \"price\": 1000\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/prizes",
+              "host": ["{{base_url}}"],
+              "path": ["prizes"]
+            },
+            "description": "Создает новый приз в системе (только для администраторов)"
+          }
+        },
+        {
+          "name": "Обновить приз",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "authorization",
+                "value": "{{admin_token}}",
+                "description": "Токен администратора"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Платиновая медаль\",\n    \"image\": \"/images/prizes/platinum-medal.png\",\n    \"description\": \"Обновленное описание для премиум награды\",\n    \"level\": 15,\n    \"price\": 1500\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/prizes/6576f1234567890123456789",
+              "host": ["{{base_url}}"],
+              "path": ["prizes", "6576f1234567890123456789"]
+            },
+            "description": "Обновляет информацию о существующем призе (только для администраторов)"
+          }
+        },
+        {
+          "name": "Удалить приз",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "authorization",
+                "value": "{{admin_token}}",
+                "description": "Токен администратора"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/prizes/6576f1234567890123456789",
+              "host": ["{{base_url}}"],
+              "path": ["prizes", "6576f1234567890123456789"]
+            },
+            "description": "Удаляет приз из системы (только для администраторов)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Test Scenarios",
+      "description": "Готовые сценарии для тестирования различных случаев использования",
+      "item": [
+        {
+          "name": "Получить призы для начинающего (уровень 1)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/prizes/level/1",
+              "host": ["{{base_url}}"],
+              "path": ["prizes", "level", "1"]
+            },
+            "description": "Тестирует получение призов для пользователей 1-го уровня"
+          }
+        },
+        {
+          "name": "Получить призы для эксперта (уровень 10)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/prizes/level/10",
+              "host": ["{{base_url}}"],
+              "path": ["prizes", "level", "10"]
+            },
+            "description": "Тестирует получение призов для пользователей высокого уровня"
+          }
+        },
+        {
+          "name": "Пагинация - первая страница",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/prizes?page=1&limit=5",
+              "host": ["{{base_url}}"],
+              "path": ["prizes"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "5"
+                }
+              ]
+            },
+            "description": "Тестирует пагинацию - получение первых 5 призов"
+          }
+        },
+        {
+          "name": "Фильтрация по уровню через query",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/prizes?level=5&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["prizes"],
+              "query": [
+                {
+                  "key": "level",
+                  "value": "5"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Тестирует фильтрацию призов по уровню через query параметр"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "description": "Базовый URL API сервера"
+    },
+    {
+      "key": "admin_token",
+      "value": "YOUR_ADMIN_TOKEN_HERE",
+      "description": "Токен администратора для доступа к админским эндпоинтам"
+    }
+  ]
+}

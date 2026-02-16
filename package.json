@@ -1,0 +1,17 @@
+{
+  "name": "drsarha-monorepo",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n backend,admin -c magenta,cyan \"pnpm dev:backend\" \"pnpm dev:admin\"",
+    "dev:admin": "pnpm -C drsarha-edu-admin dev",
+    "dev:backend": "pnpm -C drsarha-backend dev",
+    "build": "pnpm build:admin",
+    "build:admin": "pnpm -C drsarha-edu-admin build",
+    "lint:admin": "pnpm -C drsarha-edu-admin lint",
+    "format:admin": "pnpm -C drsarha-edu-admin format",
+    "format:fix:admin": "pnpm -C drsarha-edu-admin format:fix"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.0"
+  }
+}

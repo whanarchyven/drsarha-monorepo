@@ -1,0 +1,256 @@
+{
+  "info": {
+    "name": "Pin Reports API",
+    "_postman_id": "pin-reports-api-collection",
+    "description": "API для модерации пинов через репорты и админ-операции",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000", "type": "string" },
+    { "key": "adminId", "value": "eWPXEHsSCWFA", "type": "string" },
+    {
+      "key": "testPinId",
+      "value": "507f1f77bcf86cd799439011",
+      "type": "string"
+    },
+    { "key": "testTypeId", "value": "", "type": "string" },
+    {
+      "key": "reporterId",
+      "value": "507f1f77bcf86cd799439012",
+      "type": "string"
+    },
+    { "key": "reportId", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Report Types",
+      "description": "CRUD типов репортов",
+      "item": [
+        {
+          "name": "Create report type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "var json = pm.response.json();",
+                  "pm.expect(json).to.have.property('_id');",
+                  "pm.collectionVariables.set('testTypeId', json._id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Спам/реклама\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/pin-report-types/",
+              "host": ["{{baseUrl}}"],
+              "path": ["pin-report-types", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get report types",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pin-report-types/?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["pin-report-types", ""],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update report type",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Нарушение авторских прав\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/pin-report-types/{{testTypeId}}/",
+              "host": ["{{baseUrl}}"],
+              "path": ["pin-report-types", "{{testTypeId}}", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete report type",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pin-report-types/{{testTypeId}}/",
+              "host": ["{{baseUrl}}"],
+              "path": ["pin-report-types", "{{testTypeId}}", ""]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Pin Reports",
+      "description": "Операции с репортами на пины",
+      "item": [
+        {
+          "name": "Create report",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('reportId', json._id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pinId\": \"{{testPinId}}\",\n  \"typeId\": \"{{testTypeId}}\",\n  \"reporterId\": \"{{reporterId}}\",\n  \"comment\": \"Кейс нарушает правила сообщества.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/pin-reports/",
+              "host": ["{{baseUrl}}"],
+              "path": ["pin-reports", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get all reports",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pin-reports/?page=1&limit=20&status=new",
+              "host": ["{{baseUrl}}"],
+              "path": ["pin-reports", ""],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "status", "value": "new" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get report by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pin-reports/{{reportId}}/",
+              "host": ["{{baseUrl}}"],
+              "path": ["pin-reports", "{{reportId}}", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Reject report",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "admin-id", "value": "{{adminId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"adminComment\": \"Не нарушает правила.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/pin-reports/{{reportId}}/reject/",
+              "host": ["{{baseUrl}}"],
+              "path": ["pin-reports", "{{reportId}}", "reject", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Approve report",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "admin-id", "value": "{{adminId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"adminComment\": \"Удаляем кейс, штраф и награда.\",\n  \"fine\": 10,\n  \"reward\": 5\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/pin-reports/{{reportId}}/approve/",
+              "host": ["{{baseUrl}}"],
+              "path": ["pin-reports", "{{reportId}}", "approve", ""]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "description": "Админ-операции без репорта",
+      "item": [
+        {
+          "name": "Admin delete pin with penalty",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "admin-id", "value": "{{adminId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pinId\": \"{{testPinId}}\",\n  \"adminComment\": \"Грубое нарушение.\",\n  \"fine\": 15\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/pin-reports/admin/delete-pin/",
+              "host": ["{{baseUrl}}"],
+              "path": ["pin-reports", "admin", "delete-pin", ""]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test('Response time < 3000ms', function () { pm.expect(pm.response.responseTime).to.be.below(3000); });"
+        ]
+      }
+    }
+  ]
+}
