@@ -3,6 +3,7 @@ const nextConfig = {
   reactStrictMode: false,
   env: {
     NEXT_PUBLIC_CONVEX_URL: process.env.CONVEX_URL,
+    NEXT_PUBLIC_ADMIN_ID: process.env.ADMIN_ID,
   },
   experimental: {
     externalDir: true,

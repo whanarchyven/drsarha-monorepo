@@ -45,11 +45,18 @@ export const uploadToS3 = internalAction({
     fileType: v.union(v.literal("images"), v.literal("pdf"), v.literal("video")),
   },
   handler: async (ctx, { file, fileType }) => {
+    const startedAt = Date.now();
+    console.log("[uploadToS3] start", {
+      fileType,
+      contentType: file.contentType,
+      base64Size: file.base64.length,
+    });
     const bucket = process.env.S3_BUCKET_NAME;
     if (!bucket) throw new Error("S3_BUCKET_NAME required in Convex env");
 
     let fileToUpload = file;
     if (fileType === "images" && isHeicContentType(file.contentType)) {
+      console.log("[uploadToS3] converting HEIC to JPEG");
       fileToUpload = await ctx.runAction(internal.helpers.upload.convertHeicToJpeg, { file });
     }
 
@@ -59,14 +66,54 @@ export const uploadToS3 = internalAction({
     const key = prefix ? `${prefix}/${fileType}/${filename}` : `${fileType}/${filename}`;
     const relativePath = `${fileType}/${filename}`;
 
-    await ctx.runAction(internal.helpers.s3.putObjectBase64, {
-      bucket,
-      key,
-      bodyBase64: fileToUpload.base64,
-      contentType: fileToUpload.contentType,
-    });
+    try {
+      console.log("[uploadToS3] uploading", { key, bucket });
+      await ctx.runAction(internal.helpers.s3.putObjectBase64, {
+        bucket,
+        key,
+        bodyBase64: fileToUpload.base64,
+        contentType: fileToUpload.contentType,
+      });
+      console.log("[uploadToS3] uploaded", {
+        key,
+        ms: Date.now() - startedAt,
+      });
+    } catch (error) {
+      console.error("[uploadToS3] upload failed", {
+        key,
+        ms: Date.now() - startedAt,
+        error,
+      });
+      throw error;
+    }
 
     return relativePath;
+  },
+});
+
+export const getUploadUrl = internalAction({
+  args: {
+    fileType: v.union(v.literal("images"), v.literal("pdf"), v.literal("video")),
+    contentType: v.string(),
+  },
+  handler: async (ctx, { fileType, contentType }) => {
+    const bucket = process.env.S3_BUCKET_NAME;
+    if (!bucket) throw new Error("S3_BUCKET_NAME required in Convex env");
+
+    const ext = EXT_BY_FILE_TYPE[fileType] ?? ".bin";
+    const filename = `${crypto.randomUUID()}${ext}`;
+    const prefix = process.env.S3_IMAGE_DIRECTORY?.replace(/\/$/, "") ?? "";
+    const key = prefix ? `${prefix}/${fileType}/${filename}` : `${fileType}/${filename}`;
+    const relativePath = `${fileType}/${filename}`;
+
+    const { url } = await ctx.runAction(internal.helpers.s3.getPresignedPutUrl, {
+      bucket,
+      key,
+      contentType,
+      expiresIn: 300,
+    });
+
+    return { uploadUrl: url, relativePath };
   },
 });
 

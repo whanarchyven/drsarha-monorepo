@@ -3,6 +3,19 @@ import { v } from "convex/values";
 import { nozologyDoc } from "../models/nozology";
 import { api, internal } from "../_generated/api";
 
+const sortByIdx = (items: any[]) =>
+  items.slice().sort((a, b) => {
+    const aIdx = a.idx;
+    const bIdx = b.idx;
+    if (aIdx === undefined && bIdx === undefined) {
+      return (a._creationTime ?? 0) - (b._creationTime ?? 0);
+    }
+    if (aIdx === undefined) return 1;
+    if (bIdx === undefined) return -1;
+    if (aIdx !== bIdx) return aIdx - bIdx;
+    return (a._creationTime ?? 0) - (b._creationTime ?? 0);
+  });
+
 // Base list of nozologies
 export const list = query({
   args: {},
@@ -10,7 +23,7 @@ export const list = query({
   handler: async ({ db }) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const items = await (db as any).query("nozologies").collect();
-    return items;
+    return sortByIdx(items as any);
   },
 });
 
@@ -18,7 +31,7 @@ export const getById = query({
   args: { id: v.id("nozologies") },
   returns: v.union(nozologyDoc, v.null()),
   handler: async ({ db }, { id }) => {
-    return await db.get(id);
+    return (await db.get(id)) as any;
   },
 });
 
@@ -94,12 +107,13 @@ export const insert = mutation({
     cover_image: v.optional(v.string()),
     description: v.optional(v.string()),
     category_id: v.optional(v.string()),
+    idx: v.optional(v.number()),
   }),
   returns: nozologyDoc,
   handler: async ({ db }, args) => {
     const id = await db.insert("nozologies", args as any);
     const doc = await db.get(id);
-    return doc;
+    return doc as any;
   },
 });
 
@@ -111,13 +125,14 @@ export const update = mutation({
       cover_image: v.optional(v.string()),
       description: v.optional(v.string()),
       category_id: v.optional(v.string()),
+      idx: v.optional(v.number()),
     }),
   },
   returns: nozologyDoc,
   handler: async ({ db }, { id, data }) => {
     await db.patch(id, data as any);
     const doc = await db.get(id);
-    return doc;
+    return doc as any;
   },
 });
 
@@ -137,6 +152,7 @@ export const create = action({
     cover: v.optional(v.object({ base64: v.string(), contentType: v.string() })),
     description: v.optional(v.string()),
     category_id: v.optional(v.string()),
+    idx: v.optional(v.number()),
   },
   returns: nozologyDoc,
   handler: async (ctx, args) => {
@@ -153,6 +169,7 @@ export const create = action({
       cover_image: coverPath,
       description: args.description,
       category_id: args.category_id,
+      ...(args.idx !== undefined ? { idx: args.idx } : {}),
     });
     return created;
   },
@@ -165,6 +182,7 @@ export const updateAction = action({
     name: v.optional(v.string()),
     description: v.optional(v.string()),
     category_id: v.optional(v.string()),
+    idx: v.optional(v.number()),
     cover: v.optional(v.object({ base64: v.string(), contentType: v.string() })),
   },
   returns: nozologyDoc,
@@ -173,12 +191,14 @@ export const updateAction = action({
       name?: string;
       description?: string;
       category_id?: string;
+      idx?: number;
       cover_image?: string;
     } = {};
 
     if (args.name) data.name = args.name;
     if (args.description) data.description = args.description;
     if (args.category_id) data.category_id = args.category_id;
+    if (args.idx !== undefined) data.idx = args.idx;
     if (args.cover) {
       const coverPath = await ctx.runAction((internal as any).helpers.upload.uploadToS3, {
         file: args.cover,

@@ -34,6 +34,10 @@ import {
 const formSchema = z.object({
   name: z.string().min(2, 'Минимум 2 символа'),
   description: z.string().min(2, 'Минимум 2 символа'),
+  idx: z.preprocess(
+    (value) => (value === '' || value === null || value === undefined ? undefined : Number(value)),
+    z.number().int().nonnegative().optional()
+  ),
   cover_image: z.any(),
   category_id: z.string().min(1, 'Выберите категорию'),
 });
@@ -58,12 +62,14 @@ export function NozologyForm({ initialData }: NozologyFormProps) {
       ? {
           name: initialData.name,
           description: initialData.description,
+          idx: initialData.idx ?? undefined,
           cover_image: initialData.cover_image ?? '',
           category_id: String(initialData.category_id ?? ''),
         }
       : {
           name: '',
           description: '',
+          idx: undefined,
           cover_image: '',
           category_id: '',
         },
@@ -102,6 +108,7 @@ export function NozologyForm({ initialData }: NozologyFormProps) {
           name?: string;
           description?: string;
           category_id?: string;
+          idx?: number;
           cover?: { base64: string; contentType: string };
         } = {
           id: initialData._id as Id<'nozologies'>,
@@ -109,6 +116,9 @@ export function NozologyForm({ initialData }: NozologyFormProps) {
           description: values.description,
           category_id: values.category_id,
         };
+        if (values.idx !== undefined) {
+          args.idx = values.idx;
+        }
         if (coverFile) {
           args.cover = {
             base64: await fileToBase64(coverFile),
@@ -122,12 +132,16 @@ export function NozologyForm({ initialData }: NozologyFormProps) {
           name: string;
           description?: string;
           category_id?: string;
+          idx?: number;
           cover?: { base64: string; contentType: string };
         } = {
           name: values.name,
           description: values.description,
           category_id: values.category_id,
         };
+        if (values.idx !== undefined) {
+          args.idx = values.idx;
+        }
         if (coverFile) {
           args.cover = {
             base64: await fileToBase64(coverFile),
@@ -168,6 +182,27 @@ export function NozologyForm({ initialData }: NozologyFormProps) {
               <FormLabel>Описание</FormLabel>
               <FormControl>
                 <Textarea placeholder="Введите описание..." {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="idx"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Индекс вывода</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="Введите индекс..."
+                  value={field.value ?? ''}
+                  onChange={(e) =>
+                    field.onChange(e.target.value === '' ? undefined : Number(e.target.value))
+                  }
+                />
               </FormControl>
               <FormMessage />
             </FormItem>

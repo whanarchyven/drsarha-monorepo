@@ -8,20 +8,17 @@ import { Edit, Trash2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Pagination } from '@/shared/ui/pagination';
 import { DeleteLectionDialog } from './DeleteLectionDialog';
-import { lectionsApi } from '@/shared/api/lections';
-import type { Lection } from '@/shared/models/Lection';
 import LectionCard from '@/components/ui/lection-card';
+import { api } from '@convex/_generated/api';
+import type { FunctionReturnType } from 'convex/server';
+import type { Id } from '@convex/_generated/dataModel';
 
 interface LectionsGridProps {
-  data: Lection[];
+  data: FunctionReturnType<typeof api.functions.lections.list>['items'] | undefined;
   isLoading: boolean;
-  pagination: {
-    total: number;
-    page: number;
-    totalPages: number;
-    hasMore: boolean;
-  };
+  pagination: FunctionReturnType<typeof api.functions.lections.list> | undefined;
   onPageChange: (page: number) => void;
+  onDelete: (id: Id<'lections'>) => Promise<void>;
 }
 
 export function LectionsGrid({
@@ -29,22 +26,21 @@ export function LectionsGrid({
   isLoading,
   pagination,
   onPageChange,
+  onDelete,
 }: LectionsGridProps) {
   const router = useRouter();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [lectionToDelete, setLectionToDelete] = useState<string | null>(null);
+  const [lectionToDelete, setLectionToDelete] = useState<Id<'lections'> | null>(null);
 
   const handleDelete = async () => {
     if (!lectionToDelete) return;
 
     try {
       setIsDeleting(true);
-      await lectionsApi.delete(lectionToDelete);
+      await onDelete(lectionToDelete);
       setIsDeleteDialogOpen(false);
-      // Перезагружаем текущую страницу
       router.refresh();
-      window.location.reload();
     } catch (error) {
       console.error('Error deleting lection:', error);
     } finally {
@@ -53,7 +49,7 @@ export function LectionsGrid({
     }
   };
 
-  const openDeleteDialog = (id: string) => {
+  const openDeleteDialog = (id: Id<'lections'>) => {
     setLectionToDelete(id);
     setIsDeleteDialogOpen(true);
   };
@@ -72,7 +68,7 @@ export function LectionsGrid({
     );
   }
 
-  const handleEdit = (id: string) => {
+  const handleEdit = (id: Id<'lections'>) => {
     router.push(`/knowledge/lections/${id}/edit`);
   };
 
@@ -80,12 +76,12 @@ export function LectionsGrid({
     <>
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {data.map((lection) => {
+          {data?.map((lection) => {
             if (lection._id) {
               return (
                 <LectionCard
                   key={lection._id}
-                  id={lection._id}
+                  id={String(lection._id)}
                   {...lection}
                   onDelete={() => openDeleteDialog(lection._id!)}
                   onEdit={() => {
@@ -97,14 +93,14 @@ export function LectionsGrid({
           })}
         </div>
 
-        {pagination.totalPages >= 1 && (
+        {(pagination?.totalPages ?? 0) >= 1 && (
           <div className="flex items-center justify-between mt-6">
             <div className="text-sm text-muted-foreground">
-              Всего: {pagination?.total}
+              Всего: {pagination?.total ?? 0}
             </div>
             <Pagination
-              currentPage={pagination.page}
-              totalPages={pagination.totalPages}
+              currentPage={pagination?.page ?? 1}
+              totalPages={pagination?.totalPages ?? 1}
               onPageChange={onPageChange}
               disabled={isLoading}
             />

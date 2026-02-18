@@ -1,31 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { BrochureForm } from '../../_components/BrochureForm';
-import { brochuresApi } from '@/shared/api/brochures';
-import type { Brochure } from '@/shared/models/Brochure';
+import { useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
 
 export default function EditBrochurePage({
   params,
 }: {
   params: { id: string };
 }) {
-  const [brochure, setBrochure] = useState<Brochure | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchBrochure = async () => {
-      try {
-        const data = await brochuresApi.getById(params.id);
-        setBrochure(data);
-      } catch (error) {
-        console.error('Error fetching brochure:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchBrochure();
-  }, [params.id]);
+  const brochureId = params.id as Id<'brochures'>;
+  const brochure = useQuery(api.functions.brochures.getById, {
+    id: brochureId,
+  });
+  const isLoading = brochure === undefined;
 
   if (isLoading) {
     return <div>Загрузка...</div>;

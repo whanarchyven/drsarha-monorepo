@@ -1,22 +1,9 @@
 'use client';
 
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-} from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileText, Download, Plus, Edit, Trash2, Search } from 'lucide-react';
+import { FileText, Plus, Edit, Trash2, Search } from 'lucide-react';
 import Image from 'next/image';
-import type { Brochure } from '@/shared/models/Brochure';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { MoreVertical } from 'lucide-react';
 import { BrochureSkeletonGrid } from './BrochureSkeleton';
 import { Input } from '@/components/ui/input';
 import {
@@ -34,18 +21,19 @@ import { Pagination } from '@/shared/ui/pagination';
 import { useDebounce } from '@/shared/hooks/useDebounce';
 import { getContentUrl } from '@/shared/utils/url';
 import { copyToClipboardWithToast } from '@/shared/utils/copyToClipboard';
+import { api } from '@convex/_generated/api';
+import type { FunctionReturnType } from 'convex/server';
+import type { Id } from '@convex/_generated/dataModel';
+
+type BrochureList = FunctionReturnType<typeof api.functions.brochures.list>;
+type BrochureItem = BrochureList['items'][number];
 
 interface BrochureGridProps {
-  data: Brochure[];
+  data: BrochureItem[] | undefined;
   isLoading: boolean;
-  pagination: {
-    total: number;
-    page: number;
-    totalPages: number;
-    hasMore: boolean;
-  };
-  onEdit: (id: string) => void;
-  onDelete: (id: string) => void;
+  pagination: BrochureList | undefined;
+  onEdit: (id: Id<'brochures'>) => void;
+  onDelete: (id: Id<'brochures'>) => void;
   onCreate: () => void;
   onSearch: (params: { search?: string; page?: number }) => void;
 }
@@ -59,7 +47,7 @@ export function BrochureGrid({
   onCreate,
   onSearch,
 }: BrochureGridProps) {
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<Id<'brochures'> | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 300);
 
@@ -68,7 +56,7 @@ export function BrochureGrid({
     onSearch({ search: debouncedSearch, page: 1 });
   }, [debouncedSearch]);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: Id<'brochures'>) => {
     setDeleteId(null);
     onDelete(id);
   };
@@ -99,10 +87,10 @@ export function BrochureGrid({
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6">
-              {data.map((brochure) => (
+              {data?.map((brochure) => (
                 <Card key={brochure._id} className="flex flex-col">
                   <CardHeader className="p-0 relative">
-                    <div className="relative aspect-[1/1] w-full">
+                    <div className="relative aspect-video w-full">
                       <Image
                         src={getContentUrl(brochure.cover_image)}
                         alt={brochure.name}
@@ -113,7 +101,7 @@ export function BrochureGrid({
                         variant="outline"
                         className="absolute top-2 right-2"
                         onClick={async () =>
-                          await copyToClipboardWithToast(brochure._id as string)
+                          await copyToClipboardWithToast(String(brochure._id))
                         }>
                         {brochure._id}
                       </Button>
@@ -138,13 +126,13 @@ export function BrochureGrid({
                       <Button
                         variant="outline"
                         className="flex-1"
-                        onClick={() => onEdit(brochure._id as string)}>
+                        onClick={() => onEdit(brochure._id)}>
                         <Edit className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="destructive"
                         className="flex-1"
-                        onClick={() => setDeleteId(brochure._id as string)}>
+                        onClick={() => setDeleteId(brochure._id)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -155,11 +143,11 @@ export function BrochureGrid({
 
             <div className="flex items-center justify-between mt-6">
               <div className="text-sm text-muted-foreground">
-                Всего: {pagination?.total}
+                Всего: {pagination?.total ?? 0}
               </div>
               <Pagination
-                currentPage={pagination.page}
-                totalPages={pagination.totalPages}
+                currentPage={pagination?.page ?? 1}
+                totalPages={pagination?.totalPages ?? 1}
                 onPageChange={(page) => onSearch({ search: searchTerm, page })}
                 disabled={isLoading}
               />

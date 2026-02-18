@@ -15,7 +15,10 @@ import {
   FormDescription,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { useNozologiesStore } from '@/shared/store/nozologiesStore';
+import { useAction, useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import type { FunctionReturnType } from 'convex/server';
+import type { Id } from '@convex/_generated/dataModel';
 import {
   Select,
   SelectContent,
@@ -23,8 +26,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { brochuresApi } from '@/shared/api/brochures';
-import type { Brochure } from '@/shared/models/Brochure';
 import {
   Card,
   CardContent,
@@ -37,6 +38,7 @@ import { Loader2, Upload } from 'lucide-react';
 import { getContentUrl } from '@/shared/utils/url';
 import Image from 'next/image';
 import { Checkbox } from '@/components/ui/checkbox';
+import { toast } from 'sonner';
 
 const publishAfterSchema = z.preprocess(
   (value) =>
@@ -50,6 +52,10 @@ const formSchema = z.object({
   cover_image: z.any(),
   nozology: z.string().min(1, 'Выберите нозологию'),
   publishAfter: publishAfterSchema,
+  idx: z.preprocess(
+    (value) => (value === '' || value === null || value === undefined ? undefined : Number(value)),
+    z.number().int().nonnegative().optional()
+  ),
   app_visible: z.boolean().default(false),
   references: z
     .array(
@@ -62,12 +68,20 @@ const formSchema = z.object({
 });
 
 interface BrochureFormProps {
-  initialData?: Brochure;
+  initialData?: NonNullable<
+    FunctionReturnType<typeof api.functions.brochures.getById>
+  >;
 }
+type NozologyItem = FunctionReturnType<
+  typeof api.functions.nozologies.list
+>[number];
 
 export function BrochureForm({ initialData }: BrochureFormProps) {
   const router = useRouter();
-  const { items: nozologies } = useNozologiesStore();
+  const nozologies =
+    (useQuery(api.functions.nozologies.list, {}) as NozologyItem[]) ?? [];
+  const createBrochure = useAction(api.functions.brochures.create);
+  const updateBrochure = useAction(api.functions.brochures.updateAction);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
@@ -78,57 +92,153 @@ export function BrochureForm({ initialData }: BrochureFormProps) {
   const [newReferenceName, setNewReferenceName] = useState('');
   const [newReferenceUrl, setNewReferenceUrl] = useState('');
 
+  const normalizePublishAfter = (
+    value: string | number | Date | undefined
+  ): string => {
+    if (!value) return '';
+    if (value instanceof Date) return value.toISOString().slice(0, 10);
+    if (typeof value === 'number') {
+      return new Date(value).toISOString().slice(0, 10);
+    }
+    const asNumber = Number(value);
+    if (!Number.isNaN(asNumber) && value.trim() !== '') {
+      return new Date(asNumber).toISOString().slice(0, 10);
+    }
+    return value.slice(0, 10);
+  };
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: initialData?.name || '',
       pdf_file: initialData?.pdf_file || '',
       cover_image: initialData?.cover_image || '',
-      nozology: initialData?.nozology || '',
-      publishAfter: initialData?.publishAfter
-        ? typeof initialData.publishAfter === 'string'
-          ? initialData.publishAfter.slice(0, 10)
-          : initialData.publishAfter instanceof Date
-            ? initialData.publishAfter.toISOString().slice(0, 10)
-            : String(initialData.publishAfter).slice(0, 10)
-        : '',
+      nozology: initialData?.nozology ? String(initialData.nozology) : '',
+      publishAfter: normalizePublishAfter(initialData?.publishAfter),
+      idx: initialData?.idx ?? undefined,
       app_visible: initialData?.app_visible || false,
       references: initialData?.references || [],
     },
   });
 
+  const fileToBase64 = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result?.toString() || '';
+        const base64 = result.includes(',') ? result.split(',')[1] : result;
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    try {
-      setIsSubmitting(true);
+    setIsSubmitting(true);
 
-      const formData = new FormData();
-      formData.append('name', values.name);
-      formData.append('nozology', values.nozology);
-      if (values.publishAfter) {
-        formData.append('publishAfter', values.publishAfter);
-      }
-
-      if (pdfFile) {
-        formData.append('pdf_file', pdfFile);
-      }
-
-      if (coverFile) {
-        formData.append('cover_image', coverFile);
-      }
-
-      formData.append('app_visible', values.app_visible.toString());
-      formData.append('references', JSON.stringify(references));
+    const submitPromise = (async () => {
+      const publishAfter =
+        values.publishAfter && values.publishAfter.length
+          ? new Date(values.publishAfter).getTime()
+          : undefined;
 
       if (initialData) {
-        await brochuresApi.update(initialData._id, formData);
-      } else {
-        await brochuresApi.create(formData);
+        const args: {
+          id: Id<'brochures'>;
+          name?: string;
+          nozology?: string;
+          cover?: { base64: string; contentType: string };
+          pdf?: { base64: string; contentType: string };
+          publishAfter?: number;
+          app_visible?: boolean;
+          idx?: number;
+          references?: Array<{ name: string; url: string }>;
+        } = {
+          id: initialData._id as Id<'brochures'>,
+          name: values.name,
+          nozology: values.nozology,
+          publishAfter,
+          app_visible: values.app_visible,
+          references,
+        };
+        if (values.idx !== undefined) {
+          args.idx = values.idx;
+        }
+        if (pdfFile) {
+          args.pdf = {
+            base64: await fileToBase64(pdfFile),
+            contentType: pdfFile.type || 'application/pdf',
+          };
+        }
+        if (coverFile) {
+          args.cover = {
+            base64: await fileToBase64(coverFile),
+            contentType: coverFile.type || 'application/octet-stream',
+          };
+        }
+        await updateBrochure(args);
+        return { mode: 'updated' as const };
       }
 
-      // router.push('/knowledge/brochures');
-      // router.refresh();
-    } catch (error) {
-      console.error('Error submitting form:', error);
+      if (!pdfFile) {
+        form.setError('pdf_file', {
+          type: 'manual',
+          message: 'PDF файл обязателен',
+        });
+        throw new Error('PDF файл обязателен');
+      }
+      if (!coverFile) {
+        form.setError('cover_image', {
+          type: 'manual',
+          message: 'Обложка обязательна',
+        });
+        throw new Error('Обложка обязательна');
+      }
+
+      const args: {
+        name: string;
+        nozology: string;
+        cover: { base64: string; contentType: string };
+        pdf: { base64: string; contentType: string };
+        publishAfter?: number;
+        app_visible?: boolean;
+        idx?: number;
+        references?: Array<{ name: string; url: string }>;
+      } = {
+        name: values.name,
+        nozology: values.nozology,
+        cover: {
+          base64: await fileToBase64(coverFile),
+          contentType: coverFile.type || 'application/octet-stream',
+        },
+        pdf: {
+          base64: await fileToBase64(pdfFile),
+          contentType: pdfFile.type || 'application/pdf',
+        },
+        publishAfter,
+        app_visible: values.app_visible,
+        references,
+      };
+      if (values.idx !== undefined) {
+        args.idx = values.idx;
+      }
+      await createBrochure(args);
+      return { mode: 'created' as const };
+    })();
+
+    try {
+      await toast.promise(submitPromise, {
+        loading: 'Сохранение брошюры...',
+        success: (data) =>
+          data.mode === 'updated'
+            ? 'Брошюра обновлена'
+            : 'Брошюра создана',
+        error: 'Ошибка сохранения брошюры',
+      });
+      router.push('/knowledge/brochures');
+      router.refresh();
+    } catch {
+      return;
     } finally {
       setIsSubmitting(false);
     }
@@ -292,7 +402,9 @@ export function BrochureForm({ initialData }: BrochureFormProps) {
                     </FormControl>
                     <SelectContent>
                       {nozologies.map((nozology) => (
-                        <SelectItem key={nozology._id} value={nozology._id}>
+                        <SelectItem
+                          key={nozology._id}
+                          value={String(nozology._id)}>
                           {nozology.name}
                         </SelectItem>
                       ))}
@@ -314,6 +426,30 @@ export function BrochureForm({ initialData }: BrochureFormProps) {
                   <FormLabel>Дата публикации</FormLabel>
                   <FormControl>
                     <Input type="date" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="idx"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Индекс вывода</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min={0}
+                      placeholder="Введите индекс..."
+                      value={field.value ?? ''}
+                      onChange={(e) =>
+                        field.onChange(
+                          e.target.value === '' ? undefined : Number(e.target.value)
+                        )
+                      }
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

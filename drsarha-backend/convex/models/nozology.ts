@@ -7,6 +7,7 @@ export const nozologyFields = {
   description: v.optional(v.union(v.string(), v.null())),
   category_id: v.union(v.id("categories"), v.string()),
   mongoId: v.optional(v.string()),
+  idx: v.optional(v.number()),
 };
 
 export const nozologiesTable = defineTable(nozologyFields)

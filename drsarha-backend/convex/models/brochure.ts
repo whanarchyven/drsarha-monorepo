@@ -9,6 +9,7 @@ export const brochureFields = {
   nozology: v.union(v.id("nozologies"), v.string()),
   // External stable id from MongoDB
   mongoId: v.optional(v.string()),
+  idx: v.optional(v.number()),
   publishAfter: v.optional(v.number()),
   app_visible: v.optional(v.boolean()),
   references: v.optional(v.array(v.object({ name: v.union(v.string(), v.null()), url: v.string() }))),
@@ -22,6 +23,10 @@ export type BrochureCreateInput = {
   pdf_file: string;
   nozology: string;
   mongoId?: string;
+  idx?: number;
+  publishAfter?: number;
+  app_visible?: boolean;
+  references?: Array<{ name: string | null; url: string }>;
 };
 
 export type BrochureUpdateInput = Partial<BrochureCreateInput>;

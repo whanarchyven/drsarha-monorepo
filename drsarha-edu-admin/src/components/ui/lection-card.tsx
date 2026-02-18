@@ -12,7 +12,6 @@ import {
   BarChart,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { lectionsApi } from '@/shared/api/lections';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -89,15 +88,7 @@ export default function LectureCard({
     notes_average: null,
   });
 
-  const [statsPopOpen, setStatsPopOpen] = useState(false);
-
-  useEffect(() => {
-    const fetchStatistics = async () => {
-      const stats = await lectionsApi.getStatistics(id);
-      setStatistics(stats);
-    };
-    fetchStatistics();
-  }, [id]);
+  
   return (
     <>
       <Card className="overflow-hidden">
@@ -158,31 +149,11 @@ export default function LectureCard({
             <Trash2 className="w-4 h-4" />
             <span className="sr-only">Удалить</span>
           </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setStatsPopOpen(true)}>
-            <BarChart className="w-4 h-4" />
-            <span className="sr-only">Статистика</span>
-          </Button>
+          
         </CardFooter>
       </Card>
 
-      <Dialog open={statsPopOpen} onOpenChange={setStatsPopOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Статистика</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p>Просмотров: {statistics.views}</p>
-            <p>Выполнено: {statistics.completed}</p>
-            <p>Время просмотра: {statistics.active_time}</p>
-            <p>Время просмотра в среднем: {statistics.active_time_average}</p>
-            <p>Заметок: {statistics.notes}</p>
-            <p>Заметок в среднем: {statistics.notes_average}</p>
-          </div>
-        </DialogContent>
-      </Dialog>
+      
       <Dialog open={videoOpen} onOpenChange={setVideoOpen}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>

@@ -4,6 +4,19 @@ import { brochureValidator, brochureDoc } from "../models/brochure";
 import type { BrochureCreateInput, BrochureUpdateInput } from "../models/brochure";
 import { api, internal } from "../_generated/api";
 
+const sortByIdx = <T extends { idx?: number; _creationTime?: number }>(items: T[]) =>
+  items.slice().sort((a, b) => {
+    const aIdx = a.idx;
+    const bIdx = b.idx;
+    if (aIdx === undefined && bIdx === undefined) {
+      return (a._creationTime ?? 0) - (b._creationTime ?? 0);
+    }
+    if (aIdx === undefined) return 1;
+    if (bIdx === undefined) return -1;
+    if (aIdx !== bIdx) return aIdx - bIdx;
+    return (a._creationTime ?? 0) - (b._creationTime ?? 0);
+  });
+
 export const list = query({
   args: {
     nozology: v.optional(v.string()),
@@ -12,6 +25,7 @@ export const list = query({
     limit: v.optional(v.number()),
     forcePublish: v.optional(v.boolean()),
     app_visible: v.optional(v.boolean()),
+    admin_id: v.optional(v.string()),
   },
   returns: v.object({
     items: v.array(brochureDoc),
@@ -20,9 +34,11 @@ export const list = query({
     totalPages: v.number(),
     hasMore: v.boolean(),
   }),
-  handler: async ({ db }, { nozology, search, page = 1, limit = 10, forcePublish, app_visible }) => {
+  handler: async ({ db }, { nozology, search, page = 1, limit = 10, forcePublish, app_visible, admin_id }) => {
     const from = (page - 1) * limit;
     const now = Date.now();
+    const isAdmin = admin_id && admin_id === process.env.ADMIN_ID;
+    const allowUnpublished = isAdmin && forcePublish !== false;
 
     const candidates = nozology
       ? await (db as any)
@@ -32,7 +48,7 @@ export const list = query({
       : await db.query("brochures").collect();
 
     // Фильтрация по publishAfter, если forcePublish не установлен
-    let filtered = forcePublish 
+    let filtered = allowUnpublished
       ? candidates 
       : candidates.filter((b: any) => {
           if (!b.publishAfter) return true; // Если publishAfter не установлен, показываем
@@ -49,8 +65,9 @@ export const list = query({
       filtered = filtered.filter((b: any) => b.name.toLowerCase().includes(search.toLowerCase()));
     }
 
-    const total = filtered.length;
-    const items = filtered.slice(from, from + limit);
+    const sorted = sortByIdx(filtered);
+    const total = sorted.length;
+    const items = sorted.slice(from, from + limit);
     const totalPages = Math.ceil(total / limit) || 1;
 
     return {
@@ -103,6 +120,7 @@ export const update = mutation({
       pdf_file: v.optional(v.string()),
       nozology: v.optional(v.string()),
       mongoId: v.optional(v.string()),
+      idx: v.optional(v.number()),
       publishAfter: v.optional(v.number()),
       app_visible: v.optional(v.boolean()),
       references: v.optional(v.array(v.object({ name: v.union(v.string(), v.null()), url: v.string() }))),
@@ -137,6 +155,7 @@ export const create = action({
     token: v.optional(v.string()),
     publishAfter: v.optional(v.number()),
     app_visible: v.optional(v.boolean()),
+    idx: v.optional(v.number()),
     references: v.optional(v.array(v.object({ name: v.union(v.string(), v.null()), url: v.string() }))),
   },
   returns: brochureDoc,
@@ -155,6 +174,7 @@ export const create = action({
       nozology: args.nozology,
       cover_image: coverPath,
       pdf_file: pdfPath,
+      ...(args.idx !== undefined ? { idx: args.idx } : {}),
       ...(args.publishAfter ? { publishAfter: args.publishAfter } : {}),
       ...(args.app_visible !== undefined ? { app_visible: args.app_visible } : {}),
       ...(args.references ? { references: args.references } : {}),
@@ -173,6 +193,7 @@ export const updateAction = action({
     pdf: v.optional(v.object({ base64: v.string(), contentType: v.string() })),
     publishAfter: v.optional(v.number()),
     app_visible: v.optional(v.boolean()),
+    idx: v.optional(v.number()),
     references: v.optional(v.array(v.object({ name: v.union(v.string(), v.null()), url: v.string() }))),
   },
   returns: brochureDoc,
@@ -184,6 +205,7 @@ export const updateAction = action({
       pdf_file?: string;
       publishAfter?: number;
       app_visible?: boolean;
+      idx?: number;
       references?: Array<{ name: string | null; url: string }>;
     } = {};
 
@@ -191,6 +213,7 @@ export const updateAction = action({
     if (args.nozology) data.nozology = args.nozology;
     if (args.publishAfter !== undefined) data.publishAfter = args.publishAfter;
     if (args.app_visible !== undefined) data.app_visible = args.app_visible;
+    if (args.idx !== undefined) data.idx = args.idx;
     if (args.references !== undefined) data.references = args.references;
 
     if (args.cover) {

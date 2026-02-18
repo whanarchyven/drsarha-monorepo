@@ -3,6 +3,19 @@ import { v } from "convex/values";
 import { lectionDoc } from "../models/lection";
 import { api, internal } from "../_generated/api";
 
+const sortByIdx = <T extends { idx?: number; _creationTime?: number }>(items: T[]) =>
+  items.slice().sort((a, b) => {
+    const aIdx = a.idx;
+    const bIdx = b.idx;
+    if (aIdx === undefined && bIdx === undefined) {
+      return (a._creationTime ?? 0) - (b._creationTime ?? 0);
+    }
+    if (aIdx === undefined) return 1;
+    if (bIdx === undefined) return -1;
+    if (aIdx !== bIdx) return aIdx - bIdx;
+    return (a._creationTime ?? 0) - (b._creationTime ?? 0);
+  });
+
 export const list = query({
   args: {
     nozology: v.optional(v.string()),
@@ -11,6 +24,7 @@ export const list = query({
     limit: v.optional(v.number()),
     forcePublish: v.optional(v.boolean()),
     app_visible: v.optional(v.boolean()),
+    admin_id: v.optional(v.string()),
   },
   returns: v.object({
     items: v.array(lectionDoc),
@@ -19,16 +33,18 @@ export const list = query({
     totalPages: v.number(),
     hasMore: v.boolean(),
   }),
-  handler: async ({ db }, { nozology, search, page = 1, limit = 10, forcePublish, app_visible }) => {
+  handler: async ({ db }, { nozology, search, page = 1, limit = 10, forcePublish, app_visible, admin_id }) => {
     const from = (page - 1) * limit;
     const now = Date.now();
+    const isAdmin = admin_id && admin_id === process.env.ADMIN_ID;
+    const allowUnpublished = isAdmin && forcePublish !== false;
     
     const candidates = nozology
       ? await (db as any).query("lections").withIndex("by_nozology", (q: any) => q.eq("nozology", nozology)).collect()
       : await db.query("lections").collect();
     
     // Фильтрация по publishAfter, если forcePublish не установлен
-    let filtered = forcePublish 
+    let filtered = allowUnpublished
       ? candidates 
       : candidates.filter((l: any) => {
           if (!l.publishAfter) return true; // Если publishAfter не установлен, показываем
@@ -45,8 +61,9 @@ export const list = query({
       filtered = filtered.filter((l: any) => l.name.toLowerCase().includes(search.toLowerCase()));
     }
     
-    const total = filtered.length;
-    const items = filtered.slice(from, from + limit);
+    const sorted = sortByIdx(filtered);
+    const total = sorted.length;
+    const items = sorted.slice(from, from + limit);
     const totalPages = Math.ceil(total / limit) || 1;
     return { items, total, page, totalPages, hasMore: page < totalPages };
   },
@@ -68,6 +85,7 @@ export const insert = mutation({
     stars: v.number(),
     feedback: v.any(),
     nozology: v.string(),
+    idx: v.optional(v.number()),
     publishAfter: v.optional(v.number()),
     app_visible: v.optional(v.boolean()),
     references: v.optional(v.array(v.object({ name: v.union(v.string(), v.null()), url: v.string() }))),
@@ -92,6 +110,7 @@ export const update = mutation({
       stars: v.optional(v.number()),
       feedback: v.optional(v.any()),
       nozology: v.optional(v.string()),
+      idx: v.optional(v.number()),
       publishAfter: v.optional(v.number()),
       app_visible: v.optional(v.boolean()),
       references: v.optional(v.array(v.object({ name: v.union(v.string(), v.null()), url: v.string() }))),
@@ -115,7 +134,9 @@ export const create = action({
   args: {
     name: v.string(),
     cover: v.object({ base64: v.string(), contentType: v.string() }),
-    video: v.object({ base64: v.string(), contentType: v.string() }),
+    video: v.optional(v.object({ base64: v.string(), contentType: v.string() })),
+    idx: v.optional(v.number()),
+    videoPath: v.optional(v.string()),
     description: v.string(),
     duration: v.string(),
     stars: v.number(),
@@ -128,7 +149,13 @@ export const create = action({
   returns: lectionDoc,
   handler: async (ctx, args) => {
     const cover_image = await ctx.runAction(internal.helpers.upload.uploadToS3, { file: args.cover, fileType: "images" });
-    const video = await ctx.runAction(internal.helpers.upload.uploadToS3, { file: args.video, fileType: "video" });
+    let video: string | undefined = args.videoPath;
+    if (!video && args.video) {
+      video = await ctx.runAction(internal.helpers.upload.uploadToS3, { file: args.video, fileType: "video" });
+    }
+    if (!video) {
+      throw new Error("Video is required");
+    }
     const created = await ctx.runMutation(api.functions.lections.insert, {
       name: args.name,
       cover_image,
@@ -138,6 +165,7 @@ export const create = action({
       stars: args.stars,
       feedback: args.feedback,
       nozology: args.nozology,
+      ...(args.idx !== undefined ? { idx: args.idx } : {}),
       ...(args.publishAfter ? { publishAfter: args.publishAfter } : {}),
       ...(args.app_visible !== undefined ? { app_visible: args.app_visible } : {}),
       ...(args.references ? { references: args.references } : {}),
@@ -152,6 +180,8 @@ export const updateAction = action({
     name: v.optional(v.string()),
     cover: v.optional(v.object({ base64: v.string(), contentType: v.string() })),
     video: v.optional(v.object({ base64: v.string(), contentType: v.string() })),
+    idx: v.optional(v.number()),
+    videoPath: v.optional(v.string()),
     description: v.optional(v.string()),
     duration: v.optional(v.string()),
     stars: v.optional(v.number()),
@@ -163,6 +193,15 @@ export const updateAction = action({
   },
   returns: lectionDoc,
   handler: async (ctx, args) => {
+    console.log("[lections.updateAction] start", {
+      id: args.id,
+      hasCover: Boolean(args.cover),
+      hasVideo: Boolean(args.video),
+      coverType: args.cover?.contentType,
+      videoType: args.video?.contentType,
+      coverSize: args.cover?.base64?.length,
+      videoSize: args.video?.base64?.length,
+    });
     const data: any = {};
     if (args.name) data.name = args.name;
     if (args.description) data.description = args.description;
@@ -172,10 +211,29 @@ export const updateAction = action({
     if (args.nozology) data.nozology = args.nozology;
     if (args.publishAfter !== undefined) data.publishAfter = args.publishAfter;
     if (args.app_visible !== undefined) data.app_visible = args.app_visible;
+    if (args.idx !== undefined) data.idx = args.idx;
     if (args.references !== undefined) data.references = args.references;
-    if (args.cover) data.cover_image = await ctx.runAction(internal.helpers.upload.uploadToS3, { file: args.cover, fileType: "images" });
-    if (args.video) data.video = await ctx.runAction(internal.helpers.upload.uploadToS3, { file: args.video, fileType: "video" });
+    if (args.cover) {
+      console.log("[lections.updateAction] uploading cover");
+      data.cover_image = await ctx.runAction(internal.helpers.upload.uploadToS3, {
+        file: args.cover,
+        fileType: "images",
+      });
+      console.log("[lections.updateAction] cover uploaded", data.cover_image);
+    }
+    if (args.videoPath) {
+      data.video = args.videoPath;
+    }
+    if (args.video) {
+      console.log("[lections.updateAction] uploading video");
+      data.video = await ctx.runAction(internal.helpers.upload.uploadToS3, {
+        file: args.video,
+        fileType: "video",
+      });
+      console.log("[lections.updateAction] video uploaded", data.video);
+    }
     const updated = await ctx.runMutation(api.functions.lections.update, { id: args.id, data });
+    console.log("[lections.updateAction] updated", updated?._id);
     return updated;
   },
 });

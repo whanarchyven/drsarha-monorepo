@@ -1,34 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { LectionForm } from '../../_components/LectionForm';
-import { useNozologiesStore } from '@/shared/store/nozologiesStore';
-import { lectionsApi } from '@/shared/api/lections';
-import type { Lection } from '@/shared/models/Lection';
+import { useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
 
 export default function EditLectionPage() {
   const { id } = useParams();
-  const { fetchNozologies } = useNozologiesStore();
-  const [lection, setLection] = useState<Lection | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setIsLoading(true);
-        const data = await lectionsApi.getById(id as string);
-        setLection(data);
-      } catch (error) {
-        console.error('Error fetching lection:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchNozologies();
-    fetchData();
-  }, [id, fetchNozologies]);
+  const lectionId = id as Id<'lections'>;
+  const lection = useQuery(api.functions.lections.getById, {
+    id: lectionId,
+  });
+  const isLoading = lection === undefined;
 
   if (isLoading) {
     return <div>Загрузка...</div>;

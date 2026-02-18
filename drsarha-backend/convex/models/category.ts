@@ -6,6 +6,7 @@ export const categoryFields = {
   cover_image: v.string(),
   description: v.string(),
   mongoId: v.optional(v.string()),
+  idx: v.optional(v.number()),
 };
 
 export const categoriesTable = defineTable(categoryFields)

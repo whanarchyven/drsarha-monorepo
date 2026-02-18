@@ -16,7 +16,10 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { useNozologiesStore } from '@/shared/store/nozologiesStore';
+import { useAction, useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import type { FunctionReturnType } from 'convex/server';
+import type { Id } from '@convex/_generated/dataModel';
 import {
   Select,
   SelectContent,
@@ -24,13 +27,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { lectionsApi } from '@/shared/api/lections';
-import type { Lection } from '@/shared/models/Lection';
 import { FeedbackQuestions } from '@/shared/ui/FeedBackQuestions/FeedbackQuestions';
 import { getContentUrl } from '@/shared/utils/url';
 import Image from 'next/image';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 const publishAfterSchema = z.preprocess(
   (value) =>
@@ -47,6 +49,10 @@ const formSchema = z.object({
   cover_image: z.any(),
   video: z.any(),
   publishAfter: publishAfterSchema,
+  idx: z.preprocess(
+    (value) => (value === '' || value === null || value === undefined ? undefined : Number(value)),
+    z.number().int().nonnegative().optional()
+  ),
   feedback: z
     .array(
       z.object({
@@ -76,17 +82,36 @@ const formSchema = z.object({
 });
 
 interface LectionFormProps {
-  initialData?: Lection;
+  initialData?: NonNullable<
+    FunctionReturnType<typeof api.functions.lections.getById>
+  >;
 }
 
 export function LectionForm({ initialData }: LectionFormProps) {
   const router = useRouter();
-  const { items: nozologies } = useNozologiesStore();
+  const nozologies = useQuery(api.functions.nozologies.list, {}) ?? [];
+  const createLection = useAction(api.functions.lections.create);
+  const updateLection = useAction(api.functions.lections.updateAction);
   const [references, setReferences] = useState<
     Array<{ name: string; url: string }>
   >(initialData?.references || []);
   const [newReferenceName, setNewReferenceName] = useState('');
   const [newReferenceUrl, setNewReferenceUrl] = useState('');
+
+  const normalizePublishAfter = (
+    value: string | number | Date | undefined
+  ): string => {
+    if (!value) return '';
+    if (value instanceof Date) return value.toISOString().slice(0, 10);
+    if (typeof value === 'number') {
+      return new Date(value).toISOString().slice(0, 10);
+    }
+    const asNumber = Number(value);
+    if (!Number.isNaN(asNumber) && value.trim() !== '') {
+      return new Date(asNumber).toISOString().slice(0, 10);
+    }
+    return value.slice(0, 10);
+  };
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -95,65 +120,146 @@ export function LectionForm({ initialData }: LectionFormProps) {
       description: initialData?.description || '',
       duration: initialData?.duration || '',
       stars: initialData?.stars || 0,
-      nozology: initialData?.nozology || '',
+      nozology: initialData?.nozology ? String(initialData.nozology) : '',
       feedback: initialData?.feedback || [],
       cover_image: undefined,
       video: undefined,
-      publishAfter: initialData?.publishAfter
-        ? typeof initialData.publishAfter === 'string'
-          ? initialData.publishAfter.slice(0, 10)
-          : initialData.publishAfter instanceof Date
-            ? initialData.publishAfter.toISOString().slice(0, 10)
-            : String(initialData.publishAfter).slice(0, 10)
-        : '',
+      publishAfter: normalizePublishAfter(initialData?.publishAfter),
+      idx: initialData?.idx ?? undefined,
       app_visible: initialData?.app_visible || false,
       references: initialData?.references || [],
     },
   });
 
+  const fileToBase64 = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result?.toString() || '';
+        const base64 = result.includes(',') ? result.split(',')[1] : result;
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  const uploadVideo = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch('/api/upload-video', {
+      method: 'POST',
+      body: formData,
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.error || 'Ошибка загрузки видео');
+    }
+    return data.path as string;
+  };
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    try {
-      const formData = new FormData();
+    const submitPromise = (async () => {
+      const publishAfter =
+        values.publishAfter && values.publishAfter.length
+          ? new Date(values.publishAfter).getTime()
+          : undefined;
 
-      // Проверяем наличие обязательных файлов при создании
-      if (!initialData && (!values.cover_image?.[0] || !values.video?.[0])) {
-        throw new Error('Обложка и видео обязательны при создании лекции');
+      const coverFile = values.cover_image?.[0];
+      const videoFile = values.video?.[0];
+
+      if (!initialData?._id) {
+        if (!coverFile) {
+          form.setError('cover_image', {
+            type: 'manual',
+            message: 'Обложка обязательна',
+          });
+          throw new Error('Обложка обязательна');
+        }
+        if (!videoFile) {
+          form.setError('video', {
+            type: 'manual',
+            message: 'Видео обязательно',
+          });
+          throw new Error('Видео обязательно');
+        }
       }
 
-      // Базовые поля как строки
-      formData.append('name', values.name);
-      formData.append('description', values.description);
-      formData.append('duration', values.duration);
-      formData.append('stars', values.stars.toString()); // Преобразуем в строку
-      formData.append('nozology', values.nozology);
-      if (values.publishAfter) {
-        formData.append('publishAfter', values.publishAfter);
-      }
-
-      // Файлы
-      if (values.cover_image?.[0]) {
-        formData.append('cover_image', values.cover_image[0]);
-      }
-      if (values.video?.[0]) {
-        formData.append('video', values.video[0]);
-      }
-
-      // Feedback как JSON строка
-      formData.append('feedback', JSON.stringify(values.feedback));
-      formData.append('app_visible', values.app_visible.toString());
-      formData.append('references', JSON.stringify(references));
+      const videoPath = videoFile ? await uploadVideo(videoFile) : undefined;
 
       if (initialData?._id) {
-        await lectionsApi.update(initialData._id, formData);
-      } else {
-        await lectionsApi.create(formData);
+        const args: {
+          id: Id<'lections'>;
+          name?: string;
+          description?: string;
+          duration?: string;
+          stars?: number;
+          nozology?: string;
+          feedback?: unknown;
+          publishAfter?: number;
+          app_visible?: boolean;
+          idx?: number;
+          references?: Array<{ name: string; url: string }>;
+          cover?: { base64: string; contentType: string };
+          video?: { base64: string; contentType: string };
+          videoPath?: string;
+        } = {
+          id: initialData._id as Id<'lections'>,
+          name: values.name,
+          description: values.description,
+          duration: values.duration,
+          stars: values.stars,
+          nozology: values.nozology,
+          feedback: values.feedback,
+          publishAfter,
+          app_visible: values.app_visible,
+          references,
+          ...(videoPath ? { videoPath } : {}),
+        };
+        if (values.idx !== undefined) {
+          args.idx = values.idx;
+        }
+        if (coverFile) {
+          args.cover = {
+            base64: await fileToBase64(coverFile),
+            contentType: coverFile.type || 'application/octet-stream',
+          };
+        }
+        await updateLection(args);
+        return { mode: 'updated' as const };
       }
+
+      await createLection({
+        name: values.name,
+        cover: {
+          base64: await fileToBase64(coverFile!),
+          contentType: coverFile!.type || 'application/octet-stream',
+        },
+        videoPath: videoPath!,
+        description: values.description,
+        duration: values.duration,
+        stars: values.stars,
+        feedback: values.feedback,
+        nozology: values.nozology,
+        publishAfter,
+        app_visible: values.app_visible,
+        ...(values.idx !== undefined ? { idx: values.idx } : {}),
+        references,
+      });
+      return { mode: 'created' as const };
+    })();
+
+    try {
+      await toast.promise(submitPromise, {
+        loading: 'Сохранение лекции...',
+        success: (data) =>
+          data.mode === 'updated' ? 'Лекция обновлена' : 'Лекция создана',
+        error: 'Ошибка сохранения лекции',
+      });
 
       router.push('/knowledge/lections');
       router.refresh();
-    } catch (error: any) {
-      console.error('Error saving lection:', error);
-      alert(error.message || 'Произошла ошибка при сохранении лекции');
+    } catch {
+      return;
     }
   };
 
@@ -236,6 +342,28 @@ export function LectionForm({ initialData }: LectionFormProps) {
 
           <FormField
             control={form.control}
+            name="idx"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Индекс вывода</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="Введите индекс..."
+                    value={field.value ?? ''}
+                    onChange={(e) =>
+                      field.onChange(e.target.value === '' ? undefined : Number(e.target.value))
+                    }
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
             name="cover_image"
             render={({ field: { value, onChange, ...field } }) => (
               <FormItem>
@@ -298,7 +426,9 @@ export function LectionForm({ initialData }: LectionFormProps) {
                   </FormControl>
                   <SelectContent>
                     {nozologies.map((nozology) => (
-                      <SelectItem key={nozology._id} value={nozology._id}>
+                      <SelectItem
+                        key={nozology._id}
+                        value={String(nozology._id)}>
                         {nozology.name}
                       </SelectItem>
                     ))}

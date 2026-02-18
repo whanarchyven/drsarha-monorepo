@@ -3,6 +3,7 @@
 import { internalAction } from "../_generated/server";
 import { v } from "convex/values";
 import { S3Client, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 /**
  * Скачивает объект из S3 по ключу и возвращает base64 + contentType.
@@ -58,6 +59,7 @@ export const putObjectBase64 = internalAction({
     contentType: v.string(),
   },
   handler: async (_ctx, { bucket, key, bodyBase64, contentType }) => {
+    const startedAt = Date.now();
     const accessKey = process.env.S3_ACCESS_KEY;
     const secretKey = process.env.S3_SECRET_KEY;
     if (!accessKey || !secretKey) {
@@ -74,6 +76,12 @@ export const putObjectBase64 = internalAction({
     });
 
     const body = Buffer.from(bodyBase64, "base64");
+    console.log("[s3.putObjectBase64] start", {
+      bucket,
+      key,
+      contentType,
+      bytes: body.length,
+    });
     await client.send(
       new PutObjectCommand({
         Bucket: bucket,
@@ -82,6 +90,50 @@ export const putObjectBase64 = internalAction({
         ContentType: contentType,
       })
     );
+    console.log("[s3.putObjectBase64] done", {
+      bucket,
+      key,
+      ms: Date.now() - startedAt,
+    });
     return { key };
+  },
+});
+
+/**
+ * Генерирует presigned PUT URL для прямой загрузки.
+ */
+export const getPresignedPutUrl = internalAction({
+  args: {
+    bucket: v.string(),
+    key: v.string(),
+    contentType: v.string(),
+    expiresIn: v.optional(v.number()),
+  },
+  handler: async (_ctx, { bucket, key, contentType, expiresIn }) => {
+    const accessKey = process.env.S3_ACCESS_KEY;
+    const secretKey = process.env.S3_SECRET_KEY;
+    if (!accessKey || !secretKey) {
+      throw new Error("S3_ACCESS_KEY and S3_SECRET_KEY required in Convex env");
+    }
+
+    const client = new S3Client({
+      region: process.env.S3_REGION ?? process.env.AWS_REGION ?? "us-east-1",
+      credentials: { accessKeyId: accessKey, secretAccessKey: secretKey },
+      ...(process.env.S3_ENDPOINT_URL && {
+        endpoint: process.env.S3_ENDPOINT_URL,
+        forcePathStyle: true,
+      }),
+    });
+
+    const command = new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      ContentType: contentType,
+    });
+
+    const url = await getSignedUrl(client, command, {
+      expiresIn: expiresIn ?? 300,
+    });
+    return { url };
   },
 });

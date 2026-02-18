@@ -1,83 +1,60 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { EntityLayout } from '../_components/EntityLayout';
-import { brochuresApi } from '@/shared/api/brochures';
-import type { Brochure } from '@/shared/models/Brochure';
-import type { BaseQueryParams } from '@/shared/api/types';
+import { useMemo } from 'react';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { BrochureGrid } from './_components/BrochureGrid';
-
-
+import { useMutation, useQuery } from 'convex/react';
 import { api } from '@convex/_generated/api';
-
-const columns = [
-  { key: 'name', label: 'Название' },
-  { key: 'description', label: 'Описание' },
-  { key: 'fileUrl', label: 'Файл' },
-];
+import type { Id } from '@convex/_generated/dataModel';
 
 export default function BrochuresPage() {
-  const [data, setData] = useState<Brochure[]>([]);
-  const [pagination, setPagination] = useState<{
-    total: number;
-    page: number;
-    totalPages: number;
-    hasMore: boolean;
-  }>({
-    total: 0,
-    page: 1,
-    totalPages: 0,
-    hasMore: false,
-  });
-  const [isLoading, setIsLoading] = useState(false);
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const removeBrochure = useMutation(api.functions.brochures.remove);
 
-  const fetchData = async (params?: BaseQueryParams) => {
-    setIsLoading(true);
-    console.log('params', params);
-    try {
-      const response = await brochuresApi.getAll(params);
-      console.log('response', response);
-      setData(response.items);
-      setPagination({
-        total: response.total,
-        page: response.page,
-        totalPages: response.totalPages,
-        hasMore: response.hasMore,
-      });
-    } catch (error) {
-      console.error('Error fetching data:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    const params: BaseQueryParams = {};
-    searchParams.forEach((value, key) => {
-      params[key as keyof BaseQueryParams] = value;
-    });
-    fetchData(params);
+  const queryArgs = useMemo(() => {
+    const params = new URLSearchParams(searchParams);
+    const search = params.get('search') || undefined;
+    const page = params.get('page');
+    const nozologyId = params.get('nozologyId') || undefined;
+    const adminId = process.env.NEXT_PUBLIC_ADMIN_ID || undefined;
+    return {
+      search,
+      page: page ? Number(page) : 1,
+      limit: 12,
+      nozology: nozologyId,
+      admin_id: adminId,
+    };
   }, [searchParams]);
 
+  const response = useQuery(api.functions.brochures.list, queryArgs);
+  const data = response?.items;
+  const pagination = response;
+  const isLoading = response === undefined;
+
   const handleSearch = (params: { search?: string; page?: number }) => {
-    fetchData({
-      search: params.search,
-      page: params.page,
-      limit: 12,
-    });
+    const nextParams = new URLSearchParams(searchParams);
+    if (params.search) {
+      nextParams.set('search', params.search);
+    } else {
+      nextParams.delete('search');
+    }
+    if (params.page) {
+      nextParams.set('page', String(params.page));
+    } else {
+      nextParams.delete('page');
+    }
+    router.push(`${pathname}?${nextParams.toString()}`);
   };
 
-  const handleEdit = (id: string) => {
+  const handleEdit = (id: Id<'brochures'>) => {
     router.push(`/knowledge/brochures/${id}/edit`);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: Id<'brochures'>) => {
     try {
-      await brochuresApi.delete(id);
-      await fetchData();
+      await removeBrochure({ id });
     } catch (error) {
       console.error('Error deleting item:', error);
     }
@@ -87,8 +64,6 @@ export default function BrochuresPage() {
     router.push(`/knowledge/brochures/create`);
     console.log('Create new brochure');
   };
-
-  console.log('data BROCHURES', data);
 
   return (
     <BrochureGrid

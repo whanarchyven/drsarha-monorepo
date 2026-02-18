@@ -27,6 +27,10 @@ import Image from 'next/image';
 const formSchema = z.object({
   name: z.string().min(2, 'Минимум 2 символа'),
   description: z.string().min(2, 'Минимум 2 символа'),
+  idx: z.preprocess(
+    (value) => (value === '' || value === null || value === undefined ? undefined : Number(value)),
+    z.number().int().nonnegative().optional()
+  ),
   cover_image: z.any(),
 });
 
@@ -48,6 +52,7 @@ export function CategoryForm({ initialData }: CategoryFormProps) {
     defaultValues: initialData || {
       name: '',
       description: '',
+      idx: undefined,
       cover_image: '',
     },
   });
@@ -84,12 +89,16 @@ export function CategoryForm({ initialData }: CategoryFormProps) {
           id: Id<'categories'>;
           name?: string;
           description?: string;
+          idx?: number;
           cover?: { base64: string; contentType: string };
         } = {
           id: initialData._id as Id<'categories'>,
           name: values.name,
           description: values.description,
         };
+        if (values.idx !== undefined) {
+          args.idx = values.idx;
+        }
         if (coverFile) {
           args.cover = {
             base64: await fileToBase64(coverFile),
@@ -102,11 +111,15 @@ export function CategoryForm({ initialData }: CategoryFormProps) {
         const args: {
           name: string;
           description?: string;
+          idx?: number;
           cover?: { base64: string; contentType: string };
         } = {
           name: values.name,
           description: values.description,
         };
+        if (values.idx !== undefined) {
+          args.idx = values.idx;
+        }
         if (coverFile) {
           args.cover = {
             base64: await fileToBase64(coverFile),
@@ -147,6 +160,27 @@ export function CategoryForm({ initialData }: CategoryFormProps) {
               <FormLabel>Описание</FormLabel>
               <FormControl>
                 <Textarea placeholder="Введите описание..." {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="idx"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Индекс вывода</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="Введите индекс..."
+                  value={field.value ?? ''}
+                  onChange={(e) =>
+                    field.onChange(e.target.value === '' ? undefined : Number(e.target.value))
+                  }
+                />
               </FormControl>
               <FormMessage />
             </FormItem>

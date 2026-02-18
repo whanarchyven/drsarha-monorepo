@@ -3,6 +3,19 @@ import { v } from "convex/values";
 import { categoryDoc, categoryFields } from "../models/category";
 import { api, internal } from "../_generated/api";
 
+const sortByIdx = (items: any[]) =>
+  items.slice().sort((a, b) => {
+    const aIdx = a.idx;
+    const bIdx = b.idx;
+    if (aIdx === undefined && bIdx === undefined) {
+      return (a._creationTime ?? 0) - (b._creationTime ?? 0);
+    }
+    if (aIdx === undefined) return 1;
+    if (bIdx === undefined) return -1;
+    if (aIdx !== bIdx) return aIdx - bIdx;
+    return (a._creationTime ?? 0) - (b._creationTime ?? 0);
+  });
+
 export const list = query({
   args: {},
   returns: v.array(
@@ -15,7 +28,7 @@ export const list = query({
   ),
   handler: async ({ db }) => {
     const categories = await db.query("categories").collect();
-    return await Promise.all(
+    const withCounts = (await Promise.all(
       categories.map(async (category) => {
         const byId = await (db as any)
           .query("nozologies")
@@ -38,7 +51,8 @@ export const list = query({
           nozologiesCount: uniqueNozologies.size,
         };
       })
-    );
+    )) as Array<(typeof categories)[number] & { nozologiesCount: number }>;
+    return sortByIdx(withCounts);
   },
 });
 
@@ -46,7 +60,7 @@ export const getById = query({
   args: { id: v.id("categories") },
   returns: v.union(categoryDoc, v.null()),
   handler: async ({ db }, { id }) => {
-    return await db.get(id);
+    return (await db.get(id)) as any;
   },
 });
 
@@ -55,12 +69,13 @@ export const insert = mutation({
     name: v.string(),
     cover_image: v.optional(v.string()),
     description: v.optional(v.string()),
+    idx: v.optional(v.number()),
   }),
   returns: categoryDoc,
   handler: async ({ db }, args) => {
     const id = await db.insert("categories", args as any);
     const doc = await db.get(id);
-    return doc!;
+    return doc as any;
   },
 });
 
@@ -71,13 +86,14 @@ export const update = mutation({
       name: v.optional(v.string()),
       cover_image: v.optional(v.string()),
       description: v.optional(v.string()),
+      idx: v.optional(v.number()),
     }),
   },
   returns: categoryDoc,
   handler: async ({ db }, { id, data }) => {
     await db.patch(id, data as any);
     const doc = await db.get(id);
-    return doc!;
+    return doc as any;
   },
 });
 
