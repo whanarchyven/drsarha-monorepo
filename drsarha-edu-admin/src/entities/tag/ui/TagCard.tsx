@@ -3,7 +3,8 @@
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Edit, Trash2, Hash } from 'lucide-react';
-import type { Tag } from '@/shared/models/Tag';
+import { api } from '@convex/_generated/api';
+import type { FunctionReturnType } from 'convex/server';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,7 +14,7 @@ import {
 import { MoreVertical } from 'lucide-react';
 
 interface TagCardProps {
-  tag: Tag;
+  tag: FunctionReturnType<typeof api.functions.pin_tags.list>['items'][number];
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
 }

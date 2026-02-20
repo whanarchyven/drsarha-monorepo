@@ -31,13 +31,15 @@ import {
   XCircle,
   Mail,
 } from 'lucide-react';
-import type { UserWithStats } from '@/shared/models/Rating';
-import { toast } from '@/hooks/use-toast';
-import { ratingsApi } from '@/shared/api/rating';
-import { tasksApi } from '@/shared/api/tasks';
+import { toast } from 'sonner';
+import { useAction, useMutation } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import type { FunctionReturnType } from 'convex/server';
 
 interface UserCardProps {
-  userWithStats: UserWithStats;
+  userWithStats: FunctionReturnType<
+    typeof api.functions.ratings.listUsersWithStats
+  >['items'][number];
   onDetailsClick: () => void;
 }
 
@@ -48,6 +50,10 @@ export function UserCard({ userWithStats, onDetailsClick }: UserCardProps) {
   const [starsValue, setStarsValue] = useState<number | ''>('');
   const [taskIdValue, setTaskIdValue] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
+  const setStars = useMutation(api.functions.users.setStars);
+  const completeTaskDirectly = useAction(
+    api.functions.tasks.completeTaskDirectly
+  );
 
   const getInitials = (name: string) => {
     return name
@@ -70,57 +76,42 @@ export function UserCard({ userWithStats, onDetailsClick }: UserCardProps) {
   const handleSubmitStars = async () => {
     const value = starsValue === '' ? NaN : Number(starsValue);
     if (Number.isNaN(value)) {
-      toast({
-        title: 'Ошибка',
-        description: 'Введите число звёзд',
-        variant: 'destructive',
-      });
+      toast.error('Введите число звёзд');
       return;
     }
-    try {
-      setSubmitting(true);
-      await ratingsApi.manageStars(user._id, { stars: value });
-      toast({ title: 'Успешно', description: 'Звёзды обновлены' });
-      setStarsOpen(false);
-    } catch (e: any) {
-      toast({
-        title: 'Ошибка',
-        description: e?.response?.data?.message || 'Не удалось обновить звёзды',
-        variant: 'destructive',
-      });
-    } finally {
-      setSubmitting(false);
-    }
+    setSubmitting(true);
+    const promise = setStars({ id: user._id, stars: value });
+    toast.promise(promise, {
+      loading: 'Обновляем звёзды...',
+      success: () => {
+        setStarsOpen(false);
+        return 'Звёзды обновлены';
+      },
+      error: () => 'Не удалось обновить звёзды',
+    });
+    promise.finally(() => setSubmitting(false));
   };
 
   const handleSubmitTask = async () => {
     const taskId = taskIdValue.trim();
     if (!taskId) {
-      toast({
-        title: 'Ошибка',
-        description: 'Введите ID задания',
-        variant: 'destructive',
-      });
+      toast.error('Введите ID задания');
       return;
     }
-    try {
-      setSubmitting(true);
-      await tasksApi.completeTaskDirectly(taskId, [user._id]);
-      toast({
-        title: 'Успешно',
-        description: 'Задание выполнено для пользователя',
-      });
-      setTaskOpen(false);
-    } catch (e: any) {
-      toast({
-        title: 'Ошибка',
-        description:
-          e?.response?.data?.message || 'Не удалось выполнить задание',
-        variant: 'destructive',
-      });
-    } finally {
-      setSubmitting(false);
-    }
+    setSubmitting(true);
+    const promise = completeTaskDirectly({
+      taskId,
+      userIds: [user._id],
+    });
+    toast.promise(promise, {
+      loading: 'Отмечаем выполнение...',
+      success: () => {
+        setTaskOpen(false);
+        return 'Задание выполнено для пользователя';
+      },
+      error: () => 'Не удалось выполнить задание',
+    });
+    promise.finally(() => setSubmitting(false));
   };
 
   return (

@@ -91,6 +91,17 @@ export const inc = mutation({
   },
 });
 
+export const setStars = mutation({
+  args: { id: v.id("users"), stars: v.number() },
+  returns: v.union(userDoc, v.null()),
+  handler: async ({ db }, { id, stars }) => {
+    const user = await db.get(id);
+    if (!user) return null;
+    await db.patch(id, { stars } as any);
+    return (await db.get(id))!;
+  },
+});
+
 // Internal version for use in internal mutations
 export const incInternal = internalMutation({
   args: { id: v.id("users"), stars: v.optional(v.number()), exp: v.optional(v.number()) },

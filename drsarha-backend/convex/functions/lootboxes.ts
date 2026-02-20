@@ -1,6 +1,7 @@
-import { query, mutation } from "../_generated/server";
+import { query, mutation, action } from "../_generated/server";
 import { v } from "convex/values";
 import { lootboxDoc, lootboxFields, lootboxItemFields } from "../models/lootbox";
+import { api, internal } from "../_generated/api";
 
 export const list = query({
   args: { search: v.optional(v.string()), page: v.optional(v.number()), limit: v.optional(v.number()) },
@@ -53,5 +54,68 @@ export const update = mutation({
 });
 
 export const remove = mutation({ args: { id: v.id("lootboxes") }, returns: v.boolean(), handler: async ({ db }, { id }) => { await db.delete(id); return true; } });
+
+// Public action: upload to S3 and create lootbox
+export const create = action({
+  args: {
+    title: v.string(),
+    description: v.string(),
+    image: v.object({ base64: v.string(), contentType: v.string() }),
+    items: v.array(lootboxItemFields),
+  },
+  returns: lootboxDoc,
+  handler: async (ctx, args) => {
+    const imagePath = await ctx.runAction(internal.helpers.upload.uploadToS3, {
+      file: args.image,
+      fileType: "images",
+    });
+
+    const created = await ctx.runMutation(api.functions.lootboxes.insert, {
+      title: args.title,
+      description: args.description,
+      image: imagePath,
+      items: args.items,
+    });
+    return created;
+  },
+});
+
+// Public action: optionally upload image and update lootbox
+export const updateAction = action({
+  args: {
+    id: v.id("lootboxes"),
+    title: v.optional(v.string()),
+    description: v.optional(v.string()),
+    image: v.optional(v.object({ base64: v.string(), contentType: v.string() })),
+    items: v.optional(v.array(lootboxItemFields)),
+  },
+  returns: lootboxDoc,
+  handler: async (ctx, args) => {
+    const data: {
+      title?: string;
+      description?: string;
+      image?: string;
+      items?: Array<any>;
+    } = {};
+
+    if (args.title) data.title = args.title;
+    if (args.description) data.description = args.description;
+    if (args.items) data.items = args.items as any;
+
+    if (args.image) {
+      const imagePath = await ctx.runAction(internal.helpers.upload.uploadToS3, {
+        file: args.image,
+        fileType: "images",
+      });
+      data.image = imagePath;
+    }
+
+    const updated = await ctx.runMutation(api.functions.lootboxes.update, {
+      id: args.id,
+      data,
+    });
+    return updated;
+  },
+});
 
 

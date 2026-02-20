@@ -4,29 +4,29 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Edit, Trash2, Pencil } from 'lucide-react';
+import { Trash2, Pencil } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Pagination } from '@/shared/ui/pagination';
 import Image from 'next/image';
 import { getContentUrl } from '@/shared/utils/url';
 import { Badge } from '@/components/ui/badge';
-
-import InteractiveTaskCard from '@/entities/interactive-task/ui/InteractiveTaskCard';
-import { InteractiveTask } from '@/shared/models/InteractiveTask';
-import { interactiveTasksApi } from '@/shared/api/interactive-tasks';
 import { DeleteDialog } from '@/shared/ui/DeleteDialog/DeleteDialog';
 import { copyToClipboardWithToast } from '@/shared/utils/copyToClipboard';
+import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
+import type { FunctionReturnType } from 'convex/server';
 
+type InteractiveTaskItem = FunctionReturnType<
+  typeof api.functions.interactive_tasks.list
+>['items'][number];
 interface InteractiveTaskGridProps {
-  data: InteractiveTask[];
+  data: InteractiveTaskItem[] | undefined;
   isLoading: boolean;
-  pagination: {
-    total: number;
-    page: number;
-    totalPages: number;
-    hasMore: boolean;
-  };
+  pagination:
+    | FunctionReturnType<typeof api.functions.interactive_tasks.list>
+    | undefined;
   onPageChange: (page: number) => void;
+  onDelete: (id: Id<'interactive_tasks'>) => void;
 }
 
 export function InteractiveTaskGrid({
@@ -34,18 +34,20 @@ export function InteractiveTaskGrid({
   isLoading,
   pagination,
   onPageChange,
+  onDelete,
 }: InteractiveTaskGridProps) {
   const router = useRouter();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
+  const [taskToDelete, setTaskToDelete] =
+    useState<Id<'interactive_tasks'> | null>(null);
 
   const handleDelete = async () => {
     if (!taskToDelete) return;
 
     try {
       setIsDeleting(true);
-      await interactiveTasksApi.delete(taskToDelete);
+      await onDelete(taskToDelete);
       setIsDeleteDialogOpen(false);
       router.refresh();
     } catch (error) {
@@ -56,7 +58,7 @@ export function InteractiveTaskGrid({
     }
   };
 
-  const openDeleteDialog = (id: string) => {
+  const openDeleteDialog = (id: Id<'interactive_tasks'>) => {
     setTaskToDelete(id);
     setIsDeleteDialogOpen(true);
   };
@@ -79,7 +81,7 @@ export function InteractiveTaskGrid({
     <>
       <div className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
-          {data.map((task) => (
+          {data?.map((task) => (
             <Card key={task._id} className="p-4 relative">
               <div className="flex justify-between items-start mb-2">
                 <h3 className="text-lg font-semibold">{task.name}</h3>
@@ -97,7 +99,7 @@ export function InteractiveTaskGrid({
                   <Button
                     variant="destructive"
                     size="sm"
-                    onClick={() => openDeleteDialog(task._id!)}>
+                    onClick={() => openDeleteDialog(task._id)}>
                     <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>
@@ -122,7 +124,7 @@ export function InteractiveTaskGrid({
                 <Badge variant="secondary">
                   Сложность: {task.difficulty}/10
                 </Badge>
-                <Badge variant="outline">{task.difficulty_type}</Badge>
+                <Badge variant="outline">{task.difficulty}</Badge>
               </div>
               <div className="text-sm mb-2">
                 <strong>Доступно ошибок:</strong> {task.available_errors}
@@ -138,7 +140,7 @@ export function InteractiveTaskGrid({
             </Card>
           ))}
         </div>
-        {pagination.totalPages > 1 && (
+        {!!pagination && pagination.totalPages > 1 && (
           <div className="flex justify-center mt-4">
             <Pagination
               currentPage={pagination.page}

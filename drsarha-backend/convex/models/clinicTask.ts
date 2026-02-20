@@ -44,9 +44,19 @@ export const clinicTaskFields = {
   interviewQuestions: v.optional(v.array(v.string())),
   interviewAnalyticQuestions: v.optional(v.array(v.string())),
   mongoId: v.optional(v.string()),
+  idx: v.optional(v.number()),
   publishAfter: v.optional(v.number()),
   endoscopy_model: v.optional(v.string()),
   endoscopy_video: v.optional(v.string()),
+  timecodes: v.optional(
+    v.array(
+      v.object({
+        time: v.number(),
+        title: v.string(),
+        description: v.optional(v.string()),
+      })
+    )
+  ),
   app_visible: v.optional(v.boolean()),
   references: v.optional(v.array(v.object({ name: v.union(v.string(), v.null()), url: v.string() }))),
 };

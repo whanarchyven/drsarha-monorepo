@@ -53,7 +53,8 @@ export const userCompletionFields = {
 };
 
 export const userCompletionsTable = defineTable(userCompletionFields)
-  .index("by_user_knowledge", ["user_id", "knowledge_id"]);
+  .index("by_user_knowledge", ["user_id", "knowledge_id"])
+  .index("by_user", ["user_id"]);
 
 export const userCompletionDoc = v.object({
   _id: v.id("user_completions"),

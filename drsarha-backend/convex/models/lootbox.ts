@@ -5,7 +5,7 @@ export const lootboxItemFields = v.object({
   type: v.union(v.literal("stars"), v.literal("exp"), v.literal("prize"), v.literal("lootbox")),
   amount: v.number(),
   chance: v.number(),
-  objectId: v.union(v.null(), v.string()),
+  objectId: v.optional(v.union(v.null(), v.string())),
 });
 
 export const lootboxFields = {

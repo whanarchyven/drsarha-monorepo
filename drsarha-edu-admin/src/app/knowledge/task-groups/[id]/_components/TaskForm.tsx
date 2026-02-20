@@ -15,16 +15,14 @@ import {
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useState } from 'react';
-import { taskGroupsApi } from '@/shared/api/taskGroups';
-import { toast } from '@/hooks/use-toast';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import LoadingSpinner from '@/shared/ui/LoadingSpinner/LoadingSpinner';
-import type {
-  Task,
-  TaskActionType,
-  validKnowledgeTypes,
-  KnowledgeType,
-} from '@/shared/models/TaskGroup';
+import type { TaskActionType, KnowledgeType } from '@/shared/models/TaskGroup';
+import { useMutation } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import type { FunctionReturnType } from 'convex/server';
+import type { Id } from '@convex/_generated/dataModel';
 
 const taskSchema = z
   .object({
@@ -87,8 +85,8 @@ const taskSchema = z
 type TaskFormData = z.infer<typeof taskSchema>;
 
 interface TaskFormProps {
-  groupId: string;
-  initialData?: Task;
+  groupId: Id<'task_groups'>;
+  initialData?: FunctionReturnType<typeof api.functions.tasks.listByGroup>[number];
   isEditing?: boolean;
   onSuccess: () => void;
   onCancel: () => void;
@@ -105,6 +103,8 @@ export function TaskForm({
   const [selectedActionType, setSelectedActionType] = useState<TaskActionType>(
     initialData?.actionType || 'create_pin'
   );
+  const createTask = useMutation(api.functions.tasks.create);
+  const updateTask = useMutation(api.functions.tasks.update);
 
   const {
     register,
@@ -112,6 +112,7 @@ export function TaskForm({
     setValue,
     watch,
     formState: { errors },
+    reset,
   } = useForm<TaskFormData>({
     resolver: zodResolver(taskSchema),
     defaultValues: initialData
@@ -145,11 +146,29 @@ export function TaskForm({
         },
   });
 
+  useEffect(() => {
+    if (!initialData) return;
+    reset({
+      title: initialData.title,
+      description: initialData.description,
+      actionType: initialData.actionType as TaskActionType,
+      config: {
+        targetAmount: initialData.config.targetAmount,
+        knowledgeRef: initialData.config.knowledgeRef,
+        knowledgeType: initialData.config.knowledgeType as KnowledgeType | null,
+      },
+      reward: {
+        stars: initialData.reward.stars,
+        exp: initialData.reward.exp,
+      },
+    });
+    setSelectedActionType(initialData.actionType as TaskActionType);
+  }, [initialData, reset]);
+
   const onSubmit = async (data: TaskFormData) => {
     setIsLoading(true);
     try {
       if (isEditing && initialData) {
-        // Для редактирования в группе: вложенные config и reward
         const payload: any = {
           title: data.title,
           description: data.description,
@@ -164,44 +183,46 @@ export function TaskForm({
             exp: data.reward.exp,
           },
           isActive: true,
+          updatedAt: new Date().toISOString(),
         };
-        await taskGroupsApi.updateTaskInGroup(
-          groupId,
-          initialData._id,
-          payload
-        );
-        toast({
-          title: 'Успешно',
-          description: 'Задание обновлено',
+        const promise = updateTask({ id: initialData._id, patch: payload });
+        toast.promise(promise, {
+          loading: 'Сохраняем задание...',
+          success: 'Задание обновлено',
+          error: 'Не удалось сохранить задание',
         });
+        await promise;
       } else {
-        // Для создания — плоский payload
         const payload: any = {
           title: data.title,
           description: data.description,
           actionType: data.actionType,
-          targetAmount: data.config.targetAmount,
-          rewardStars: data.reward.stars,
-          rewardExp: data.reward.exp,
+          config: {
+            targetAmount: data.config.targetAmount,
+            knowledgeRef: data.config.knowledgeRef,
+            knowledgeType: data.config.knowledgeType,
+          },
+          reward: {
+            stars: data.reward.stars,
+            exp: data.reward.exp,
+          },
+          groupId,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         };
-        if (data.actionType === 'complete_knowledge') {
-          payload.knowledgeRef = data.config.knowledgeRef;
-          payload.knowledgeType = data.config.knowledgeType;
-        }
-        await taskGroupsApi.addTask(groupId, payload);
-        toast({
-          title: 'Успешно',
-          description: 'Задание добавлено',
+        const promise = createTask(payload);
+        toast.promise(promise, {
+          loading: 'Добавляем задание...',
+          success: 'Задание добавлено',
+          error: 'Не удалось сохранить задание',
         });
+        await promise;
       }
       onSuccess();
     } catch (error) {
       console.error('Error saving task:', error);
-      toast({
-        title: 'Ошибка',
-        description: 'Не удалось сохранить задание',
-        variant: 'destructive',
-      });
+      toast.error('Не удалось сохранить задание');
     } finally {
       setIsLoading(false);
     }
@@ -342,6 +363,7 @@ export function TaskForm({
               <div className="space-y-2">
                 <Label htmlFor="knowledgeType">Тип знания</Label>
                 <Select
+                  value={watch('config.knowledgeType') || ''}
                   onValueChange={(value: KnowledgeType) => {
                     setValue('config.knowledgeType', value);
                   }}

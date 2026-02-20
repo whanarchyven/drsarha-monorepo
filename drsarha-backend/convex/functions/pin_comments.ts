@@ -354,6 +354,62 @@ export const addLikeClinicAtlas = mutation({
   },
 });
 
+export const rating = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      userId: v.union(v.id("users"), v.string()),
+      commentsCount: v.number(),
+      user: v.union(
+        v.object({
+          _id: v.id("users"),
+          fullName: v.optional(v.string()),
+          email: v.optional(v.string()),
+          avatar: v.optional(v.string()),
+        }),
+        v.null(),
+      ),
+    }),
+  ),
+  handler: async ({ db }) => {
+    const allComments = await (db as any).query("pin_comments").collect();
+    const allUsers = await (db as any).query("users").collect();
+    const usersById = new Map<string, any>(allUsers.map((u: any) => [String(u._id), u]));
+
+    const commentsByUserId = new Map<string, { userId: any; commentsCount: number }>();
+    for (const comment of allComments) {
+      const key = String(comment.userId);
+      const current = commentsByUserId.get(key);
+      if (current) {
+        current.commentsCount += 1;
+      } else {
+        commentsByUserId.set(key, { userId: comment.userId, commentsCount: 1 });
+      }
+    }
+
+    return Array.from(commentsByUserId.values())
+      .sort((a, b) => b.commentsCount - a.commentsCount)
+      .slice(0, 20)
+      .map((row) => {
+        const user = usersById.get(String(row.userId));
+        const optionalString = (value: unknown) =>
+          typeof value === "string" ? value : undefined;
+        return {
+          userId: row.userId,
+          commentsCount: row.commentsCount,
+          user: user
+            ? {
+                _id: user._id,
+                fullName: optionalString(user.fullName),
+                email: optionalString(user.email),
+                avatar: optionalString(user.avatar),
+              }
+            : null,
+        };
+      });
+  },
+});
+
 export const removeLikeClinicAtlas = mutation({
   args: { id: v.id("pin_comments"), userId: v.string() },
   returns: v.null(),

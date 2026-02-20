@@ -1,62 +1,32 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { TaskGroupGrid } from './_components/TaskGroupGrid';
 import { TaskGroupsByDate } from './_components/TaskGroupsByDate';
-import { taskGroupsApi } from '@/shared/api/taskGroups';
-import { toast } from '@/hooks/use-toast';
-import type {
-  TaskGroup,
-  TaskGroupsByDateResponse,
-} from '@/shared/models/TaskGroup';
+import { toast } from 'sonner';
+import { useMutation, useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
 
 export default function TaskGroupsPage() {
-  const [taskGroupsByDate, setTaskGroupsByDate] =
-    useState<TaskGroupsByDateResponse>({
-      daily: [],
-      weekly: [],
-      level: [],
-    });
-  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const searchParams = useSearchParams();
   const selectedDate =
     searchParams.get('date') || new Date().toISOString().split('T')[0];
-
-  const fetchTaskGroupsByDate = async (date: string) => {
-    try {
-      setIsLoading(true);
-      const data = await taskGroupsApi.getByDate(date);
-      setTaskGroupsByDate(data);
-    } catch (error) {
-      console.error('Error fetching task groups by date:', error);
-      // Fallback to getAll if getByDate is not available
-      try {
-        const allGroups = await taskGroupsApi.getAll();
-        // Group them manually by timeType
-        const grouped = {
-          daily: allGroups.filter((g) => g.timeType === 'daily'),
-          weekly: allGroups.filter((g) => g.timeType === 'weekly'),
-          level: allGroups.filter((g) => g.timeType === 'level'),
-        };
-        setTaskGroupsByDate(grouped);
-      } catch (fallbackError) {
-        console.error('Fallback error:', fallbackError);
-        toast({
-          title: 'Ошибка',
-          description: 'Не удалось загрузить группы заданий',
-          variant: 'destructive',
-        });
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchTaskGroupsByDate(selectedDate);
-  }, [selectedDate]);
+  const response = useQuery(api.functions.task_groups.getByDate, {
+    date: selectedDate,
+  });
+  const removeGroup = useMutation(api.functions.task_groups.remove);
+  const isLoading = response === undefined;
+  const taskGroupsByDate = useMemo(
+    () =>
+      response ?? {
+        daily: [],
+        weekly: [],
+        level: [],
+      },
+    [response]
+  );
 
   const handleEdit = (id: string) => {
     router.push(`/knowledge/task-groups/${id}/edit`);
@@ -64,20 +34,11 @@ export default function TaskGroupsPage() {
 
   const handleDelete = async (id: string) => {
     try {
-      await taskGroupsApi.delete(id);
-      toast({
-        title: 'Успешно',
-        description: 'Группа заданий удалена',
-      });
-      // Refresh data after deletion
-      fetchTaskGroupsByDate(selectedDate);
+      await removeGroup({ id: id as Id<'task_groups'> });
+      toast.success('Группа заданий удалена');
     } catch (error) {
       console.error('Error deleting task group:', error);
-      toast({
-        title: 'Ошибка',
-        description: 'Не удалось удалить группу заданий',
-        variant: 'destructive',
-      });
+      toast.error('Не удалось удалить группу заданий');
     }
   };
 

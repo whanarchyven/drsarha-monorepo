@@ -2,7 +2,8 @@
 
 import { Button } from '@/components/ui/button';
 import { Plus, Search, Filter } from 'lucide-react';
-import type { Prize } from '@/shared/models/Prize';
+import { api } from '@convex/_generated/api';
+import type { FunctionReturnType } from 'convex/server';
 import { Input } from '@/components/ui/input';
 import {
   AlertDialog,
@@ -28,7 +29,7 @@ import { PrizeCard } from '@/entities/prize/ui/PrizeCard';
 import LoadingSpinner from '@/shared/ui/LoadingSpinner/LoadingSpinner';
 
 interface PrizeGridProps {
-  data: Prize[];
+  data: FunctionReturnType<typeof api.functions.prizes.list>['items'];
   isLoading: boolean;
   pagination: {
     total: number;

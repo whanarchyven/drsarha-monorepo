@@ -2,7 +2,8 @@
 
 import { Button } from '@/components/ui/button';
 import { Plus, Search } from 'lucide-react';
-import type { Tag } from '@/shared/models/Tag';
+import { api } from '@convex/_generated/api';
+import type { FunctionReturnType } from 'convex/server';
 import { Input } from '@/components/ui/input';
 import {
   AlertDialog,
@@ -21,7 +22,7 @@ import { TagCard } from '@/entities/tag/ui/TagCard';
 import LoadingSpinner from '@/shared/ui/LoadingSpinner/LoadingSpinner';
 
 interface TagGridProps {
-  data: Tag[];
+  data: FunctionReturnType<typeof api.functions.pin_tags.list>['items'];
   isLoading: boolean;
   pagination: {
     total: number;

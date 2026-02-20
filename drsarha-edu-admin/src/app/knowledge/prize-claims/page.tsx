@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
@@ -19,35 +19,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import LoadingSpinner from '@/shared/ui/LoadingSpinner/LoadingSpinner';
-import { prizeClaimsApi } from '@/shared/api/prizeClaims';
 import { Pagination } from '@/components/pagination';
+import { useMutation, useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import type { FunctionReturnType } from 'convex/server';
+import type { Id } from '@convex/_generated/dataModel';
 
-interface PrizeClaim {
-  _id: string;
-  userId: string;
-  prizeId: string;
-  claimedAt: string;
-  status: 'pending' | 'claimed' | 'backlog' | 'refund' | 'canceled';
-  transactionId: string;
-  userInfo: {
-    _id: string;
-    email: string;
-    name: string;
-    avatar: string;
-    stars: number;
-    exp: number;
-    level: number;
-  };
-  prizeInfo: {
-    _id: string;
-    name: string;
-    image: string;
-    description: string;
-    price: number;
-  };
-}
+type PrizeClaim = FunctionReturnType<
+  typeof api.functions.prize_claims.listWithDetails
+>['items'][number];
 
 const statusLabels = {
   pending: { label: 'Ожидает рассмотрения', variant: 'secondary' as const },
@@ -58,61 +40,38 @@ const statusLabels = {
 };
 
 export default function PrizeClaimsPage() {
-  const [claims, setClaims] = useState<PrizeClaim[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const itemsPerPage = 10;
-
-  useEffect(() => {
-    loadClaims(currentPage);
-  }, [currentPage]);
-
-  const loadClaims = async (page: number = 1) => {
-    try {
-      setIsLoading(true);
-      const response = await prizeClaimsApi.getAll({
-        page,
-        limit: itemsPerPage,
-      });
-      setClaims(response.items || []);
-      setTotalPages(response.totalPages || 1);
-    } catch (error) {
-      console.error('Error loading prize claims:', error);
-      toast({
-        title: 'Ошибка',
-        description: 'Не удалось загрузить заявки на призы',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const response = useQuery(api.functions.prize_claims.listWithDetails, {
+    page: currentPage,
+    limit: itemsPerPage,
+  });
+  const updateStatusMutation = useMutation(
+    api.functions.prize_claims.updateStatus
+  );
+  const approveRefundMutation = useMutation(
+    api.functions.prize_claims.approveRefund
+  );
+  const isLoading = response === undefined;
+  const claims = response?.items ?? [];
+  const totalPages = response?.totalPages ?? 1;
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
 
   const updateStatus = async (
-    claimId: string,
+    claimId: Id<'prize_claims'>,
     newStatus: 'pending' | 'claimed' | 'backlog' | 'refund' | 'canceled'
   ) => {
     try {
       setUpdatingStatus(claimId);
-      await prizeClaimsApi.updateStatus(claimId, newStatus);
-      toast({
-        title: 'Успешно',
-        description: 'Статус заявки обновлен',
-      });
-      loadClaims(currentPage); // Перезагружаем данные
+      await updateStatusMutation({ id: claimId, status: newStatus });
+      toast.success('Статус заявки обновлен');
     } catch (error) {
       console.error('Error updating claim status:', error);
-      toast({
-        title: 'Ошибка',
-        description: 'Не удалось обновить статус заявки',
-        variant: 'destructive',
-      });
+      toast.error('Не удалось обновить статус заявки');
     } finally {
       setUpdatingStatus(null);
     }
@@ -207,7 +166,7 @@ export default function PrizeClaimsPage() {
                           value={claim.status}
                           onValueChange={(value) =>
                             updateStatus(
-                              claim._id,
+                              claim._id as Id<'prize_claims'>,
                               value as
                                 | 'pending'
                                 | 'claimed'
@@ -235,20 +194,14 @@ export default function PrizeClaimsPage() {
                             onClick={async () => {
                               try {
                                 setUpdatingStatus(claim._id);
-                                const res = await prizeClaimsApi.approveRefund(
-                                  claim._id
+                                const res = await approveRefundMutation({
+                                  id: claim._id as Id<'prize_claims'>,
+                                });
+                                toast.success(
+                                  `Возврат подтвержден. Вернули ${res.restoredStars} звёзд`
                                 );
-                                toast({
-                                  title: 'Возврат подтвержден',
-                                  description: `Вернули ${res.restoredStars} звёзд`,
-                                });
-                                await loadClaims(currentPage);
                               } catch (e) {
-                                toast({
-                                  title: 'Ошибка',
-                                  description: 'Не удалось подтвердить возврат',
-                                  variant: 'destructive',
-                                });
+                                toast.error('Не удалось подтвердить возврат');
                               } finally {
                                 setUpdatingStatus(null);
                               }

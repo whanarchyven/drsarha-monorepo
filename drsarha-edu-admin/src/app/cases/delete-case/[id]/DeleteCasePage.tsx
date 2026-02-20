@@ -3,12 +3,15 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { pinReportsApi } from '@/shared/api/pin-reports';
+import { toast } from 'sonner';
+import { useMutation } from 'convex/react';
+import { api } from '@convex/_generated/api';
 
 export default function DeleteCaseClientPage({ adminId }: { adminId: string }) {
   const params = useParams();
   const router = useRouter();
   const pinId = String(params?.id ?? '');
+  const adminDeletePin = useMutation(api.functions.pin_reports.adminDeletePin);
 
   const [adminComment, setAdminComment] = useState('');
   const [fine, setFine] = useState<number | undefined>();
@@ -18,10 +21,18 @@ export default function DeleteCaseClientPage({ adminId }: { adminId: string }) {
     if (!pinId || !adminComment.trim()) return;
     setLoading(true);
     try {
-      await pinReportsApi.adminDeletePin(
-        { pinId, adminComment: adminComment.trim(), fine },
-        adminId
-      );
+      const promise = adminDeletePin({
+        pinId,
+        adminComment: adminComment.trim(),
+        fine,
+        adminId,
+      });
+      toast.promise(promise, {
+        loading: 'Удаляем кейс...',
+        success: 'Кейс удалён',
+        error: 'Не удалось удалить кейс',
+      });
+      await promise;
       router.push('/cases/reports');
     } finally {
       setLoading(false);

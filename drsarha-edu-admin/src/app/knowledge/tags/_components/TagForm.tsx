@@ -14,52 +14,62 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useRouter } from 'next/navigation';
-import { tagsApi } from '@/shared/api/tags';
-import { useState } from 'react';
+import { useMutation } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import type { FunctionReturnType } from 'convex/server';
 
 const formSchema = z.object({
   name: z.string().min(2, 'Минимум 2 символа').max(50, 'Максимум 50 символов'),
 });
 
 interface TagFormProps {
-  initialData?: {
-    _id?: string;
-    name: string;
-  };
+  initialData?: FunctionReturnType<typeof api.functions.pin_tags.getById> | null;
 }
 
 export function TagForm({ initialData }: TagFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const createTag = useMutation(api.functions.pin_tags.create);
+  const updateTag = useMutation(api.functions.pin_tags.update);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: initialData || {
+    defaultValues: initialData
+      ? { name: initialData.name }
+      : {
       name: '',
-    },
+      },
   });
+
+  useEffect(() => {
+    if (initialData) {
+      form.reset({ name: initialData.name });
+    }
+  }, [form, initialData]);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       setIsSubmitting(true);
 
-      if (initialData && initialData._id) {
-        await tagsApi.update(initialData._id, { name: values.name });
-        toast.success('Тег успешно обновлен');
-      } else {
-        await tagsApi.create({ name: values.name });
-        toast.success('Тег успешно создан');
-      }
+      const promise = initialData?._id
+        ? updateTag({ id: initialData._id, name: values.name })
+        : createTag({ name: values.name });
 
+      toast.promise(promise, {
+        loading: initialData ? 'Сохраняем тег...' : 'Создаём тег...',
+        success: initialData ? 'Тег успешно обновлён' : 'Тег успешно создан',
+        error: 'Произошла ошибка при сохранении тега',
+      });
+
+      await promise;
       router.push('/knowledge/tags');
       router.refresh();
     } catch (error: any) {
       console.error('Error submitting form:', error);
-      toast.error(
-        error.response?.data?.message || 'Произошла ошибка при сохранении тега'
-      );
+      toast.error('Произошла ошибка при сохранении тега');
     } finally {
       setIsSubmitting(false);
     }

@@ -1,44 +1,29 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import {
-  authApi,
-  AdminUser,
-  CreateAdminUserRequest,
-  UpdateAdminUserRequest,
-} from '@/shared/api/auth';
+import { useMemo, useState } from 'react';
+import { useAction, useMutation, useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import type { FunctionReturnType } from 'convex/server';
 import { toast } from 'sonner';
 
 export default function UsersPage() {
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [loading, setLoading] = useState(true);
+  const users = useQuery(api.functions.admin_users.getAll);
+  const createAdminUser = useMutation(api.functions.admin_users.create);
+  const updateAdminUser = useMutation(api.functions.admin_users.update);
+  const removeAdminUser = useMutation(api.functions.admin_users.remove);
+  const hashPassword = useAction(api.functions.admin_users_actions.hashPasswordAction);
+  const loading = users === undefined;
+  const usersList = useMemo(() => users ?? [], [users]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+  const [editingUser, setEditingUser] =
+    useState<FunctionReturnType<typeof api.functions.admin_users.getAll>[number] | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
     role: 'moderator' as 'admin' | 'moderator',
   });
-
-  // Загрузка пользователей
-  const fetchUsers = async () => {
-    try {
-      setLoading(true);
-      const response = await authApi.getUsers();
-      setUsers(response.adminUsers || []);
-    } catch (error) {
-      console.error('Error fetching users:', error);
-      toast.error('Ошибка загрузки пользователей');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchUsers();
-  }, []);
 
   // Создание пользователя
   const handleCreate = async (e: React.FormEvent) => {
@@ -50,21 +35,28 @@ export default function UsersPage() {
     }
 
     try {
-      const createData: CreateAdminUserRequest = {
-        name: formData.name,
-        email: formData.email,
-        password: formData.password,
-        role: formData.role,
-      };
-
-      await authApi.createUser(createData);
-      toast.success('Пользователь успешно создан');
+      await toast.promise(
+        (async () => {
+          const passwordHash = await hashPassword({
+            password: formData.password,
+          });
+          await createAdminUser({
+            name: formData.name,
+            email: formData.email,
+            password: passwordHash,
+            role: formData.role,
+          });
+        })(),
+        {
+          loading: 'Создание пользователя...',
+          success: 'Пользователь успешно создан',
+          error: 'Ошибка создания пользователя',
+        }
+      );
       setShowCreateModal(false);
       setFormData({ name: '', email: '', password: '', role: 'moderator' });
-      fetchUsers();
     } catch (error) {
       console.error('Error creating user:', error);
-      toast.error('Ошибка создания пользователя');
     }
   };
 
@@ -78,30 +70,44 @@ export default function UsersPage() {
     }
 
     try {
-      const updateData: UpdateAdminUserRequest = {
-        name: formData.name,
-        email: formData.email,
-        role: formData.role,
-      };
-
-      if (formData.password) {
-        updateData.password = formData.password;
-      }
-
-      await authApi.updateUser(editingUser._id, updateData);
-      toast.success('Пользователь успешно обновлен');
+      await toast.promise(
+        (async () => {
+          const patch: {
+            name?: string;
+            email?: string;
+            role?: 'admin' | 'moderator';
+            password?: string;
+          } = {
+            name: formData.name,
+            email: formData.email,
+            role: formData.role,
+          };
+          if (formData.password) {
+            patch.password = await hashPassword({ password: formData.password });
+          }
+          await updateAdminUser({
+            id: editingUser._id,
+            patch,
+          });
+        })(),
+        {
+          loading: 'Сохранение пользователя...',
+          success: 'Пользователь успешно обновлен',
+          error: 'Ошибка обновления пользователя',
+        }
+      );
       setShowEditModal(false);
       setEditingUser(null);
       setFormData({ name: '', email: '', password: '', role: 'moderator' });
-      fetchUsers();
     } catch (error) {
       console.error('Error updating user:', error);
-      toast.error('Ошибка обновления пользователя');
     }
   };
 
   // Удаление пользователя
-  const handleDelete = async (user: AdminUser) => {
+  const handleDelete = async (
+    user: FunctionReturnType<typeof api.functions.admin_users.getAll>[number]
+  ) => {
     if (
       !confirm(`Вы уверены, что хотите удалить пользователя "${user.name}"?`)
     ) {
@@ -109,17 +115,20 @@ export default function UsersPage() {
     }
 
     try {
-      await authApi.deleteUser(user._id);
-      toast.success('Пользователь успешно удален');
-      fetchUsers();
+      await toast.promise(removeAdminUser({ id: user._id }), {
+        loading: 'Удаление пользователя...',
+        success: 'Пользователь успешно удален',
+        error: 'Ошибка удаления пользователя',
+      });
     } catch (error) {
       console.error('Error deleting user:', error);
-      toast.error('Ошибка удаления пользователя');
     }
   };
 
   // Открытие модального окна редактирования
-  const openEditModal = (user: AdminUser) => {
+  const openEditModal = (
+    user: FunctionReturnType<typeof api.functions.admin_users.getAll>[number]
+  ) => {
     setEditingUser(user);
     setFormData({
       name: user.name,
@@ -198,7 +207,7 @@ export default function UsersPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {users.map((user) => (
+              {usersList.map((user) => (
                 <tr key={user._id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">

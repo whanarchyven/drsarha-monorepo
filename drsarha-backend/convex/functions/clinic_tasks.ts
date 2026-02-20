@@ -1,6 +1,31 @@
-import { query, mutation } from "../_generated/server";
+import { query, mutation, action } from "../_generated/server";
 import { v } from "convex/values";
 import { clinicTaskDoc, clinicTaskFields } from "../models/clinicTask";
+import { api, internal } from "../_generated/api";
+
+const sortByIdx = (items: any[]) =>
+  items.slice().sort((a, b) => {
+    const aIdx = a.idx;
+    const bIdx = b.idx;
+    if (aIdx === undefined && bIdx === undefined) {
+      return (a._creationTime ?? 0) - (b._creationTime ?? 0);
+    }
+    if (aIdx === undefined) return 1;
+    if (bIdx === undefined) return -1;
+    if (aIdx !== bIdx) return bIdx - aIdx;
+    return (a._creationTime ?? 0) - (b._creationTime ?? 0);
+  });
+
+const ensureQuestionIds = (questions: any[]) =>
+  (questions || []).map((question) => {
+    if (question?.id && typeof question.id === "string") {
+      return question;
+    }
+    return {
+      ...question,
+      id: crypto.randomUUID(),
+    };
+  });
 
 export const list = query({
   args: {
@@ -10,6 +35,7 @@ export const list = query({
     limit: v.optional(v.number()),
     forcePublish: v.optional(v.boolean()),
     app_visible: v.optional(v.boolean()),
+    admin_id: v.optional(v.string()),
   },
   returns: v.object({
     items: v.array(clinicTaskDoc),
@@ -18,9 +44,11 @@ export const list = query({
     totalPages: v.number(),
     hasMore: v.boolean(),
   }),
-  handler: async ({ db }, { nozology, search, page = 1, limit = 10, forcePublish, app_visible }) => {
+  handler: async ({ db }, { nozology, search, page = 1, limit = 10, forcePublish, app_visible, admin_id }) => {
     const from = (page - 1) * limit;
     const now = Date.now();
+    const isAdmin = admin_id && admin_id === process.env.ADMIN_ID;
+    const allowUnpublished = isAdmin && forcePublish !== false;
     
     const candidates = nozology
       ? await (db as any)
@@ -30,7 +58,7 @@ export const list = query({
       : await db.query("clinic_tasks").collect();
     
     // Фильтрация по publishAfter, если forcePublish не установлен
-    let filtered = forcePublish 
+    let filtered = allowUnpublished
       ? candidates 
       : candidates.filter((t: any) => {
           if (!t.publishAfter) return true; // Если publishAfter не установлен, показываем
@@ -47,8 +75,9 @@ export const list = query({
       filtered = filtered.filter((t: any) => t.name.toLowerCase().includes(search.toLowerCase()));
     }
     
-    const total = filtered.length;
-    const items = filtered.slice(from, from + limit);
+    const sorted = sortByIdx(filtered);
+    const total = sorted.length;
+    const items = sorted.slice(from, from + limit);
     const totalPages = Math.ceil(total / limit) || 1;
     return { items, total, page, totalPages, hasMore: page < totalPages };
   },
@@ -64,7 +93,11 @@ export const insert = mutation({
   args: v.object(clinicTaskFields),
   returns: clinicTaskDoc,
   handler: async ({ db }, data) => {
-    const id = await db.insert("clinic_tasks", data as any);
+    const normalized = {
+      ...data,
+      questions: ensureQuestionIds(data.questions),
+    };
+    const id = await db.insert("clinic_tasks", normalized as any);
     const doc = await db.get(id);
     return doc!;
   },
@@ -88,16 +121,30 @@ export const update = mutation({
       interviewMode: v.optional(v.boolean()),
       interviewQuestions: v.optional(v.array(v.string())),
       interviewAnalyticQuestions: v.optional(v.array(v.string())),
+      idx: v.optional(v.number()),
       publishAfter: v.optional(v.number()),
       endoscopy_model: v.optional(v.union(v.string(), v.null())),
       endoscopy_video: v.optional(v.union(v.string(), v.null())),
+      timecodes: v.optional(
+        v.array(
+          v.object({
+            time: v.number(),
+            title: v.string(),
+            description: v.optional(v.string()),
+          })
+        )
+      ),
       app_visible: v.optional(v.boolean()),
       references: v.optional(v.array(v.object({ name: v.union(v.string(), v.null()), url: v.string() }))),
     }),
   },
   returns: clinicTaskDoc,
   handler: async ({ db }, { id, data }) => {
-    await db.patch(id, data as any);
+    const normalized = {
+      ...data,
+      ...(data.questions ? { questions: ensureQuestionIds(data.questions) } : {}),
+    };
+    await db.patch(id, normalized as any);
     const doc = await db.get(id);
     return doc!;
   },
@@ -109,6 +156,207 @@ export const remove = mutation({
   handler: async ({ db }, { id }) => {
     await db.delete(id);
     return true;
+  },
+});
+
+const fileValidator = v.object({ base64: v.string(), contentType: v.string() });
+const fileOrPathValidator = v.union(v.string(), fileValidator);
+const optionalFileOrPathOrNull = v.optional(v.union(fileOrPathValidator, v.null()));
+
+const uploadIfNeeded = async (
+  ctx: any,
+  file: { base64: string; contentType: string } | string | undefined,
+  fileType: "images" | "video" | "files"
+) => {
+  if (!file) return undefined;
+  if (typeof file === "string") return file;
+  return await ctx.runAction(internal.helpers.upload.uploadToS3, { file, fileType });
+};
+
+export const create = action({
+  args: {
+    name: v.string(),
+    difficulty: v.number(),
+    cover: fileValidator,
+    images: v.optional(
+      v.array(v.object({ image: fileOrPathValidator, is_open: v.boolean() }))
+    ),
+    description: v.string(),
+    questions: v.array(v.any()),
+    additional_info: v.optional(v.string()),
+    ai_scenario: v.optional(v.string()),
+    stars: v.number(),
+    feedback: v.any(),
+    nozology: v.string(),
+    interviewMode: v.optional(v.boolean()),
+    interviewQuestions: v.optional(v.array(v.string())),
+    interviewAnalyticQuestions: v.optional(v.array(v.string())),
+    publishAfter: v.optional(v.number()),
+    endoscopy_model: optionalFileOrPathOrNull,
+    endoscopy_video: optionalFileOrPathOrNull,
+    endoscopy_modelPath: v.optional(v.string()),
+    endoscopy_videoPath: v.optional(v.string()),
+    timecodes: v.optional(
+      v.array(
+        v.object({
+          time: v.number(),
+          title: v.string(),
+          description: v.optional(v.string()),
+        })
+      )
+    ),
+    app_visible: v.optional(v.boolean()),
+    references: v.optional(
+      v.array(v.object({ name: v.union(v.string(), v.null()), url: v.string() }))
+    ),
+    idx: v.optional(v.number()),
+  },
+  returns: clinicTaskDoc,
+  handler: async (ctx, args) => {
+    const cover_image = await uploadIfNeeded(ctx, args.cover, "images");
+    const images = await Promise.all(
+      (args.images ?? []).map(async (img) => ({
+        ...img,
+        image: (await uploadIfNeeded(ctx, img.image, "images")) as string,
+      }))
+    );
+    const endoscopy_video = args.endoscopy_videoPath
+      ? args.endoscopy_videoPath
+      : await uploadIfNeeded(ctx, args.endoscopy_video ?? undefined, "video");
+    const endoscopy_model = args.endoscopy_modelPath
+      ? args.endoscopy_modelPath
+      : await uploadIfNeeded(ctx, args.endoscopy_model ?? undefined, "files");
+
+    const created = await ctx.runMutation(api.functions.clinic_tasks.insert, {
+      name: args.name,
+      difficulty: args.difficulty,
+      cover_image,
+      images,
+      description: args.description,
+      questions: args.questions,
+      additional_info: args.additional_info ?? "",
+      ai_scenario: args.ai_scenario ?? "",
+      stars: args.stars,
+      feedback: args.feedback,
+      nozology: args.nozology,
+      ...(args.interviewMode !== undefined ? { interviewMode: args.interviewMode } : {}),
+      ...(args.interviewQuestions ? { interviewQuestions: args.interviewQuestions } : {}),
+      ...(args.interviewAnalyticQuestions ? { interviewAnalyticQuestions: args.interviewAnalyticQuestions } : {}),
+      ...(args.idx !== undefined ? { idx: args.idx } : {}),
+      ...(args.publishAfter ? { publishAfter: args.publishAfter } : {}),
+      ...(args.timecodes ? { timecodes: args.timecodes } : {}),
+      ...(args.app_visible !== undefined ? { app_visible: args.app_visible } : {}),
+      ...(endoscopy_video ? { endoscopy_video } : {}),
+      ...(endoscopy_model ? { endoscopy_model } : {}),
+      ...(args.references ? { references: args.references } : {}),
+    } as any);
+
+    return created;
+  },
+});
+
+export const updateAction = action({
+  args: {
+    id: v.id("clinic_tasks"),
+    name: v.optional(v.string()),
+    difficulty: v.optional(v.number()),
+    cover: v.optional(fileValidator),
+    images: v.optional(
+      v.array(v.object({ image: fileOrPathValidator, is_open: v.boolean() }))
+    ),
+    description: v.optional(v.string()),
+    questions: v.optional(v.array(v.any())),
+    additional_info: v.optional(v.string()),
+    ai_scenario: v.optional(v.string()),
+    stars: v.optional(v.number()),
+    feedback: v.optional(v.any()),
+    nozology: v.optional(v.string()),
+    interviewMode: v.optional(v.boolean()),
+    interviewQuestions: v.optional(v.array(v.string())),
+    interviewAnalyticQuestions: v.optional(v.array(v.string())),
+    publishAfter: v.optional(v.number()),
+    endoscopy_model: optionalFileOrPathOrNull,
+    endoscopy_video: optionalFileOrPathOrNull,
+    endoscopy_modelPath: v.optional(v.string()),
+    endoscopy_videoPath: v.optional(v.string()),
+    timecodes: v.optional(
+      v.array(
+        v.object({
+          time: v.number(),
+          title: v.string(),
+          description: v.optional(v.string()),
+        })
+      )
+    ),
+    app_visible: v.optional(v.boolean()),
+    references: v.optional(
+      v.array(v.object({ name: v.union(v.string(), v.null()), url: v.string() }))
+    ),
+    idx: v.optional(v.number()),
+  },
+  returns: clinicTaskDoc,
+  handler: async (ctx, args) => {
+    const data: Record<string, any> = {};
+    if (args.name !== undefined) data.name = args.name;
+    if (args.difficulty !== undefined) data.difficulty = args.difficulty;
+    if (args.description !== undefined) data.description = args.description;
+    if (args.questions !== undefined) data.questions = args.questions;
+    if (args.additional_info !== undefined) data.additional_info = args.additional_info;
+    if (args.ai_scenario !== undefined) data.ai_scenario = args.ai_scenario;
+    if (args.stars !== undefined) data.stars = args.stars;
+    if (args.feedback !== undefined) data.feedback = args.feedback;
+    if (args.nozology !== undefined) data.nozology = args.nozology;
+    if (args.interviewMode !== undefined) data.interviewMode = args.interviewMode;
+    if (args.interviewQuestions !== undefined)
+      data.interviewQuestions = args.interviewQuestions;
+    if (args.interviewAnalyticQuestions !== undefined)
+      data.interviewAnalyticQuestions = args.interviewAnalyticQuestions;
+    if (args.publishAfter !== undefined) data.publishAfter = args.publishAfter;
+    if (args.app_visible !== undefined) data.app_visible = args.app_visible;
+    if (args.references !== undefined) data.references = args.references;
+    if (args.idx !== undefined) data.idx = args.idx;
+    if (args.timecodes !== undefined) data.timecodes = args.timecodes;
+
+    if (args.cover) {
+      data.cover_image = await uploadIfNeeded(ctx, args.cover, "images");
+    }
+    if (args.images) {
+      data.images = await Promise.all(
+        args.images.map(async (img) => ({
+          ...img,
+          image: (await uploadIfNeeded(ctx, img.image, "images")) as string,
+        }))
+      );
+    }
+    if (args.endoscopy_video === null) {
+      data.endoscopy_video = null;
+    } else if (args.endoscopy_videoPath) {
+      data.endoscopy_video = args.endoscopy_videoPath;
+    } else if (args.endoscopy_video) {
+      data.endoscopy_video = await uploadIfNeeded(
+        ctx,
+        args.endoscopy_video ?? undefined,
+        "video"
+      );
+    }
+    if (args.endoscopy_model === null) {
+      data.endoscopy_model = null;
+    } else if (args.endoscopy_modelPath) {
+      data.endoscopy_model = args.endoscopy_modelPath;
+    } else if (args.endoscopy_model) {
+      data.endoscopy_model = await uploadIfNeeded(
+        ctx,
+        args.endoscopy_model ?? undefined,
+        "files"
+      );
+    }
+
+    const updated = await ctx.runMutation(api.functions.clinic_tasks.update, {
+      id: args.id,
+      data,
+    });
+
+    return updated;
   },
 });
 

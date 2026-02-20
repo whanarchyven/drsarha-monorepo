@@ -18,6 +18,7 @@ export const interactiveTaskFields = {
   nozology: v.union(v.id("nozologies"), v.string()),
   stars: v.number(),
   mongoId: v.optional(v.string()),
+  idx: v.optional(v.number()),
   publishAfter: v.optional(v.number()),
   description: v.optional(v.string()),
   app_visible: v.optional(v.boolean()),

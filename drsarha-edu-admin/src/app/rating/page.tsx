@@ -1,73 +1,42 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { UserCard } from '@/components/user-card';
 import { UserDetailsModal } from '@/components/user-details-modal';
 import { Pagination } from '@/components/pagination';
 import { LoadingSpinner } from '@/components/loading-spinner';
-import type {
-  UserWithStats,
-  RatingPaginatedResponse,
-  RatingDetails,
-} from '@/shared/models/Rating';
-import { ratingsApi } from '@/shared/api/rating';
+import { useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
+import type { FunctionReturnType } from 'convex/server';
 
 export default function RatingPage() {
-  const [users, setUsers] = useState<UserWithStats[]>([]);
-  const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [selectedUser, setSelectedUser] = useState<RatingDetails | null>(null);
-  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<Id<'users'> | null>(
+    null
+  );
 
-  // Симуляция загрузки данных
-  useEffect(() => {
-    fetchUsers(currentPage);
-  }, [currentPage]);
-
-  const fetchUsers = async (page: number) => {
-    setLoading(true);
-    try {
-      // Симуляция API запроса
-      const mockResponse = await ratingsApi.getAll({ page: page, limit: 15 });
-      setUsers(mockResponse.items);
-      setTotalPages(mockResponse.totalPages);
-    } catch (error) {
-      console.error('Ошибка загрузки пользователей:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchUserDetails = async (userId: string) => {
-    setDetailsLoading(true);
-    try {
-      // Симуляция API запроса
-      const response = await ratingsApi.getById(userId);
-
-      if (!response) return;
-
-      // Мок данные для деталей
-      const mockDetails: RatingDetails = {
-        user: response.user,
-        fullCompletions: response.fullCompletions,
-      };
-
-      setSelectedUser(mockDetails);
-    } catch (error) {
-      console.error('Ошибка загрузки деталей пользователя:', error);
-    } finally {
-      setDetailsLoading(false);
-    }
-  };
-
-  const handleUserClick = (userId: string) => {
-    fetchUserDetails(userId);
-  };
+  const pageSize = 15;
+  const ratingResponse =
+    useQuery(api.functions.ratings.listUsersWithStats, {
+      page: currentPage,
+      limit: pageSize,
+    }) as
+      | FunctionReturnType<typeof api.functions.ratings.listUsersWithStats>
+      | undefined;
+  const selectedUser = useQuery(
+    api.functions.ratings.getUserDetails,
+    selectedUserId ? { userId: selectedUserId } : 'skip'
+  );
+  const detailsLoading = !!selectedUserId && selectedUser === undefined;
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
+
+  const users = ratingResponse?.items ?? [];
+  const totalPages = ratingResponse?.totalPages ?? 1;
+  const loading = ratingResponse === undefined;
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -89,7 +58,9 @@ export default function RatingPage() {
               <UserCard
                 key={userWithStats.user._id}
                 userWithStats={userWithStats}
-                onDetailsClick={() => handleUserClick(userWithStats.user._id)}
+                onDetailsClick={() =>
+                  setSelectedUserId(userWithStats.user._id as Id<'users'>)
+                }
               />
             ))}
           </div>
@@ -103,9 +74,9 @@ export default function RatingPage() {
       )}
 
       <UserDetailsModal
-        userDetails={selectedUser}
-        isOpen={!!selectedUser}
-        onClose={() => setSelectedUser(null)}
+        userDetails={selectedUser ?? null}
+        isOpen={!!selectedUserId}
+        onClose={() => setSelectedUserId(null)}
         loading={detailsLoading}
       />
     </div>

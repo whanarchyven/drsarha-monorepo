@@ -1,34 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { LootboxForm } from '../../_components/LootboxForm';
-import { lootboxesApi } from '@/shared/api/lootboxes';
-import type { Lootbox } from '@/shared/models/Lootbox';
 import LoadingSpinner from '@/shared/ui/LoadingSpinner/LoadingSpinner';
-import { toast } from 'sonner';
+import { useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
 
 export default function EditLootboxPage({
   params,
 }: {
   params: { id: string };
 }) {
-  const [lootbox, setLootbox] = useState<Lootbox | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchLootbox = async () => {
-      try {
-        const data = await lootboxesApi.getById(params.id);
-        setLootbox(data);
-      } catch (error: any) {
-        console.error('Error fetching lootbox:', error);
-        toast.error('Ошибка при загрузке лутбокса');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchLootbox();
-  }, [params.id]);
+  const lootbox = useQuery(api.functions.lootboxes.getById, {
+    id: params.id as Id<'lootboxes'>,
+  });
+  const isLoading = lootbox === undefined;
 
   if (isLoading) {
     return (

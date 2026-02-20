@@ -2,7 +2,8 @@
 
 import { Button } from '@/components/ui/button';
 import { Plus, Search } from 'lucide-react';
-import type { Lootbox } from '@/shared/models/Lootbox';
+import { api } from '@convex/_generated/api';
+import type { FunctionReturnType } from 'convex/server';
 import { Input } from '@/components/ui/input';
 import {
   AlertDialog,
@@ -21,7 +22,7 @@ import { LootboxCard } from '@/entities/lootbox/ui/LootboxCard';
 import LoadingSpinner from '@/shared/ui/LoadingSpinner/LoadingSpinner';
 
 interface LootboxGridProps {
-  data: Lootbox[];
+  data: FunctionReturnType<typeof api.functions.lootboxes.list>['items'];
   isLoading: boolean;
   pagination: {
     total: number;

@@ -1,30 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { PrizeForm } from '../../_components/PrizeForm';
-import { prizesApi } from '@/shared/api/prizes';
-import type { Prize } from '@/shared/models/Prize';
 import LoadingSpinner from '@/shared/ui/LoadingSpinner/LoadingSpinner';
-import { toast } from 'sonner';
+import { useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
 
 export default function EditPrizePage({ params }: { params: { id: string } }) {
-  const [prize, setPrize] = useState<Prize | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchPrize = async () => {
-      try {
-        const data = await prizesApi.getById(params.id);
-        setPrize(data);
-      } catch (error: any) {
-        console.error('Error fetching prize:', error);
-        toast.error('Ошибка при загрузке приза');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchPrize();
-  }, [params.id]);
+  const prize = useQuery(api.functions.prizes.getById, {
+    id: params.id as Id<'prizes'>,
+  });
+  const isLoading = prize === undefined;
 
   if (isLoading) {
     return (

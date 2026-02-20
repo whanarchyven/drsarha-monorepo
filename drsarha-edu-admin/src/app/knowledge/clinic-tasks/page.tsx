@@ -1,60 +1,38 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useMemo } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
-import { useNozologiesStore } from '@/shared/store/nozologiesStore';
-
-import type { Lection } from '@/shared/models/Lection';
-import type { BaseQueryParams } from '@/shared/api/types';
 import { ClinicTaskGrid } from './_components/ClinicTaskGrid';
-import { clinicTasksApi } from '@/shared/api/clinic-tasks';
-import type { ClinicTask } from '@/shared/models/ClinicTask';
+import { useMutation, useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
+import type { FunctionReturnType } from 'convex/server';
 export default function ClinicTasksPage() {
   const router = useRouter();
-  const [data, setData] = useState<ClinicTask[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const searchParams = useSearchParams();
-  const { fetchNozologies } = useNozologiesStore();
-  const currentNozologyId = searchParams.get('nozologyId');
-  const [pagination, setPagination] = useState({
-    total: 0,
-    page: 1,
-    totalPages: 1,
-    hasMore: false,
-  });
+  const pathname = usePathname();
+  const currentNozologyId = searchParams.get('nozologyId') || undefined;
+  const searchQuery = searchParams.get('search') || '';
 
-  const fetchData = async (params?: BaseQueryParams) => {
-    setIsLoading(true);
-    try {
-      const response = await clinicTasksApi.getAll({
-        ...params,
-        nozologyId: currentNozologyId || undefined,
-        search: searchQuery || undefined,
-        page: params?.page || 1,
-        limit: 12,
-      });
-      setData(response.items);
-      setPagination({
-        total: response.total,
-        page: response.page,
-        totalPages: response.totalPages,
-        hasMore: response.hasMore,
-      });
-    } catch (error) {
-      console.error('Error fetching lections:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const queryArgs = useMemo(() => {
+    const page = searchParams.get('page');
+    const adminId = process.env.NEXT_PUBLIC_ADMIN_ID || undefined;
+    return {
+      nozology: currentNozologyId,
+      search: searchQuery || undefined,
+      page: page ? Number(page) : 1,
+      limit: 12,
+      admin_id: adminId,
+    };
+  }, [currentNozologyId, searchQuery, searchParams]);
 
-  useEffect(() => {
-    fetchNozologies();
-    fetchData();
-  }, [currentNozologyId, searchQuery]);
+  const response = useQuery(api.functions.clinic_tasks.list, queryArgs);
+  const removeClinicTask = useMutation(api.functions.clinic_tasks.remove);
+  const data = response?.items;
+  const isLoading = response === undefined;
 
   return (
     <div className="p-6 space-y-6">
@@ -70,7 +48,16 @@ export default function ClinicTasksPage() {
         <Input
           placeholder="Поиск клинических задач..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => {
+            const nextParams = new URLSearchParams(searchParams);
+            if (e.target.value) {
+              nextParams.set('search', e.target.value);
+            } else {
+              nextParams.delete('search');
+            }
+            nextParams.delete('page');
+            router.push(`${pathname}?${nextParams.toString()}`);
+          }}
           className="w-full"
         />
       </div>
@@ -78,8 +65,15 @@ export default function ClinicTasksPage() {
       <ClinicTaskGrid
         data={data}
         isLoading={isLoading}
-        pagination={pagination}
-        onPageChange={(page) => fetchData({ page })}
+        pagination={response}
+        onPageChange={(page) => {
+          const nextParams = new URLSearchParams(searchParams);
+          nextParams.set('page', String(page));
+          router.push(`${pathname}?${nextParams.toString()}`);
+        }}
+        onDelete={async (id: Id<'clinic_tasks'>) => {
+          await removeClinicTask({ id });
+        }}
       />
     </div>
   );

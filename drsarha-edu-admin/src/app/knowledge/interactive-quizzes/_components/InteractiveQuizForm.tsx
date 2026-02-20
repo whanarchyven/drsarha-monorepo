@@ -15,7 +15,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { useNozologiesStore } from '@/shared/store/nozologiesStore';
 import {
   Select,
   SelectContent,
@@ -23,14 +22,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { interactiveQuizzesApi } from '@/shared/api/interactive-quizzes';
-import type { InteractiveQuiz } from '@/shared/models/InteractiveQuiz';
 import { FeedbackQuestions } from '@/shared/ui/FeedBackQuestions/FeedbackQuestions';
 
 import Image from 'next/image';
 import { getContentUrl } from '@/shared/utils/url';
 import QuestionCreator from '@/components/question-creator';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useAction, useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
+import type { FunctionReturnType } from 'convex/server';
 import type { Question } from '@/shared/models/types/QuestionType';
 import { toast } from 'sonner';
 import { Textarea } from '@/components/ui/textarea';
@@ -52,6 +53,10 @@ const formSchema = z.object({
   stars: z.number().min(0).max(5),
   nozology: z.string().min(1, 'Нозология обязательна'),
   publishAfter: publishAfterSchema,
+  idx: z.preprocess(
+    (value) => (value === '' || value === null || value === undefined ? undefined : Number(value)),
+    z.number().int().nonnegative().optional()
+  ),
   feedback: z
     .array(
       z.object({
@@ -81,12 +86,16 @@ const formSchema = z.object({
 });
 
 interface InteractiveQuizFormProps {
-  initialData?: InteractiveQuiz;
+  initialData?: NonNullable<
+    FunctionReturnType<typeof api.functions.interactive_quizzes.getById>
+  >;
 }
 
 export function InteractiveQuizForm({ initialData }: InteractiveQuizFormProps) {
   const router = useRouter();
-  const { items: nozologies } = useNozologiesStore();
+  const nozologies = useQuery(api.functions.nozologies.list, {}) ?? [];
+  const createInteractiveQuiz = useAction(api.functions.interactive_quizzes.create);
+  const updateInteractiveQuiz = useAction(api.functions.interactive_quizzes.updateAction);
 
   const [questions, setQuestions] = useState<Question[]>(
     initialData?.questions || []
@@ -96,6 +105,21 @@ export function InteractiveQuizForm({ initialData }: InteractiveQuizFormProps) {
   >(initialData?.references || []);
   const [newReferenceName, setNewReferenceName] = useState('');
   const [newReferenceUrl, setNewReferenceUrl] = useState('');
+
+  const normalizePublishAfter = (
+    value: string | number | Date | undefined
+  ): string => {
+    if (!value) return '';
+    if (value instanceof Date) return value.toISOString().slice(0, 10);
+    if (typeof value === 'number') {
+      return new Date(value).toISOString().slice(0, 10);
+    }
+    const asNumber = Number(value);
+    if (!Number.isNaN(asNumber) && value.trim() !== '') {
+      return new Date(asNumber).toISOString().slice(0, 10);
+    }
+    return value.slice(0, 10);
+  };
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -107,17 +131,31 @@ export function InteractiveQuizForm({ initialData }: InteractiveQuizFormProps) {
       questions: initialData?.questions || [],
       feedback: initialData?.feedback || [],
       cover_image: undefined,
-      publishAfter: initialData?.publishAfter
-        ? typeof initialData.publishAfter === 'string'
-          ? initialData.publishAfter.slice(0, 10)
-          : initialData.publishAfter instanceof Date
-            ? initialData.publishAfter.toISOString().slice(0, 10)
-            : String(initialData.publishAfter).slice(0, 10)
-        : '',
+      publishAfter: normalizePublishAfter(initialData?.publishAfter),
+      idx: initialData?.idx ?? undefined,
       app_visible: initialData?.app_visible || false,
       references: initialData?.references || [],
     },
   });
+
+  useEffect(() => {
+    if (!initialData) return;
+    form.reset({
+      name: initialData.name || '',
+      available_errors: initialData.available_errors || 0,
+      stars: initialData.stars || 0,
+      nozology: initialData.nozology || '',
+      questions: initialData.questions || [],
+      feedback: initialData.feedback || [],
+      cover_image: undefined,
+      publishAfter: normalizePublishAfter(initialData.publishAfter),
+      idx: initialData.idx ?? undefined,
+      app_visible: initialData.app_visible || false,
+      references: initialData.references || [],
+    });
+    setQuestions(initialData.questions || []);
+    setReferences(initialData.references || []);
+  }, [form, initialData]);
 
   // Подсветка первой ошибки Zod и фокус на поле
   const onInvalid = (errors: any) => {
@@ -142,192 +180,167 @@ export function InteractiveQuizForm({ initialData }: InteractiveQuizFormProps) {
     console.error('Form validation errors:', errors);
   };
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    console.log(values, 'VALUES');
-    try {
-      console.log(values, 'VALUES');
-      console.log(questions, 'QUESTIONS');
+  const fileToBase64 = (file: File | Blob) =>
+    new Promise<{ base64: string; contentType: string }>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result?.toString() || '';
+        const base64 = result.includes(',') ? result.split(',')[1] : result;
+        resolve({
+          base64,
+          contentType: (file as File).type || 'application/octet-stream',
+        });
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
 
+  const blobUrlToBase64 = async (url: string) => {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    return await fileToBase64(blob);
+  };
+
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    const submitPromise = (async () => {
       if (!initialData && !values.cover_image?.[0]) {
         throw new Error(
           'Обложка обязательна при создании интерактивной викторины'
         );
       }
 
-      const formData = new FormData();
+      const publishAfter =
+        values.publishAfter && values.publishAfter.length
+          ? new Date(values.publishAfter).getTime()
+          : undefined;
 
-      // Базовые поля
-      formData.append('name', values.name);
-      formData.append('available_errors', values.available_errors.toString());
-      formData.append('stars', values.stars.toString());
-      formData.append('nozology', values.nozology);
-      if (values.publishAfter) {
-        formData.append('publishAfter', values.publishAfter);
-      }
+      const coverFile =
+        values.cover_image?.[0] instanceof File ? values.cover_image[0] : undefined;
 
-      // Обработка обложки
-      if (values.cover_image?.[0] instanceof File) {
-        formData.append('cover_image', values.cover_image[0]);
-      }
+      const questionsData = await Promise.all(
+        questions.map(async (question) => {
+          const questionData: any = {
+            question: question.question,
+            type: question.type,
+            correct_answer_comment: question.correct_answer_comment,
+          };
 
-      // Подготовка данных вопросов
-      const questionsData = questions.map((question, index) => {
-        const questionData: any = {
-          question: question.question,
-          type: question.type,
-          correct_answer_comment: question.correct_answer_comment,
-        };
-
-        // Обработка изображения вопроса
-        if (question.image) {
-          if (typeof question.image === 'string') {
-            if (question.image.includes('/images/')) {
-              // Изображение уже на сервере
-              questionData.image = question.image;
-            } else if (question.image.startsWith('blob:')) {
-              // Новое изображение
-              questionData.image = `question_image_${index}`;
-            } else {
-              // Существующее изображение
-              questionData.image = question.image;
-            }
-          }
-        }
-
-        // Обработка ответов
-        if (question.type === 'variants' && question.answers) {
-          questionData.answers = question.answers.map((answer, answerIndex) => {
-            const answerData: any = {
-              answer: answer.answer,
-              isCorrect: answer.isCorrect,
-            };
-
-            // Обработка изображения ответа
-            if (answer.image) {
-              if (typeof answer.image === 'string') {
-                if (answer.image.includes('/images/')) {
-                  // Изображение уже на сервере
-                  answerData.image = answer.image;
-                } else if (answer.image.startsWith('blob:')) {
-                  // Новое изображение
-                  answerData.image = `question_${index}_answer_${answerIndex}_image`;
-                } else {
-                  // Существующее изображение
-                  answerData.image = answer.image;
-                }
+          if (question.image) {
+            if (typeof question.image === 'string') {
+              if (question.image.startsWith('blob:')) {
+                questionData.image = await blobUrlToBase64(question.image);
+              } else {
+                questionData.image = question.image;
               }
             }
-
-            return answerData;
-          });
-        } else if (question.type === 'text') {
-          questionData.answer = question.answer;
-          if ('additional_info' in question && question.additional_info) {
-            questionData.additional_info = question.additional_info;
           }
-        }
 
-        return questionData;
-      });
+          if (question.type === 'variants' && question.answers) {
+            questionData.answers = await Promise.all(
+              question.answers.map(async (answer) => {
+                const answerData: any = {
+                  answer: answer.answer,
+                  isCorrect: answer.isCorrect,
+                };
 
-      // Добавление данных вопросов в FormData
-      formData.append('questions', JSON.stringify(questionsData));
+                if (answer.image) {
+                  if (typeof answer.image === 'string') {
+                    if (answer.image.startsWith('blob:')) {
+                      answerData.image = await blobUrlToBase64(answer.image);
+                    } else {
+                      answerData.image = answer.image;
+                    }
+                  }
+                }
 
-      // Добавление данных обратной связи
+                return answerData;
+              })
+            );
+          } else if (question.type === 'text') {
+            questionData.answer = question.answer;
+            if ('additional_info' in question && question.additional_info) {
+              questionData.additional_info = question.additional_info;
+            }
+          }
+
+          return questionData;
+        })
+      );
+
       const feedbackData = values.feedback.map((item) => ({
         ...item,
         analytic_questions: item.analytic_questions || [],
       }));
 
-      formData.append('feedback', JSON.stringify(feedbackData));
-      formData.append('app_visible', values.app_visible.toString());
-      formData.append('references', JSON.stringify(references));
+      if (initialData?._id) {
+        const args: {
+          id: Id<'interactive_quizzes'>;
+          name?: string;
+          cover?: { base64: string; contentType: string };
+          questions?: any[];
+          available_errors?: number;
+          feedback?: z.infer<typeof formSchema>['feedback'];
+          nozology?: string;
+          stars?: number;
+          publishAfter?: number;
+          app_visible?: boolean;
+          references?: Array<{ name: string; url: string }>;
+          idx?: number;
+        } = {
+          id: initialData._id as Id<'interactive_quizzes'>,
+          name: values.name,
+          questions: questionsData,
+          available_errors: values.available_errors,
+          feedback: feedbackData,
+          nozology: values.nozology,
+          stars: values.stars,
+          publishAfter,
+          app_visible: values.app_visible,
+          references,
+        };
 
-      // Загрузка файлов изображений для вопросов
-      for (let qIndex = 0; qIndex < questions.length; qIndex++) {
-        const question = questions[qIndex];
-
-        // Загрузка изображения вопроса
-        if (
-          question.image &&
-          typeof question.image === 'string' &&
-          question.image.startsWith('blob:') &&
-          !question.image.includes('/images/')
-        ) {
-          try {
-            const response = await fetch(question.image);
-            const blob = await response.blob();
-            const file = new File([blob], `question_image_${qIndex}.jpg`, {
-              type: 'image/jpeg',
-            });
-            formData.append(`question_image_${qIndex}`, file);
-          } catch (error) {
-            console.error(`Error processing question ${qIndex} image:`, error);
-            throw new Error(
-              `Ошибка при обработке изображения для вопроса ${qIndex + 1}`
-            );
-          }
+        if (coverFile) {
+          args.cover = await fileToBase64(coverFile);
+        }
+        if (values.idx !== undefined) {
+          args.idx = values.idx;
         }
 
-        // Загрузка изображений для ответов
-        if (question.type === 'variants' && question.answers) {
-          for (let aIndex = 0; aIndex < question.answers.length; aIndex++) {
-            const answer = question.answers[aIndex];
-            if (
-              answer.image &&
-              typeof answer.image === 'string' &&
-              answer.image.startsWith('blob:') &&
-              !answer.image.includes('/images/')
-            ) {
-              try {
-                const response = await fetch(answer.image);
-                const blob = await response.blob();
-                const file = new File(
-                  [blob],
-                  `answer_image_${qIndex}_${aIndex}.jpg`,
-                  { type: 'image/jpeg' }
-                );
-                formData.append(
-                  `question_${qIndex}_answer_${aIndex}_image`,
-                  file
-                );
-              } catch (error) {
-                console.error(
-                  `Error processing answer ${aIndex} image for question ${qIndex}:`,
-                  error
-                );
-                throw new Error(
-                  `Ошибка при обработке изображения для варианта ответа ${aIndex + 1} вопроса ${qIndex + 1}`
-                );
-              }
-            }
-          }
-        }
+        await updateInteractiveQuiz(args);
+        return { mode: 'updated' as const };
       }
 
-      // Для отладки выводим содержимое FormData
-      console.log('FormData contents:');
-      for (const pair of Array.from(formData.entries())) {
-        console.log(pair[0], pair[1]);
-      }
+      await createInteractiveQuiz({
+        name: values.name,
+        cover: await fileToBase64(coverFile!),
+        questions: questionsData,
+        available_errors: values.available_errors,
+        feedback: feedbackData,
+        nozology: values.nozology,
+        stars: values.stars,
+        publishAfter,
+        app_visible: values.app_visible,
+        references,
+        ...(values.idx !== undefined ? { idx: values.idx } : {}),
+      });
 
-      if ((initialData as any)?._id) {
-        const id = (initialData as any)._id;
-        await interactiveQuizzesApi.update(id, formData);
-        toast.success('Интерактивная викторина успешно обновлена');
-      } else {
-        await interactiveQuizzesApi.create(formData);
-        toast.success('Интерактивная викторина успешно создана');
-      }
+      return { mode: 'created' as const };
+    })();
 
+    try {
+      await toast.promise(submitPromise, {
+        loading: 'Сохранение интерактивной викторины...',
+        success: (data) =>
+          data.mode === 'updated'
+            ? 'Интерактивная викторина успешно обновлена'
+            : 'Интерактивная викторина успешно создана',
+        error: 'Ошибка сохранения интерактивной викторины',
+      });
       router.push('/knowledge/interactive-quizzes');
       router.refresh();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error saving interactive quiz:', error);
-      toast.error(
-        error.message ||
-          'Произошла ошибка при сохранении интерактивной викторины'
-      );
+      return;
     }
   };
 
@@ -426,6 +439,30 @@ export function InteractiveQuizForm({ initialData }: InteractiveQuizFormProps) {
 
           <FormField
             control={form.control}
+            name="idx"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Индекс вывода</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="Введите индекс..."
+                    value={field.value ?? ''}
+                    onChange={(e) =>
+                      field.onChange(
+                        e.target.value === '' ? undefined : Number(e.target.value)
+                      )
+                    }
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
             name="nozology"
             render={({ field }) => (
               <FormItem>
@@ -440,7 +477,9 @@ export function InteractiveQuizForm({ initialData }: InteractiveQuizFormProps) {
                   </FormControl>
                   <SelectContent>
                     {nozologies.map((nozology) => (
-                      <SelectItem key={nozology._id} value={nozology._id}>
+                      <SelectItem
+                        key={nozology._id}
+                        value={String(nozology._id)}>
                         {nozology.name}
                       </SelectItem>
                     ))}

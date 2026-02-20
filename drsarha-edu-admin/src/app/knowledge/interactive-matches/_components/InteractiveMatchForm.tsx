@@ -15,7 +15,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { useNozologiesStore } from '@/shared/store/nozologiesStore';
 import {
   Select,
   SelectContent,
@@ -23,16 +22,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { interactiveMatchesApi } from '@/shared/api/interactive-matches';
-import type { InteractiveMatch } from '@/shared/models/InteractiveMatch';
 import { FeedbackQuestions } from '@/shared/ui/FeedBackQuestions/FeedbackQuestions';
-import type { Nozology } from '@/shared/models/Nozology';
 
 import Image from 'next/image';
 import { getContentUrl } from '@/shared/utils/url';
 import { useState, useEffect } from 'react';
+import { useAction, useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
+import type { FunctionReturnType } from 'convex/server';
 import { toast } from 'sonner';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ArrowDown, ArrowUp } from 'lucide-react';
 
 const publishAfterSchema = z.preprocess(
   (value) =>
@@ -48,8 +49,11 @@ const formSchema = z.object({
   stars: z.number().min(0).max(5),
   nozology: z.string().min(1, 'Нозология обязательна'),
   publishAfter: publishAfterSchema,
-  interviewMode: z.boolean().default(false),
-  interviewQuestions: z.array(z.string()).default([]),
+  idx: z.preprocess(
+    (value) => (value === '' || value === null || value === undefined ? undefined : Number(value)),
+    z.number().int().nonnegative().optional()
+  ),
+  // interviewMode/interviewQuestions removed for this module
   feedback: z
     .array(
       z.object({
@@ -79,31 +83,42 @@ const formSchema = z.object({
 });
 
 interface InteractiveMatchFormProps {
-  initialData?: InteractiveMatch;
+  initialData?: NonNullable<
+    FunctionReturnType<typeof api.functions.interactive_matches.getById>
+  >;
 }
 
 export function InteractiveMatchForm({
   initialData,
 }: InteractiveMatchFormProps) {
   const router = useRouter();
-  const { items, fetchNozologies } = useNozologiesStore();
+  const nozologies = useQuery(api.functions.nozologies.list, {}) ?? [];
+  const createInteractiveMatch = useAction(api.functions.interactive_matches.create);
+  const updateInteractiveMatch = useAction(api.functions.interactive_matches.updateAction);
   const [newAnswer, setNewAnswer] = useState('');
   const [answerList, setAnswerList] = useState<string[]>(
     initialData?.answers || []
   );
-  const [newInterviewQuestion, setNewInterviewQuestion] = useState('');
-  const [interviewQuestionsList, setInterviewQuestionsList] = useState<
-    string[]
-  >(initialData?.interviewQuestions || []);
   const [references, setReferences] = useState<
     Array<{ name: string; url: string }>
   >(initialData?.references || []);
   const [newReferenceName, setNewReferenceName] = useState('');
   const [newReferenceUrl, setNewReferenceUrl] = useState('');
 
-  useEffect(() => {
-    fetchNozologies();
-  }, [fetchNozologies]);
+  const normalizePublishAfter = (
+    value: string | number | Date | undefined
+  ): string => {
+    if (!value) return '';
+    if (value instanceof Date) return value.toISOString().slice(0, 10);
+    if (typeof value === 'number') {
+      return new Date(value).toISOString().slice(0, 10);
+    }
+    const asNumber = Number(value);
+    if (!Number.isNaN(asNumber) && value.trim() !== '') {
+      return new Date(asNumber).toISOString().slice(0, 10);
+    }
+    return value.slice(0, 10);
+  };
 
   const handleAddAnswer = () => {
     if (newAnswer.trim()) {
@@ -118,20 +133,14 @@ export function InteractiveMatchForm({
     setAnswerList(newAnswers);
   };
 
-  const handleAddInterviewQuestion = () => {
-    if (newInterviewQuestion.trim()) {
-      setInterviewQuestionsList([
-        ...interviewQuestionsList,
-        newInterviewQuestion.trim(),
-      ]);
-      setNewInterviewQuestion('');
-    }
-  };
-
-  const handleRemoveInterviewQuestion = (index: number) => {
-    const newQuestions = [...interviewQuestionsList];
-    newQuestions.splice(index, 1);
-    setInterviewQuestionsList(newQuestions);
+  const moveAnswer = (index: number, direction: 'up' | 'down') => {
+    setAnswerList((prev) => {
+      const next = [...prev];
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= next.length) return prev;
+      [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+      return next;
+    });
   };
 
   const handleAddReference = () => {
@@ -161,65 +170,138 @@ export function InteractiveMatchForm({
       stars: initialData?.stars || 0,
       nozology: initialData?.nozology || '',
       feedback: initialData?.feedback || [],
-      interviewMode: initialData?.interviewMode || false,
-      interviewQuestions: initialData?.interviewQuestions || [],
-      publishAfter: initialData?.publishAfter
-        ? typeof initialData.publishAfter === 'string'
-          ? initialData.publishAfter.slice(0, 10)
-          : initialData.publishAfter instanceof Date
-            ? initialData.publishAfter.toISOString().slice(0, 10)
-            : String(initialData.publishAfter).slice(0, 10)
-        : '',
+      // interview fields removed
+      publishAfter: normalizePublishAfter(initialData?.publishAfter),
+      idx: initialData?.idx ?? undefined,
       app_visible: initialData?.app_visible || false,
       references: initialData?.references || [],
     },
   });
 
+  useEffect(() => {
+    if (!initialData) return;
+    form.reset({
+      name: initialData.name || '',
+      cover_image: initialData.cover_image || null,
+      available_errors: initialData.available_errors || 0,
+      answers: initialData.answers || [],
+      stars: initialData.stars || 0,
+      nozology: initialData.nozology || '',
+      feedback: initialData.feedback || [],
+      // interview fields removed
+      publishAfter: normalizePublishAfter(initialData.publishAfter),
+      idx: initialData.idx ?? undefined,
+      app_visible: initialData.app_visible || false,
+      references: initialData.references || [],
+    });
+    setAnswerList(initialData.answers || []);
+    // interview fields removed
+    setReferences(initialData.references || []);
+  }, [form, initialData]);
+
+  const fileToBase64 = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result?.toString() || '';
+        const base64 = result.includes(',') ? result.split(',')[1] : result;
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
   const handleSubmit = async (values: z.infer<typeof formSchema>) => {
-    try {
-      const formData = new FormData();
-      formData.append('name', values.name);
-      formData.append('available_errors', values.available_errors.toString());
-      formData.append('stars', values.stars.toString());
-      formData.append('nozology', values.nozology);
-      if (values.publishAfter) {
-        formData.append('publishAfter', values.publishAfter);
-      }
-      formData.append('interviewMode', values.interviewMode.toString());
+    const submitPromise = (async () => {
+      const publishAfter =
+        values.publishAfter && values.publishAfter.length
+          ? new Date(values.publishAfter).getTime()
+          : undefined;
 
-      // Добавляем ответы
-      formData.append('answers', JSON.stringify(answerList));
+      const coverFile =
+        values.cover_image && values.cover_image instanceof File
+          ? values.cover_image
+          : undefined;
 
-      // Добавляем вопросы интервью
-      formData.append(
-        'interviewQuestions',
-        JSON.stringify(interviewQuestionsList)
-      );
-
-      // Добавляем фидбэк
-      formData.append('feedback', JSON.stringify(values.feedback));
-      formData.append('app_visible', values.app_visible.toString());
-      formData.append('references', JSON.stringify(references));
-
-      // Обрабатываем изображение
-      if (values.cover_image && values.cover_image instanceof File) {
-        formData.append('cover_image', values.cover_image);
+      if (!initialData?._id && !coverFile) {
+        throw new Error('Обложка обязательна при создании');
       }
 
       if (initialData?._id) {
-        // Обновление
-        await interactiveMatchesApi.update(initialData._id, formData);
-        toast.success('Интерактивное соединение обновлено');
-      } else {
-        // Создание
-        await interactiveMatchesApi.create(formData);
-        toast.success('Интерактивное соединение создано');
+        const args: {
+          id: Id<'interactive_matches'>;
+          name?: string;
+          cover?: { base64: string; contentType: string };
+          answers?: string[];
+          available_errors?: number;
+          feedback?: z.infer<typeof formSchema>['feedback'];
+          nozology?: string;
+          stars?: number;
+          publishAfter?: number;
+          app_visible?: boolean;
+          references?: Array<{ name: string; url: string }>;
+          idx?: number;
+        } = {
+          id: initialData._id as Id<'interactive_matches'>,
+          name: values.name,
+          answers: answerList,
+          available_errors: values.available_errors,
+          feedback: values.feedback,
+          nozology: values.nozology,
+          stars: values.stars,
+          publishAfter,
+          app_visible: values.app_visible,
+          references,
+        };
+
+        if (coverFile) {
+          args.cover = {
+            base64: await fileToBase64(coverFile),
+            contentType: coverFile.type || 'application/octet-stream',
+          };
+        }
+        if (values.idx !== undefined) {
+          args.idx = values.idx;
+        }
+
+        await updateInteractiveMatch(args);
+        return { mode: 'updated' as const };
       }
 
+      await createInteractiveMatch({
+        name: values.name,
+        cover: {
+          base64: await fileToBase64(coverFile!),
+          contentType: coverFile!.type || 'application/octet-stream',
+        },
+        answers: answerList,
+        available_errors: values.available_errors,
+        feedback: values.feedback,
+        nozology: values.nozology,
+        stars: values.stars,
+        publishAfter,
+        app_visible: values.app_visible,
+        references,
+        ...(values.idx !== undefined ? { idx: values.idx } : {}),
+      });
+
+      return { mode: 'created' as const };
+    })();
+
+    try {
+      await toast.promise(submitPromise, {
+        loading: 'Сохранение интерактивного соединения...',
+        success: (data) =>
+          data.mode === 'updated'
+            ? 'Интерактивное соединение обновлено'
+            : 'Интерактивное соединение создано',
+        error: 'Ошибка при сохранении',
+      });
       router.push('/knowledge/interactive-matches');
+      router.refresh();
     } catch (error) {
       console.error('Error submitting form:', error);
-      toast.error('Ошибка при сохранении');
+      return;
     }
   };
 
@@ -301,13 +383,31 @@ export function InteractiveMatchForm({
                     key={index}
                     className="flex items-center justify-between bg-gray-100 p-2 rounded">
                     <span>{answer}</span>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleRemoveAnswer(index)}>
-                      Удалить
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => moveAnswer(index, 'up')}
+                        disabled={index === 0}>
+                        <ArrowUp className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => moveAnswer(index, 'down')}
+                        disabled={index === answerList.length - 1}>
+                        <ArrowDown className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleRemoveAnswer(index)}>
+                        Удалить
+                      </Button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -369,6 +469,30 @@ export function InteractiveMatchForm({
             )}
           />
 
+          <FormField
+            control={form.control}
+            name="idx"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Индекс вывода</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="Введите индекс..."
+                    value={field.value ?? ''}
+                    onChange={(e) =>
+                      field.onChange(
+                        e.target.value === '' ? undefined : Number(e.target.value)
+                      )
+                    }
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
           <div className="my-4">
             <FormField
               control={form.control}
@@ -386,8 +510,10 @@ export function InteractiveMatchForm({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {items.map((nozology: Nozology) => (
-                        <SelectItem key={nozology._id} value={nozology._id}>
+                      {nozologies.map((nozology) => (
+                        <SelectItem
+                          key={nozology._id}
+                          value={String(nozology._id)}>
                           {nozology.name}
                         </SelectItem>
                       ))}
@@ -398,64 +524,6 @@ export function InteractiveMatchForm({
               )}
             />
           </div>
-
-          <div className="my-4">
-            <FormField
-              control={form.control}
-              name="interviewMode"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                  <div className="space-y-1 leading-none">
-                    <FormLabel>Режим интервью</FormLabel>
-                    <FormMessage />
-                  </div>
-                </FormItem>
-              )}
-            />
-          </div>
-
-          {form.watch('interviewMode') && (
-            <div className="my-4">
-              <FormLabel>Вопросы интервью</FormLabel>
-              <div className="flex items-center gap-2 mt-2">
-                <Input
-                  placeholder="Добавить вопрос интервью"
-                  value={newInterviewQuestion}
-                  onChange={(e) => setNewInterviewQuestion(e.target.value)}
-                />
-                <Button
-                  type="button"
-                  onClick={handleAddInterviewQuestion}
-                  variant="secondary">
-                  Добавить
-                </Button>
-              </div>
-              <div className="mt-4">
-                <ul className="space-y-2">
-                  {interviewQuestionsList.map((question, index) => (
-                    <li
-                      key={index}
-                      className="flex items-center justify-between bg-gray-100 p-2 rounded">
-                      <span>{question}</span>
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => handleRemoveInterviewQuestion(index)}>
-                        Удалить
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          )}
 
           <div className="my-4">
             <FormField

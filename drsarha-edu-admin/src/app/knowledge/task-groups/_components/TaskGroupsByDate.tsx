@@ -2,11 +2,9 @@
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Edit, Trash2, Calendar, Award, Target } from 'lucide-react';
-import type {
-  TaskGroup,
-  TaskGroupsByDateResponse,
-} from '@/shared/models/TaskGroup';
+import { Plus, Edit, Trash2, Calendar, Target } from 'lucide-react';
+import { api } from '@convex/_generated/api';
+import type { FunctionReturnType } from 'convex/server';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,7 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 interface TaskGroupsByDateProps {
-  data: TaskGroupsByDateResponse;
+  data: FunctionReturnType<typeof api.functions.task_groups.getByDate>;
   isLoading: boolean;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
@@ -55,7 +53,24 @@ export function TaskGroupsByDate({
     onDelete(id);
   };
 
-  const renderTaskGroupCard = (group: TaskGroup) => (
+  type TaskGroupItem =
+    FunctionReturnType<typeof api.functions.task_groups.getByDate>['daily'][number];
+
+  const getRewardTotals = (group: TaskGroupItem) => {
+    const items = group.reward?.items ?? [];
+    return items.reduce(
+      (acc, item) => {
+        if (item.type === 'stars') acc.stars += item.amount || 0;
+        if (item.type === 'exp') acc.exp += item.amount || 0;
+        return acc;
+      },
+      { stars: 0, exp: 0 }
+    );
+  };
+
+  const renderTaskGroupCard = (group: TaskGroupItem) => {
+    const rewardTotals = getRewardTotals(group);
+    return (
     <div
       key={group._id}
       className="border rounded-lg p-4 bg-card hover:shadow-md transition-shadow cursor-pointer"
@@ -70,12 +85,9 @@ export function TaskGroupsByDate({
             {group.description}
           </div>
           <div className="flex gap-2 text-xs mt-2">
-            <span>⭐ {group.reward.stars}</span>
-            <span>🧠 {group.reward.exp}</span>
+            <span>⭐ {rewardTotals.stars}</span>
+            <span>🧠 {rewardTotals.exp}</span>
             <span>Уровень: {group.level || 'Не указан'}</span>
-          </div>
-          <div className="text-xs text-muted-foreground mt-1">
-            Заданий: {group.tasks?.length || 0}
           </div>
         </div>
         <div
@@ -94,10 +106,11 @@ export function TaskGroupsByDate({
       </div>
     </div>
   );
+  };
 
   const renderSection = (
     title: string,
-    groups: TaskGroup[],
+    groups: TaskGroupItem[],
     icon: React.ReactNode
   ) => {
     if (groups.length === 0) return null;
@@ -124,7 +137,7 @@ export function TaskGroupsByDate({
         acc[level].push(group);
         return acc;
       },
-      {} as Record<string | number, TaskGroup[]>
+      {} as Record<string | number, TaskGroupItem[]>
     );
 
     return Object.entries(levelGroups).map(([level, groups]) => (

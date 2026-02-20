@@ -1,61 +1,38 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useMemo } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
-import { useNozologiesStore } from '@/shared/store/nozologiesStore';
-
-import type { BaseQueryParams } from '@/shared/api/types';
 import { InteractiveTaskGrid } from './_components/InteractiveTaskGrid';
-import { interactiveTasksApi } from '@/shared/api/interactive-tasks';
-import type { InteractiveTask } from '@/shared/models/InteractiveTask';
+import { useMutation, useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
 
 export default function ClinicAtlasesPage() {
   const router = useRouter();
-  const [data, setData] = useState<InteractiveTask[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const searchParams = useSearchParams();
-  const { fetchNozologies } = useNozologiesStore();
-  const currentNozologyId = searchParams.get('nozologyId');
-  const [pagination, setPagination] = useState({
-    total: 0,
-    page: 1,
-    totalPages: 1,
-    hasMore: false,
-  });
+  const pathname = usePathname();
+  const currentNozologyId = searchParams.get('nozologyId') || undefined;
+  const searchQuery = searchParams.get('search') || '';
 
-  const fetchData = async (params?: BaseQueryParams) => {
-    setIsLoading(true);
-    try {
-      const response = await interactiveTasksApi.getAll({
-        ...params,
-        nozologyId: currentNozologyId || undefined,
-        search: searchQuery || undefined,
-        page: params?.page || 1,
-        limit: 12,
-      });
-      console.log(response);
-      setData(response.items);
-      setPagination({
-        total: response.total,
-        page: response.page,
-        totalPages: response.totalPages,
-        hasMore: response.hasMore,
-      });
-    } catch (error) {
-      console.error('Error fetching clinic atlases:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const queryArgs = useMemo(() => {
+    const page = searchParams.get('page');
+    const adminId = process.env.NEXT_PUBLIC_ADMIN_ID || undefined;
+    return {
+      nozology: currentNozologyId,
+      search: searchQuery || undefined,
+      page: page ? Number(page) : 1,
+      limit: 12,
+      admin_id: adminId,
+    };
+  }, [currentNozologyId, searchQuery, searchParams]);
 
-  useEffect(() => {
-    fetchNozologies();
-    fetchData();
-  }, [currentNozologyId, searchQuery]);
+  const response = useQuery(api.functions.interactive_tasks.list, queryArgs);
+  const removeInteractiveTask = useMutation(api.functions.interactive_tasks.remove);
+  const data = response?.items;
+  const isLoading = response === undefined;
 
   return (
     <div className="p-6 space-y-6">
@@ -72,7 +49,16 @@ export default function ClinicAtlasesPage() {
         <Input
           placeholder="Поиск интерактивных задач..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => {
+            const nextParams = new URLSearchParams(searchParams);
+            if (e.target.value) {
+              nextParams.set('search', e.target.value);
+            } else {
+              nextParams.delete('search');
+            }
+            nextParams.delete('page');
+            router.push(`${pathname}?${nextParams.toString()}`);
+          }}
           className="w-full"
         />
       </div>
@@ -80,8 +66,15 @@ export default function ClinicAtlasesPage() {
       <InteractiveTaskGrid
         data={data}
         isLoading={isLoading}
-        pagination={pagination}
-        onPageChange={(page) => fetchData({ page })}
+        pagination={response}
+        onPageChange={(page) => {
+          const nextParams = new URLSearchParams(searchParams);
+          nextParams.set('page', String(page));
+          router.push(`${pathname}?${nextParams.toString()}`);
+        }}
+        onDelete={async (id: Id<'interactive_tasks'>) => {
+          await removeInteractiveTask({ id });
+        }}
       />
     </div>
   );

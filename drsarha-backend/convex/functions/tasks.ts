@@ -1,11 +1,26 @@
-import { query, mutation, internalMutation, internalQuery } from "../_generated/server";
+import { query, mutation, internalMutation, internalQuery, action } from "../_generated/server";
 import { v } from "convex/values";
 import { taskDoc, taskFields } from "../models/task";
-import { internal } from "../_generated/api";
+import { internal, api } from "../_generated/api";
 
 export const getAll = query({ args: {}, returns: v.array(taskDoc), handler: async ({ db }) => (db as any).query("tasks").collect() });
 
 export const getById = query({ args: { id: v.id("tasks") }, returns: v.union(taskDoc, v.null()), handler: async ({ db }, { id }) => db.get(id) });
+
+export const getByIdOrMongoId = query({
+  args: { id: v.string() },
+  returns: v.union(taskDoc, v.null()),
+  handler: async ({ db }, { id }) => {
+    try {
+      const byId = await db.get(id as any);
+      if (byId) return byId;
+    } catch {
+      // ignore invalid id format
+    }
+    const all = await (db as any).query("tasks").collect();
+    return all.find((t: any) => String(t.mongoId) === id) ?? null;
+  },
+});
 
 export const listActive = query({ args: {}, returns: v.array(taskDoc), handler: async ({ db }) => (db as any).query("tasks").withIndex("by_active", (q: any) => q.eq("isActive", true)).collect() });
 
@@ -19,6 +34,32 @@ export const listByGroup = query({ args: { groupId: v.id("task_groups") }, retur
 
 // Internal version for use in internal mutations
 export const listByGroupInternal = internalQuery({ args: { groupId: v.id("task_groups") }, returns: v.array(taskDoc), handler: async ({ db }, { groupId }) => (db as any).query("tasks").withIndex("by_group", (q: any) => q.eq("groupId", groupId)).collect() });
+
+export const completeTaskDirectly = action({
+  args: { taskId: v.string(), userIds: v.array(v.id("users")) },
+  returns: v.object({ success: v.boolean(), processed: v.number() }),
+  handler: async (ctx, { taskId, userIds }) => {
+    const task = await ctx.runQuery(api.functions.tasks.getByIdOrMongoId, {
+      id: taskId,
+    });
+    if (!task) {
+      return { success: false, processed: 0 };
+    }
+
+    const targetAmount = (task as any).config?.targetAmount ?? 1;
+    let processed = 0;
+    for (const userId of userIds) {
+      await ctx.runMutation(internal.functions.progress.updateTaskProgressForAction, {
+        userId,
+        task: task as any,
+        amount: targetAmount,
+      });
+      processed++;
+    }
+
+    return { success: true, processed };
+  },
+});
 
 // Internal: Give reward for task completion
 export const giveTaskReward = internalMutation({

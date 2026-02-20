@@ -15,7 +15,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { useNozologiesStore } from '@/shared/store/nozologiesStore';
 import {
   Select,
   SelectContent,
@@ -23,8 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { interactiveTasksApi } from '@/shared/api/interactive-tasks';
-import type { InteractiveTask } from '@/shared/models/InteractiveTask';
 import { FeedbackQuestions } from '@/shared/ui/FeedBackQuestions/FeedbackQuestions';
 
 import Image from 'next/image';
@@ -33,6 +30,11 @@ import { AnswersField } from './AnswersField';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useState } from 'react';
+import { toast } from 'sonner';
+import { useAction, useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
+import type { FunctionReturnType } from 'convex/server';
 
 const publishAfterSchema = z.preprocess(
   (value) =>
@@ -57,6 +59,10 @@ const formSchema = z.object({
   description: z.string().optional(),
   nozology: z.string().min(1, 'Нозология обязательна'),
   publishAfter: publishAfterSchema,
+  idx: z.preprocess(
+    (value) => (value === '' || value === null || value === undefined ? undefined : Number(value)),
+    z.number().int().nonnegative().optional()
+  ),
   feedback: z
     .array(
       z.object({
@@ -86,12 +92,16 @@ const formSchema = z.object({
 });
 
 interface InteractiveTaskFormProps {
-  initialData?: InteractiveTask;
+  initialData?: NonNullable<
+    FunctionReturnType<typeof api.functions.interactive_tasks.getById>
+  >;
 }
 
 export function InteractiveTaskForm({ initialData }: InteractiveTaskFormProps) {
   const router = useRouter();
-  const { items: nozologies } = useNozologiesStore();
+  const nozologies = useQuery(api.functions.nozologies.list, {}) ?? [];
+  const createInteractiveTask = useAction(api.functions.interactive_tasks.create);
+  const updateInteractiveTask = useAction(api.functions.interactive_tasks.updateAction);
   const [references, setReferences] = useState<
     Array<{ name: string; url: string }>
   >(initialData?.references || []);
@@ -117,77 +127,140 @@ export function InteractiveTaskForm({ initialData }: InteractiveTaskFormProps) {
             ? initialData.publishAfter.toISOString().slice(0, 10)
             : String(initialData.publishAfter).slice(0, 10)
         : '',
+      idx: initialData?.idx ?? undefined,
       app_visible: initialData?.app_visible || false,
       references: initialData?.references || [],
     },
   });
 
+  const fileToBase64 = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result?.toString() || '';
+        const base64 = result.includes(',') ? result.split(',')[1] : result;
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    try {
-      const formData = new FormData();
+    const submitPromise = (async () => {
+      const publishAfter =
+        values.publishAfter && values.publishAfter.length
+          ? new Date(values.publishAfter).getTime()
+          : undefined;
 
-      if (!initialData && !values.cover_image?.[0]) {
-        throw new Error(
-          'Обложка обязательна при создании интерактивной задачи'
-        );
-      }
+      const coverFile =
+        values.cover_image?.[0] instanceof File ? values.cover_image[0] : undefined;
 
-      // Базовые поля
-      formData.append('name', values.name);
-      formData.append('difficulty', values.difficulty.toString());
-      formData.append('available_errors', values.available_errors.toString());
-      formData.append('stars', values.stars.toString());
-      formData.append('nozology', values.nozology);
-      formData.append('description', values.description || '');
-      if (values.publishAfter) {
-        formData.append('publishAfter', values.publishAfter);
-      }
-
-      // Обработка обложки
-      if (values.cover_image?.[0]) {
-        formData.append('cover_image', values.cover_image[0]);
-      }
-
-      // Массивы и объекты
-      formData.append('feedback', JSON.stringify(values.feedback));
-      formData.append('app_visible', values.app_visible.toString());
-      formData.append('references', JSON.stringify(references));
-
-      // Подготовка данных ответов
-      const answersData = values.answers.map((ans, counter) => ({
-        image:
-          typeof ans.image === 'string' ? ans.image : `image_file_${counter}`,
-        answer: ans.answer,
-      }));
-      formData.append('answers', JSON.stringify(answersData));
-
-      // Отправка файлов изображений
-      values.answers.forEach((answer, index) => {
-        if (answer.image?.[0]) {
-          formData.append(`image_file_${index}`, answer.image[0]);
-        }
-      });
-
-      // Для отладки
-      console.log('FormData contents:');
-      Array.from(formData.entries()).forEach(([key, value]) => {
-        console.log(key, ':', value);
-      });
+      const answers = await Promise.all(
+        values.answers.map(async (ans) => {
+          if (typeof ans.image === 'string') {
+            return { image: ans.image, answer: ans.answer };
+          }
+          const file = ans.image?.[0];
+          if (!file) {
+            return { image: '', answer: ans.answer };
+          }
+          return {
+            image: {
+              base64: await fileToBase64(file),
+              contentType: file.type || 'application/octet-stream',
+            },
+            answer: ans.answer,
+          };
+        })
+      );
 
       if (initialData?._id) {
-        console.log(formData, 'FORM DATA');
-        await interactiveTasksApi.update(initialData._id.toString(), formData);
-      } else {
-        await interactiveTasksApi.create(formData);
+        const args: {
+          id: Id<'interactive_tasks'>;
+          name?: string;
+          difficulty?: number;
+          cover?: { base64: string; contentType: string };
+          answers?: Array<
+            | { image: string; answer: string }
+            | { image: { base64: string; contentType: string }; answer: string }
+          >;
+          available_errors?: number;
+          feedback?: z.infer<typeof formSchema>['feedback'];
+          nozology?: string;
+          stars?: number;
+          publishAfter?: number;
+          app_visible?: boolean;
+          references?: Array<{ name: string; url: string }>;
+          idx?: number;
+          description?: string;
+        } = {
+          id: initialData._id as Id<'interactive_tasks'>,
+          name: values.name,
+          difficulty: values.difficulty,
+          answers,
+          available_errors: values.available_errors,
+          feedback: values.feedback,
+          nozology: values.nozology,
+          stars: values.stars,
+          publishAfter,
+          app_visible: values.app_visible,
+          references,
+          description: values.description || '',
+        };
+
+        if (coverFile) {
+          args.cover = {
+            base64: await fileToBase64(coverFile),
+            contentType: coverFile.type || 'application/octet-stream',
+          };
+        }
+        if (values.idx !== undefined) {
+          args.idx = values.idx;
+        }
+
+        await updateInteractiveTask(args);
+        return { mode: 'updated' as const };
       }
 
+      if (!coverFile) {
+        throw new Error('Обложка обязательна при создании интерактивной задачи');
+      }
+
+      await createInteractiveTask({
+        name: values.name,
+        difficulty: values.difficulty,
+        cover: {
+          base64: await fileToBase64(coverFile),
+          contentType: coverFile.type || 'application/octet-stream',
+        },
+        answers,
+        available_errors: values.available_errors,
+        feedback: values.feedback,
+        nozology: values.nozology,
+        stars: values.stars,
+        publishAfter,
+        app_visible: values.app_visible,
+        references,
+        ...(values.idx !== undefined ? { idx: values.idx } : {}),
+        ...(values.description ? { description: values.description } : {}),
+      });
+      return { mode: 'created' as const };
+    })();
+
+    try {
+      await toast.promise(submitPromise, {
+        loading: 'Сохранение интерактивной задачи...',
+        success: (data) =>
+          data.mode === 'updated'
+            ? 'Интерактивная задача обновлена'
+            : 'Интерактивная задача создана',
+        error: 'Ошибка сохранения интерактивной задачи',
+      });
       router.push('/knowledge/interactive-tasks');
       router.refresh();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error saving interactive task:', error);
-      alert(
-        error.message || 'Произошла ошибка при сохранении интерактивной задачи'
-      );
+      return;
     }
   };
 
@@ -317,6 +390,30 @@ export function InteractiveTaskForm({ initialData }: InteractiveTaskFormProps) {
 
           <FormField
             control={form.control}
+            name="idx"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Индекс вывода</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="Введите индекс..."
+                    value={field.value ?? ''}
+                    onChange={(e) =>
+                      field.onChange(
+                        e.target.value === '' ? undefined : Number(e.target.value)
+                      )
+                    }
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
             name="nozology"
             render={({ field }) => (
               <FormItem>
@@ -331,7 +428,9 @@ export function InteractiveTaskForm({ initialData }: InteractiveTaskFormProps) {
                   </FormControl>
                   <SelectContent>
                     {nozologies.map((nozology) => (
-                      <SelectItem key={nozology._id} value={nozology._id}>
+                      <SelectItem
+                        key={nozology._id}
+                        value={String(nozology._id)}>
                         {nozology.name}
                       </SelectItem>
                     ))}

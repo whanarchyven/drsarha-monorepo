@@ -337,6 +337,62 @@ export const getSimilarPinsByTitle = query({
   },
 });
 
+export const rating = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      authorId: v.union(v.id("users"), v.string()),
+      pinsCount: v.number(),
+      user: v.union(
+        v.object({
+          _id: v.id("users"),
+          fullName: v.optional(v.string()),
+          email: v.optional(v.string()),
+          avatar: v.optional(v.string()),
+        }),
+        v.null(),
+      ),
+    }),
+  ),
+  handler: async ({ db }) => {
+    const allPins = await (db as any).query("pins").collect();
+    const users = await (db as any).query("users").collect();
+    const usersById = new Map<string, any>(users.map((u: any) => [String(u._id), u]));
+
+    const counts = new Map<string, { authorId: any; pinsCount: number }>();
+    for (const pin of allPins) {
+      const key = String(pin.author);
+      const current = counts.get(key);
+      if (current) {
+        current.pinsCount += 1;
+      } else {
+        counts.set(key, { authorId: pin.author, pinsCount: 1 });
+      }
+    }
+
+    return Array.from(counts.values())
+      .sort((a, b) => b.pinsCount - a.pinsCount)
+      .slice(0, 20)
+      .map((row) => {
+        const user = usersById.get(String(row.authorId));
+        const optionalString = (value: unknown) =>
+          typeof value === "string" ? value : undefined;
+        return {
+          authorId: row.authorId,
+          pinsCount: row.pinsCount,
+          user: user
+            ? {
+                _id: user._id,
+                fullName: optionalString(user.fullName),
+                email: optionalString(user.email),
+                avatar: optionalString(user.avatar),
+              }
+            : null,
+        };
+      });
+  },
+});
+
 /**
  * Временная миграция: переводит все pins с изображениями .heic в JPEG.
  * Скачивает HEIC из S3 по ключу (поле image), конвертирует в JPEG, загружает в S3 и обновляет поле image.

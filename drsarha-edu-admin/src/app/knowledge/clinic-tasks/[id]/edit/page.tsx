@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ClinicTaskForm } from '../../_components/ClinicTaskForm';
-import { clinicTasksApi } from '@/shared/api/clinic-tasks';
-import type { ClinicTask } from '@/shared/models/ClinicTask';
 import { toast } from 'sonner';
+import { useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
 
 interface EditClinicTaskPageProps {
   params: {
@@ -17,27 +17,11 @@ export default function EditClinicTaskPage({
   params,
 }: EditClinicTaskPageProps) {
   const router = useRouter();
-  const [task, setTask] = useState<ClinicTask | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const task = useQuery(api.functions.clinic_tasks.getById, {
+    id: params.id as Id<'clinic_tasks'>,
+  });
 
-  useEffect(() => {
-    const fetchTask = async () => {
-      try {
-        const data = await clinicTasksApi.getById(params.id);
-        setTask(data);
-      } catch (error) {
-        console.error('Error fetching task:', error);
-        toast.error('Ошибка при загрузке задачи');
-        router.push('/knowledge/clinic-tasks');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchTask();
-  }, [params.id, router]);
-
-  if (isLoading) {
+  if (task === undefined) {
     return <div>Загрузка...</div>;
   }
 

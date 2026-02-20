@@ -24,7 +24,8 @@ import {
   HelpCircle,
   Info,
 } from 'lucide-react';
-import type { RatingDetails } from '@/shared/models/Rating';
+import type { FunctionReturnType } from 'convex/server';
+import { api } from '@convex/_generated/api';
 import { LoadingSpinner } from './loading-spinner';
 import { translateKnowledgeTypeToSlug } from '@/shared/utils/translateKnowledgeType';
 import Link from 'next/link';
@@ -32,7 +33,9 @@ import { useState } from 'react';
 import { Button } from './ui/button';
 
 interface UserDetailsModalProps {
-  userDetails: RatingDetails | null;
+  userDetails: FunctionReturnType<
+    typeof api.functions.ratings.getUserDetails
+  > | null;
   isOpen: boolean;
   onClose: () => void;
   loading: boolean;
@@ -45,6 +48,17 @@ export function UserDetailsModal({
   loading,
 }: UserDetailsModalProps) {
   if (!userDetails && !loading) return null;
+  if (userDetails && !userDetails.user) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Пользователь не найден</DialogTitle>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   const getInitials = (name: string) => {
     return name
@@ -104,6 +118,10 @@ export function UserDetailsModal({
       year: 'numeric',
     });
   };
+
+  type CompletionItem = NonNullable<
+    FunctionReturnType<typeof api.functions.ratings.getUserDetails>
+  >['fullCompletions'][number];
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -216,7 +234,8 @@ export function UserDetailsModal({
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {userDetails.fullCompletions.map((completion, index) => (
+                  {userDetails.fullCompletions.map(
+                    (completion: CompletionItem, index: number) => (
                     <div
                       key={completion.completion._id}
                       className="border rounded-lg p-4">

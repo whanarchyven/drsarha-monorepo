@@ -1,67 +1,38 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useMemo } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus } from 'lucide-react';
-import { interactiveMatchesApi } from '@/shared/api/interactive-matches';
-import type { InteractiveMatch } from '@/shared/models/InteractiveMatch';
-import type { BaseQueryParams } from '@/shared/api/types';
-import { useSearchParams } from 'next/navigation';
 import { InteractiveMatchGrid } from './_components/InteractiveMatchGrid';
+import { useMutation, useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
 
 export default function InteractiveMatchesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nozologyId = searchParams.get('nozologyId') || undefined;
+  const pathname = usePathname();
+  const searchQuery = searchParams.get('search') || '';
 
-  const [data, setData] = useState<InteractiveMatch[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [pagination, setPagination] = useState({
-    total: 0,
-    page: 1,
-    totalPages: 1,
-    hasMore: false,
-  });
+  const queryArgs = useMemo(() => {
+    const page = searchParams.get('page');
+    const adminId = process.env.NEXT_PUBLIC_ADMIN_ID || undefined;
+    return {
+      nozology: nozologyId,
+      search: searchQuery || undefined,
+      page: page ? Number(page) : 1,
+      limit: 12,
+      admin_id: adminId,
+    };
+  }, [nozologyId, searchQuery, searchParams]);
 
-  const fetchData = async (params?: BaseQueryParams) => {
-    setIsLoading(true);
-    try {
-      const response = await interactiveMatchesApi.getAll({
-        ...params,
-        nozologyId,
-        search: searchQuery,
-      });
-
-      setData(response.items);
-      setPagination({
-        total: response.total,
-        page: response.page,
-        totalPages: response.totalPages,
-        hasMore: response.hasMore,
-      });
-    } catch (error) {
-      console.error('Error fetching interactive matches:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, [nozologyId]);
-
-  const handleSearch = () => {
-    fetchData();
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      handleSearch();
-    }
-  };
+  const response = useQuery(api.functions.interactive_matches.list, queryArgs);
+  const removeInteractiveMatch = useMutation(api.functions.interactive_matches.remove);
+  const data = response?.items;
+  const isLoading = response === undefined;
 
   return (
     <div className="p-6 space-y-6">
@@ -78,18 +49,32 @@ export default function InteractiveMatchesPage() {
         <Input
           placeholder="Поиск интерактивных соединений..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyDown={handleKeyDown}
+          onChange={(e) => {
+            const nextParams = new URLSearchParams(searchParams);
+            if (e.target.value) {
+              nextParams.set('search', e.target.value);
+            } else {
+              nextParams.delete('search');
+            }
+            nextParams.delete('page');
+            router.push(`${pathname}?${nextParams.toString()}`);
+          }}
           className="w-full"
         />
-        <Button onClick={handleSearch}>Поиск</Button>
       </div>
 
       <InteractiveMatchGrid
         data={data}
         isLoading={isLoading}
-        pagination={pagination}
-        onPageChange={(page) => fetchData({ page })}
+        pagination={response}
+        onPageChange={(page) => {
+          const nextParams = new URLSearchParams(searchParams);
+          nextParams.set('page', String(page));
+          router.push(`${pathname}?${nextParams.toString()}`);
+        }}
+        onDelete={async (id: Id<'interactive_matches'>) => {
+          await removeInteractiveMatch({ id });
+        }}
       />
     </div>
   );

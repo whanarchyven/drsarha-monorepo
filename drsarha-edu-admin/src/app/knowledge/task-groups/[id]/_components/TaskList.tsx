@@ -2,7 +2,9 @@
 
 import { Button } from '@/components/ui/button';
 import { Plus, Edit, Trash2, Calendar, Target, Award } from 'lucide-react';
-import type { Task } from '@/shared/models/TaskGroup';
+import { api } from '@convex/_generated/api';
+import type { FunctionReturnType } from 'convex/server';
+import type { Id } from '@convex/_generated/dataModel';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,10 +22,10 @@ import { copyToClipboard } from '@/shared/utils/copyToClipboard';
 import { toast } from 'sonner';
 
 interface TaskListProps {
-  tasks: Task[];
+  tasks: FunctionReturnType<typeof api.functions.tasks.listByGroup>;
   onAddTask: () => void;
-  onEditTask: (task: Task) => void;
-  onDeleteTask: (taskId: string) => void;
+  onEditTask: (taskId: Id<'tasks'>) => void;
+  onDeleteTask: (taskId: Id<'tasks'>) => void;
 }
 
 export function TaskList({
@@ -34,7 +36,7 @@ export function TaskList({
 }: TaskListProps) {
   const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
 
-  const handleDelete = async (taskId: string) => {
+  const handleDelete = async (taskId: Id<'tasks'>) => {
     setDeleteTaskId(null);
     onDeleteTask(taskId);
   };
@@ -72,7 +74,7 @@ export function TaskList({
                     <Button
                       size="icon"
                       variant="ghost"
-                      onClick={() => onEditTask(task)}>
+                      onClick={() => onEditTask(task._id)}>
                       <Edit className="h-4 w-4" />
                     </Button>
                     <Button

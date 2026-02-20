@@ -1,30 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { TagForm } from '../../_components/TagForm';
-import { tagsApi } from '@/shared/api/tags';
-import type { Tag } from '@/shared/models/Tag';
 import LoadingSpinner from '@/shared/ui/LoadingSpinner/LoadingSpinner';
-import { toast } from 'sonner';
+import { useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
 
 export default function EditTagPage({ params }: { params: { id: string } }) {
-  const [tag, setTag] = useState<Tag | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchTag = async () => {
-      try {
-        const data = await tagsApi.getById(params.id);
-        setTag(data);
-      } catch (error: any) {
-        console.error('Error fetching tag:', error);
-        toast.error('Ошибка при загрузке тега');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchTag();
-  }, [params.id]);
+  const tag = useQuery(api.functions.pin_tags.getById, {
+    id: params.id as Id<'pin_tags'>,
+  });
+  const isLoading = tag === undefined;
 
   if (isLoading) {
     return (

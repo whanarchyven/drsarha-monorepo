@@ -1,6 +1,6 @@
 'use client';
 
-import { useForm } from 'react-hook-form';
+import { useFieldArray, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
@@ -16,7 +16,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { useNozologiesStore } from '@/shared/store/nozologiesStore';
 import {
   Select,
   SelectContent,
@@ -24,10 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { clinicTasksApi } from '@/shared/api/clinic-tasks';
-import type { ClinicTask } from '@/shared/models/ClinicTask';
 import { FeedbackQuestions } from '@/shared/ui/FeedBackQuestions/FeedbackQuestions';
-import { TaskDifficultyType } from '@/shared/models/types/TaskDifficultyType';
 import { ImagesField } from '@/shared/ui/ImagesField/ImagesField';
 import { useState } from 'react';
 import Image from 'next/image';
@@ -49,6 +45,10 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { BarChart, Search } from 'lucide-react';
 import type { BaseInsightQuestionDto } from '@/app/api/client/schemas';
+import { useAction, useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
+import type { FunctionReturnType } from 'convex/server';
 
 const publishAfterSchema = z.preprocess(
   (value) =>
@@ -74,6 +74,10 @@ const formSchema = z.object({
   stars: z.number().min(0),
   nozology: z.string().min(1, 'Нозология обязательна'),
   publishAfter: publishAfterSchema,
+  idx: z.preprocess(
+    (value) => (value === '' || value === null || value === undefined ? undefined : Number(value)),
+    z.number().int().nonnegative().optional()
+  ),
   interviewMode: z.boolean().default(false),
   interviewQuestions: z.array(z.string()).default([]),
   interviewAnalyticQuestions: z.array(z.string()).default([]),
@@ -96,6 +100,21 @@ const formSchema = z.object({
     .default([]),
   endoscopy_video: z.any().optional(),
   endoscopy_model: z.any().optional(),
+  timecodes: z
+    .array(
+      z.object({
+        time: z.preprocess(
+          (value) =>
+            value === '' || value === null || value === undefined
+              ? undefined
+              : Number(value),
+          z.number().nonnegative()
+        ),
+        title: z.string().optional().default(''),
+        description: z.string().optional(),
+      })
+    )
+    .default([]),
   app_visible: z.boolean().default(false),
   references: z
     .array(
@@ -108,12 +127,16 @@ const formSchema = z.object({
 });
 
 interface ClinicTaskFormProps {
-  initialData?: ClinicTask;
+  initialData?: NonNullable<
+    FunctionReturnType<typeof api.functions.clinic_tasks.getById>
+  >;
 }
 
 export function ClinicTaskForm({ initialData }: ClinicTaskFormProps) {
   const router = useRouter();
-  const { items: nozologies } = useNozologiesStore();
+  const nozologies = useQuery(api.functions.nozologies.list, {}) ?? [];
+  const createClinicTask = useAction(api.functions.clinic_tasks.create);
+  const updateClinicTask = useAction(api.functions.clinic_tasks.updateAction);
   const [newInterviewQuestion, setNewInterviewQuestion] = useState('');
   const [interviewQuestionsList, setInterviewQuestionsList] = useState<
     string[]
@@ -171,86 +194,234 @@ export function ClinicTaskForm({ initialData }: ClinicTaskFormProps) {
             ? initialData.publishAfter.toISOString().slice(0, 10)
             : String(initialData.publishAfter).slice(0, 10)
         : '',
+      idx: initialData?.idx ?? undefined,
       endoscopy_video: initialData?.endoscopy_video || null,
       endoscopy_model: initialData?.endoscopy_model || null,
+      timecodes: initialData?.timecodes || [],
       app_visible: initialData?.app_visible || false,
       references: initialData?.references || [],
     },
   });
 
+  const {
+    fields: timecodeFields,
+    append: appendTimecode,
+    remove: removeTimecode,
+  } = useFieldArray({
+    control: form.control,
+    name: 'timecodes',
+  });
+
+  const fileToBase64 = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result?.toString() || '';
+        const base64 = result.includes(',') ? result.split(',')[1] : result;
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  const uploadEndoscopyFile = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch('/api/upload-video', {
+      method: 'POST',
+      body: formData,
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.error || 'Ошибка загрузки файла');
+    }
+    return data.path as string;
+  };
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    try {
-      const formData = new FormData();
+    const submitPromise = (async () => {
+      const publishAfter =
+        values.publishAfter && values.publishAfter.length
+          ? new Date(values.publishAfter).getTime()
+          : undefined;
 
-      // Базовые поля
-      formData.append('name', values.name);
-      formData.append('difficulty', values.difficulty.toString());
-      formData.append('description', values.description);
-      formData.append('additional_info', values.additional_info || '');
-      formData.append('ai_scenario', values.ai_scenario || '');
-      formData.append('stars', values.stars.toString());
-      formData.append('nozology', values.nozology);
-      if (values.publishAfter) {
-        formData.append('publishAfter', values.publishAfter);
-      }
-      formData.append('interviewMode', values.interviewMode.toString());
-      formData.append(
-        'interviewQuestions',
-        JSON.stringify(interviewQuestionsList)
+      const coverFile = values.cover_image?.[0] instanceof File ? values.cover_image[0] : undefined;
+      const endoscopyVideoCleared = values.endoscopy_video === null;
+      const endoscopyModelCleared = values.endoscopy_model === null;
+      const endoscopyVideoFile =
+        values.endoscopy_video?.[0] instanceof File
+          ? values.endoscopy_video[0]
+          : undefined;
+      const endoscopyModelFile =
+        values.endoscopy_model?.[0] instanceof File
+          ? values.endoscopy_model[0]
+          : undefined;
+
+      const endoscopyVideoPath = endoscopyVideoFile
+        ? await uploadEndoscopyFile(endoscopyVideoFile)
+        : undefined;
+      const endoscopyModelPath = endoscopyModelFile
+        ? await uploadEndoscopyFile(endoscopyModelFile)
+        : undefined;
+
+      const images = await Promise.all(
+        values.images.map(async (img) => {
+          if (typeof img.image === 'string') {
+            return { image: img.image, is_open: img.is_open };
+          }
+          const file = img.image?.[0];
+          if (!file) {
+            return { image: '', is_open: img.is_open };
+          }
+          return {
+            image: {
+              base64: await fileToBase64(file),
+              contentType: file.type || 'application/octet-stream',
+            },
+            is_open: img.is_open,
+          };
+        })
       );
-      formData.append(
-        'interviewAnalyticQuestions',
-        JSON.stringify(selectedAnalyticQuestions)
-      );
-      formData.append('app_visible', values.app_visible.toString());
-      formData.append('references', JSON.stringify(references));
 
-      // Обработка обложки
-      if (values.cover_image?.[0] instanceof File) {
-        formData.append('cover_image', values.cover_image[0]);
-      }
-      if (values.endoscopy_video?.[0] instanceof File) {
-        formData.append('endoscopy_video', values.endoscopy_video[0]);
-      }
-      if (values.endoscopy_model?.[0] instanceof File) {
-        formData.append('endoscopy_model', values.endoscopy_model[0]);
-      }
-
-      // Массивы и объекты
-      formData.append('feedback', JSON.stringify(values.feedback));
-      formData.append('questions', JSON.stringify(questions));
-
-      // Подготовка данных изображений
-      const imagesData = values.images.map((img, counter) => ({
-        image:
-          typeof img.image === 'string' ? img.image : `image_file_${counter}`,
-        is_open: img.is_open,
-      }));
-      formData.append('images', JSON.stringify(imagesData));
-
-      // Отправка файлов изображений
-      values.images.forEach((image, index) => {
-        if (image.image?.[0] instanceof File) {
-          formData.append(`image_file_${index}`, image.image[0]);
-        }
-      });
+      const timecodes = (values.timecodes || [])
+        .filter((item) => item.time !== undefined && !Number.isNaN(item.time))
+        .map((item) => ({
+          time: Number(item.time),
+          title: item.title ?? '',
+          ...(item.description ? { description: item.description } : {}),
+        }));
 
       if (initialData?._id) {
-        await clinicTasksApi.update(initialData._id, formData);
-        toast.success('Задача успешно обновлена');
-      } else {
-        if (!values.cover_image?.[0]) {
-          throw new Error('Обложка обязательна при создании задачи');
+        const args: {
+          id: Id<'clinic_tasks'>;
+          name?: string;
+          difficulty?: number;
+          description?: string;
+          additional_info?: string;
+          ai_scenario?: string;
+          stars?: number;
+          nozology?: string;
+          publishAfter?: number;
+          interviewMode?: boolean;
+          interviewQuestions?: string[];
+          interviewAnalyticQuestions?: string[];
+          app_visible?: boolean;
+          references?: Array<{ name: string; url: string }>;
+          feedback?: z.infer<typeof formSchema>['feedback'];
+          questions?: Question[];
+          images?: Array<{
+            image:
+              | string
+              | { base64: string; contentType: string };
+            is_open: boolean;
+          }>;
+          cover?: { base64: string; contentType: string };
+          endoscopy_videoPath?: string;
+          endoscopy_modelPath?: string;
+          endoscopy_video?: null;
+          endoscopy_model?: null;
+          idx?: number;
+          timecodes?: Array<{ time: number; title: string; description?: string }>;
+        } = {
+          id: initialData._id as Id<'clinic_tasks'>,
+          name: values.name,
+          difficulty: values.difficulty,
+          description: values.description,
+          additional_info: values.additional_info || '',
+          ai_scenario: values.ai_scenario || '',
+          stars: values.stars,
+          nozology: values.nozology,
+          publishAfter,
+          interviewMode: values.interviewMode,
+          interviewQuestions: interviewQuestionsList,
+          interviewAnalyticQuestions: selectedAnalyticQuestions,
+          app_visible: values.app_visible,
+          references,
+          feedback: values.feedback,
+          questions,
+          images,
+          ...(timecodes.length ? { timecodes } : {}),
+        };
+
+        if (coverFile) {
+          args.cover = {
+            base64: await fileToBase64(coverFile),
+            contentType: coverFile.type || 'application/octet-stream',
+          };
         }
-        await clinicTasksApi.create(formData);
-        toast.success('Задача успешно создана');
+        if (endoscopyVideoPath) {
+          args.endoscopy_videoPath = endoscopyVideoPath;
+        } else if (endoscopyVideoCleared) {
+          args.endoscopy_video = null;
+        }
+        if (endoscopyModelPath) {
+          args.endoscopy_modelPath = endoscopyModelPath;
+        } else if (endoscopyModelCleared) {
+          args.endoscopy_model = null;
+        }
+        if (values.idx !== undefined) {
+          args.idx = values.idx;
+        }
+
+        await updateClinicTask(args);
+        return { mode: 'updated' as const };
       }
 
+      if (!coverFile) {
+        throw new Error('Обложка обязательна при создании задачи');
+      }
+
+      await createClinicTask({
+        name: values.name,
+        difficulty: values.difficulty,
+        cover: {
+          base64: await fileToBase64(coverFile),
+          contentType: coverFile.type || 'application/octet-stream',
+        },
+        images,
+        description: values.description,
+        questions,
+        additional_info: values.additional_info || '',
+        ai_scenario: values.ai_scenario || '',
+        stars: values.stars,
+        feedback: values.feedback,
+        nozology: values.nozology,
+        publishAfter,
+        interviewMode: values.interviewMode,
+        interviewQuestions: interviewQuestionsList,
+        interviewAnalyticQuestions: selectedAnalyticQuestions,
+        app_visible: values.app_visible,
+        references,
+        ...(endoscopyVideoPath
+          ? {
+              endoscopy_videoPath: endoscopyVideoPath,
+            }
+          : {}),
+        ...(endoscopyModelPath
+          ? {
+              endoscopy_modelPath: endoscopyModelPath,
+            }
+          : {}),
+        ...(values.idx !== undefined ? { idx: values.idx } : {}),
+        ...(timecodes.length ? { timecodes } : {}),
+      });
+      return { mode: 'created' as const };
+    })();
+
+    try {
+      await toast.promise(submitPromise, {
+        loading: 'Сохранение задачи...',
+        success: (data) =>
+          data.mode === 'updated'
+            ? 'Задача успешно обновлена'
+            : 'Задача успешно создана',
+        error: 'Ошибка сохранения задачи',
+      });
       router.push('/knowledge/clinic-tasks');
       router.refresh();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error saving clinic task:', error);
-      toast.error(error.message || 'Произошла ошибка при сохранении задачи');
+      return;
     }
   };
 
@@ -416,6 +587,30 @@ export function ClinicTaskForm({ initialData }: ClinicTaskFormProps) {
 
           <FormField
             control={form.control}
+            name="idx"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Индекс вывода</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="Введите индекс..."
+                    value={field.value ?? ''}
+                    onChange={(e) =>
+                      field.onChange(
+                        e.target.value === '' ? undefined : Number(e.target.value)
+                      )
+                    }
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
             name="additional_info"
             render={({ field }) => (
               <FormItem>
@@ -461,7 +656,9 @@ export function ClinicTaskForm({ initialData }: ClinicTaskFormProps) {
                   </FormControl>
                   <SelectContent>
                     {nozologies.map((nozology) => (
-                      <SelectItem key={nozology._id} value={nozology._id}>
+                      <SelectItem
+                        key={nozology._id}
+                        value={String(nozology._id)}>
                         {nozology.name}
                       </SelectItem>
                     ))}
@@ -565,6 +762,96 @@ export function ClinicTaskForm({ initialData }: ClinicTaskFormProps) {
               </FormItem>
             )}
           />
+
+          <div className="my-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <FormLabel>Таймкоды</FormLabel>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  appendTimecode({ time: 0, title: '', description: '' })
+                }>
+                Добавить таймкод
+              </Button>
+            </div>
+
+            {timecodeFields.map((field, index) => (
+              <div
+                key={field.id}
+                className="border rounded-lg p-4 space-y-3">
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name={`timecodes.${index}.time`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Время (сек)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min={0}
+                            placeholder="Например, 10"
+                            value={field.value ?? ''}
+                            onChange={(e) =>
+                              field.onChange(
+                                e.target.value === ''
+                                  ? undefined
+                                  : Number(e.target.value)
+                              )
+                            }
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name={`timecodes.${index}.title`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Заголовок</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Название" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name={`timecodes.${index}.description`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Описание</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Описание (необязательно)"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => removeTimecode(index)}>
+                    Удалить
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
 
           <div className="my-4">
             <FormField

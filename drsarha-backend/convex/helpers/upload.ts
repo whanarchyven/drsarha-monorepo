@@ -37,12 +37,18 @@ const EXT_BY_FILE_TYPE: Record<string, string> = {
   images: ".jpg",
   pdf: ".pdf",
   video: ".mp4",
+  files: ".bin",
 };
 
 export const uploadToS3 = internalAction({
   args: {
     file: v.object({ base64: v.string(), contentType: v.string() }),
-    fileType: v.union(v.literal("images"), v.literal("pdf"), v.literal("video")),
+    fileType: v.union(
+      v.literal("images"),
+      v.literal("pdf"),
+      v.literal("video"),
+      v.literal("files")
+    ),
   },
   handler: async (ctx, { file, fileType }) => {
     const startedAt = Date.now();
@@ -93,7 +99,12 @@ export const uploadToS3 = internalAction({
 
 export const getUploadUrl = internalAction({
   args: {
-    fileType: v.union(v.literal("images"), v.literal("pdf"), v.literal("video")),
+    fileType: v.union(
+      v.literal("images"),
+      v.literal("pdf"),
+      v.literal("video"),
+      v.literal("files")
+    ),
     contentType: v.string(),
   },
   handler: async (ctx, { fileType, contentType }) => {

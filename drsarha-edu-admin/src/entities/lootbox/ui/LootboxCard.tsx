@@ -3,7 +3,8 @@
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Edit, Trash2, Gift } from 'lucide-react';
-import type { Lootbox } from '@/shared/models/Lootbox';
+import { api } from '@convex/_generated/api';
+import type { FunctionReturnType } from 'convex/server';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,7 +17,7 @@ import Image from 'next/image';
 import { getContentUrl } from '@/shared/utils/url';
 
 interface LootboxCardProps {
-  lootbox: Lootbox;
+  lootbox: FunctionReturnType<typeof api.functions.lootboxes.list>['items'][number];
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
 }

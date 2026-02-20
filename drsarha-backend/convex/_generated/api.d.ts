@@ -41,6 +41,7 @@ import type * as functions_pins from "../functions/pins.js";
 import type * as functions_prize_claims from "../functions/prize_claims.js";
 import type * as functions_prizes from "../functions/prizes.js";
 import type * as functions_progress from "../functions/progress.js";
+import type * as functions_ratings from "../functions/ratings.js";
 import type * as functions_references from "../functions/references.js";
 import type * as functions_task_groups from "../functions/task_groups.js";
 import type * as functions_tasks from "../functions/tasks.js";
@@ -130,6 +131,7 @@ declare const fullApi: ApiFromModules<{
   "functions/prize_claims": typeof functions_prize_claims;
   "functions/prizes": typeof functions_prizes;
   "functions/progress": typeof functions_progress;
+  "functions/ratings": typeof functions_ratings;
   "functions/references": typeof functions_references;
   "functions/task_groups": typeof functions_task_groups;
   "functions/tasks": typeof functions_tasks;

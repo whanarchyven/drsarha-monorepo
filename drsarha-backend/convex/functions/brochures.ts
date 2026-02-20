@@ -13,7 +13,7 @@ const sortByIdx = <T extends { idx?: number; _creationTime?: number }>(items: T[
     }
     if (aIdx === undefined) return 1;
     if (bIdx === undefined) return -1;
-    if (aIdx !== bIdx) return aIdx - bIdx;
+    if (aIdx !== bIdx) return bIdx - aIdx;
     return (a._creationTime ?? 0) - (b._creationTime ?? 0);
   });
 

@@ -16,8 +16,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useRouter } from 'next/navigation';
-import { lootboxesApi } from '@/shared/api/lootboxes';
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import Image from 'next/image';
@@ -30,7 +29,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { prizesApi } from '@/shared/api/prizes';
+import { useAction, useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import type { FunctionReturnType } from 'convex/server';
 
 const itemSchema = z.object({
   type: z.enum(['stars', 'exp', 'prize', 'lootbox']),
@@ -53,14 +54,24 @@ const formSchema = z.object({
 });
 
 interface LootboxFormProps {
-  initialData?: {
-    _id?: string;
-    title: string;
-    description: string;
-    image?: string;
-    items: Array<{ type: string; amount: number; chance: number }>;
-  };
+  initialData?: FunctionReturnType<typeof api.functions.lootboxes.getById> | null;
 }
+
+const fileToBase64 = (file: File) =>
+  new Promise<{ base64: string; contentType: string }>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result;
+      if (typeof result !== 'string') {
+        reject(new Error('Не удалось прочитать файл'));
+        return;
+      }
+      const [, base64] = result.split(',');
+      resolve({ base64, contentType: file.type });
+    };
+    reader.onerror = () => reject(new Error('Не удалось прочитать файл'));
+    reader.readAsDataURL(file);
+  });
 
 export function LootboxForm({ initialData }: LootboxFormProps) {
   const router = useRouter();
@@ -69,16 +80,18 @@ export function LootboxForm({ initialData }: LootboxFormProps) {
   const [imagePreview, setImagePreview] = useState<string | null>(
     initialData?.image ? getContentUrl(initialData.image) : null
   );
-  const [prizes, setPrizes] = useState<{ _id: string; name: string }[]>([]);
-  const [lootboxes, setLootboxes] = useState<{ _id: string; title: string }[]>(
-    []
-  );
-
-  useEffect(() => {
-    // Загружаем призы и лутбоксы для селектов
-    prizesApi.getAll({ limit: 100 }).then((res) => setPrizes(res.items));
-    lootboxesApi.getAll({ limit: 100 }).then((res) => setLootboxes(res.items));
-  }, []);
+  const createLootbox = useAction(api.functions.lootboxes.create);
+  const updateLootbox = useAction(api.functions.lootboxes.updateAction);
+  const prizesResponse = useQuery(api.functions.prizes.list, {
+    page: 1,
+    limit: 100,
+  });
+  const lootboxesResponse = useQuery(api.functions.lootboxes.list, {
+    page: 1,
+    limit: 100,
+  });
+  const prizes = prizesResponse?.items ?? [];
+  const lootboxes = lootboxesResponse?.items ?? [];
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -114,6 +127,36 @@ export function LootboxForm({ initialData }: LootboxFormProps) {
           items: [{ type: 'stars', amount: 1, chance: 1 }], // 100%
         },
   });
+
+  useEffect(() => {
+    if (!initialData) return;
+    form.reset({
+      title: initialData.title,
+      description: initialData.description,
+      image: undefined,
+      items: (initialData?.items || []).filter(Boolean).map((i) => {
+        const raw: any = i as any;
+        const allowed = ['stars', 'exp', 'prize', 'lootbox'] as const;
+        const normalizedType = (
+          allowed.includes(raw?.type) ? raw.type : 'stars'
+        ) as 'stars' | 'exp' | 'prize' | 'lootbox';
+        const isObjectRef =
+          normalizedType === 'prize' || normalizedType === 'lootbox';
+        const objectId = isObjectRef
+          ? raw?.objectId === null || raw?.objectId === ''
+            ? undefined
+            : raw?.objectId
+          : undefined;
+        return {
+          ...raw,
+          type: normalizedType,
+          objectId,
+        };
+      }),
+    });
+    setImagePreview(initialData.image ? getContentUrl(initialData.image) : null);
+    setImageFile(null);
+  }, [form, initialData]);
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -160,29 +203,41 @@ export function LootboxForm({ initialData }: LootboxFormProps) {
               : undefined,
           };
         });
-      const formData = new FormData();
-      formData.append('title', values.title);
-      formData.append('description', values.description);
-      if (imageFile) {
-        formData.append('image', imageFile);
+      if (!initialData && !imageFile) {
+        toast.error('Загрузите изображение лутбокса');
+        return;
       }
-      formData.append('items', JSON.stringify(sanitizedItems));
-      if (initialData && initialData._id) {
-        console.log(formData, 'FORM DATA');
-        await lootboxesApi.update(initialData._id, formData);
-        toast.success('Лутбокс успешно обновлен');
-      } else {
-        await lootboxesApi.create(formData);
-        toast.success('Лутбокс успешно создан');
-      }
+
+      const imagePayload = imageFile ? await fileToBase64(imageFile) : null;
+      const promise = initialData?._id
+        ? updateLootbox({
+            id: initialData._id,
+            title: values.title,
+            description: values.description,
+            items: sanitizedItems as any,
+            image: imagePayload ?? undefined,
+          })
+        : createLootbox({
+            title: values.title,
+            description: values.description,
+            items: sanitizedItems as any,
+            image: imagePayload!,
+          });
+
+      toast.promise(promise, {
+        loading: initialData ? 'Сохраняем лутбокс...' : 'Создаём лутбокс...',
+        success: initialData
+          ? 'Лутбокс успешно обновлён'
+          : 'Лутбокс успешно создан',
+        error: 'Произошла ошибка при сохранении лутбокса',
+      });
+
+      await promise;
       router.push('/knowledge/lootboxes');
       router.refresh();
     } catch (error: any) {
       console.error('Error submitting form:', error);
-      toast.error(
-        error.response?.data?.message ||
-          'Произошла ошибка при сохранении лутбокса'
-      );
+      toast.error('Произошла ошибка при сохранении лутбокса');
     } finally {
       setIsSubmitting(false);
     }

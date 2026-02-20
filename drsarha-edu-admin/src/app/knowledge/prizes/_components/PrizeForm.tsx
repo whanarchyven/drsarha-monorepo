@@ -16,13 +16,15 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useRouter } from 'next/navigation';
-import { prizesApi } from '@/shared/api/prizes';
-import { useState } from 'react';
-import { Loader2, Upload } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import Image from 'next/image';
 import { getContentUrl } from '@/shared/utils/url';
 import { Card, CardContent } from '@/components/ui/card';
+import { useAction } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import type { FunctionReturnType } from 'convex/server';
 
 const formSchema = z.object({
   name: z
@@ -42,15 +44,24 @@ const formSchema = z.object({
 });
 
 interface PrizeFormProps {
-  initialData?: {
-    _id?: string;
-    name: string;
-    description: string;
-    level: number;
-    price: number;
-    image?: string;
-  };
+  initialData?: FunctionReturnType<typeof api.functions.prizes.getById> | null;
 }
+
+const fileToBase64 = (file: File) =>
+  new Promise<{ base64: string; contentType: string }>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result;
+      if (typeof result !== 'string') {
+        reject(new Error('Не удалось прочитать файл'));
+        return;
+      }
+      const [, base64] = result.split(',');
+      resolve({ base64, contentType: file.type });
+    };
+    reader.onerror = () => reject(new Error('Не удалось прочитать файл'));
+    reader.readAsDataURL(file);
+  });
 
 export function PrizeForm({ initialData }: PrizeFormProps) {
   const router = useRouter();
@@ -59,6 +70,8 @@ export function PrizeForm({ initialData }: PrizeFormProps) {
   const [imagePreview, setImagePreview] = useState<string | null>(
     initialData?.image ? getContentUrl(initialData.image) : null
   );
+  const createPrize = useAction(api.functions.prizes.create);
+  const updatePrize = useAction(api.functions.prizes.updateAction);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -79,6 +92,20 @@ export function PrizeForm({ initialData }: PrizeFormProps) {
         },
   });
 
+  useEffect(() => {
+    if (initialData) {
+      form.reset({
+        name: initialData.name,
+        description: initialData.description,
+        level: initialData.level,
+        price: initialData.price,
+        image: undefined,
+      });
+      setImagePreview(initialData.image ? getContentUrl(initialData.image) : null);
+      setImageFile(null);
+    }
+  }, [form, initialData]);
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -94,30 +121,41 @@ export function PrizeForm({ initialData }: PrizeFormProps) {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       setIsSubmitting(true);
-
-      const prizeData = {
-        name: values.name,
-        description: values.description,
-        level: values.level,
-        price: values.price,
-        image: imageFile || undefined,
-      };
-
-      if (initialData && initialData._id) {
-        await prizesApi.update(initialData._id, prizeData);
-        toast.success('Приз успешно обновлен');
-      } else {
-        await prizesApi.create(prizeData);
-        toast.success('Приз успешно создан');
+      if (!initialData && !imageFile) {
+        toast.error('Загрузите изображение приза');
+        return;
       }
 
+      const imagePayload = imageFile ? await fileToBase64(imageFile) : null;
+      const promise = initialData?._id
+        ? updatePrize({
+            id: initialData._id,
+            name: values.name,
+            description: values.description,
+            level: values.level,
+            price: values.price,
+            image: imagePayload ?? undefined,
+          })
+        : createPrize({
+            name: values.name,
+            description: values.description,
+            level: values.level,
+            price: values.price,
+            image: imagePayload!,
+          });
+
+      toast.promise(promise, {
+        loading: initialData ? 'Сохраняем приз...' : 'Создаём приз...',
+        success: initialData ? 'Приз успешно обновлён' : 'Приз успешно создан',
+        error: 'Произошла ошибка при сохранении приза',
+      });
+
+      await promise;
       router.push('/knowledge/prizes');
       router.refresh();
     } catch (error: any) {
       console.error('Error submitting form:', error);
-      toast.error(
-        error.response?.data?.message || 'Произошла ошибка при сохранении приза'
-      );
+      toast.error('Произошла ошибка при сохранении приза');
     } finally {
       setIsSubmitting(false);
     }

@@ -1,12 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { InteractiveMatchForm } from '../../_components/InteractiveMatchForm';
-import { interactiveMatchesApi } from '@/shared/api/interactive-matches';
-import type { InteractiveMatch } from '@/shared/models/InteractiveMatch';
-import { toast } from 'sonner';
-import { useNozologiesStore } from '@/shared/store/nozologiesStore';
+import { useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
 
 interface EditInteractiveMatchPageProps {
   params: {
@@ -18,31 +16,11 @@ export default function EditInteractiveMatchPage({
   params,
 }: EditInteractiveMatchPageProps) {
   const router = useRouter();
-  const [match, setMatch] = useState<InteractiveMatch | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const { fetchNozologies } = useNozologiesStore();
+  const match = useQuery(api.functions.interactive_matches.getById, {
+    id: params.id as Id<'interactive_matches'>,
+  });
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [matchData] = await Promise.all([
-          interactiveMatchesApi.getById(params.id),
-          fetchNozologies(),
-        ]);
-        setMatch(matchData);
-      } catch (error) {
-        console.error('Error fetching match:', error);
-        toast.error('Ошибка при загрузке интерактивного соединения');
-        router.push('/knowledge/interactive-matches');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [params.id, router, fetchNozologies]);
-
-  if (isLoading) {
+  if (match === undefined) {
     return <div>Загрузка...</div>;
   }
 

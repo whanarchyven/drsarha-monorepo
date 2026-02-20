@@ -74,6 +74,73 @@ export const remove = mutation({
   },
 });
 
+export const rating = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      pin: v.object({
+        _id: v.id("pins"),
+        _creationTime: v.number(),
+        title: v.string(),
+        description: v.string(),
+        image: v.string(),
+        author: v.union(v.id("users"), v.string()),
+        tags: v.optional(v.array(v.union(v.id("pin_tags"), v.string()))),
+        likes: v.number(),
+        comments: v.number(),
+        createdAt: v.string(),
+        updatedAt: v.string(),
+        mongoId: v.optional(v.string()),
+      }),
+      likesCount: v.number(),
+      author: v.union(
+        v.object({
+          _id: v.id("users"),
+          fullName: v.optional(v.string()),
+          email: v.optional(v.string()),
+          avatar: v.optional(v.string()),
+        }),
+        v.null(),
+      ),
+    }),
+  ),
+  handler: async ({ db }) => {
+    const allLikes = await (db as any).query("pin_likes").collect();
+    const allPins = await (db as any).query("pins").collect();
+    const allUsers = await (db as any).query("users").collect();
+
+    const pinsById = new Map<string, any>(allPins.map((p: any) => [String(p._id), p]));
+    const usersById = new Map<string, any>(allUsers.map((u: any) => [String(u._id), u]));
+
+    const likesByPinId = new Map<string, number>();
+    for (const like of allLikes) {
+      const key = String(like.pinId);
+      likesByPinId.set(key, (likesByPinId.get(key) ?? 0) + 1);
+    }
+
+    return Array.from(likesByPinId.entries())
+      .map(([pinId, likesCount]) => ({ pin: pinsById.get(pinId), likesCount }))
+      .filter((row) => !!row.pin)
+      .sort((a, b) => b.likesCount - a.likesCount)
+      .slice(0, 20)
+      .map((row: any) => {
+        const author = usersById.get(String(row.pin.author));
+        return {
+          pin: row.pin,
+          likesCount: row.likesCount,
+          author: author
+            ? {
+                _id: author._id,
+                fullName: author.fullName,
+                email: author.email,
+                avatar: author.avatar,
+              }
+            : null,
+        };
+      });
+  },
+});
+
 export const getUserLikesForPins = query({
   args: { userId: v.string(), pinIds: v.array(v.string()) },
   returns: v.array(v.string()),

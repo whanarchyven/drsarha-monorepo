@@ -1,74 +1,47 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { prizesApi } from '@/shared/api/prizes';
-import type { Prize } from '@/shared/models/Prize';
-import type { BaseQueryParams } from '@/shared/api/types';
 import { PrizeGrid } from './_components/PrizeGrid';
 import { toast } from 'sonner';
-
-interface PrizeSearchParams extends BaseQueryParams {
-  level?: number;
-}
+import { useMutation, useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
 
 export default function PrizesPage() {
-  const [data, setData] = useState<Prize[]>([]);
-  const [pagination, setPagination] = useState({
-    total: 0,
-    page: 1,
-    totalPages: 1,
-    hasMore: false,
-  });
-  const [isLoading, setIsLoading] = useState(false);
+  const [search, setSearch] = useState<string | undefined>(undefined);
+  const [page, setPage] = useState(1);
+  const [level, setLevel] = useState<number | undefined>(undefined);
+  const limit = 20;
   const router = useRouter();
-
-  const fetchData = async (params?: PrizeSearchParams) => {
-    setIsLoading(true);
-    try {
-      const response = await prizesApi.getAll({
-        ...params,
-        page: params?.page || 1,
-        limit: params?.limit || 20,
-      });
-
-      setData(response.items);
-      setPagination({
-        total: response.total,
-        page: response.page,
-        totalPages: response.totalPages,
-        hasMore: response.hasMore,
-      });
-    } catch (error: any) {
-      console.error('Error fetching prizes:', error);
-      toast.error('Ошибка при загрузке призов');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const response = useQuery(api.functions.prizes.list, {
+    search,
+    page,
+    limit,
+    level,
+  });
+  const removePrize = useMutation(api.functions.prizes.remove);
+  const isLoading = response === undefined;
+  const data = useMemo(() => response?.items ?? [], [response]);
+  const pagination = useMemo(
+    () =>
+      response ?? {
+        total: 0,
+        page: 1,
+        totalPages: 1,
+        hasMore: false,
+      },
+    [response]
+  );
 
   const handleSearch = (params: {
     search?: string;
     page?: number;
     level?: number;
   }) => {
-    const searchParams: PrizeSearchParams = {};
-
-    if (params.search) {
-      searchParams.search = params.search;
-    }
-    if (params.page) {
-      searchParams.page = params.page;
-    }
-    if (params.level) {
-      searchParams.level = params.level;
-    }
-
-    fetchData(searchParams);
+    setSearch(params.search || undefined);
+    setPage(params.page || 1);
+    setLevel(params.level);
   };
 
   const handleEdit = async (id: string) => {
@@ -77,9 +50,8 @@ export default function PrizesPage() {
 
   const handleDelete = async (id: string) => {
     try {
-      await prizesApi.delete(id);
+      await removePrize({ id: id as Id<'prizes'> });
       toast.success('Приз успешно удален');
-      await fetchData(); // Перезагружаем данные после удаления
     } catch (error: any) {
       console.error('Error deleting prize:', error);
       toast.error('Ошибка при удалении приза');

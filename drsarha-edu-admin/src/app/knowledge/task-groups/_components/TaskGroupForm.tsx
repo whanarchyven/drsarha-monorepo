@@ -15,15 +15,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { taskGroupsApi } from '@/shared/api/taskGroups';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import LoadingSpinner from '@/shared/ui/LoadingSpinner/LoadingSpinner';
-import type { TaskGroup } from '@/shared/models/TaskGroup';
-import { prizesApi } from '@/shared/api/prizes';
-import { lootboxesApi } from '@/shared/api/lootboxes';
 import { Plus, Trash2 } from 'lucide-react';
+import { useMutation, useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
+import type { FunctionReturnType } from 'convex/server';
 
 const rewardItemSchema = z.object({
   type: z.enum(['stars', 'exp', 'prize', 'lootbox']),
@@ -52,7 +51,7 @@ const taskGroupSchema = z.object({
 type TaskGroupFormData = z.infer<typeof taskGroupSchema>;
 
 interface TaskGroupFormProps {
-  initialData?: TaskGroup;
+  initialData?: FunctionReturnType<typeof api.functions.task_groups.getById> | null;
   isEditing?: boolean;
 }
 
@@ -61,25 +60,20 @@ export function TaskGroupForm({
   isEditing = false,
 }: TaskGroupFormProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const [prizes, setPrizes] = useState<{ _id: string; name: string }[]>([]);
-  const [lootboxes, setLootboxes] = useState<{ _id: string; title: string }[]>(
-    []
-  );
   const router = useRouter();
+  const createGroup = useMutation(api.functions.task_groups.create);
+  const updateGroup = useMutation(api.functions.task_groups.update);
+  const prizesResponse = useQuery(api.functions.prizes.list, {
+    page: 1,
+    limit: 100,
+  });
+  const lootboxesResponse = useQuery(api.functions.lootboxes.list, {
+    page: 1,
+    limit: 100,
+  });
+  const prizes = prizesResponse?.items ?? [];
+  const lootboxes = lootboxesResponse?.items ?? [];
 
-  console.log(initialData, 'INITIAL DATA');
-
-  useEffect(() => {
-    // Загружаем призы и лутбоксы для селектов
-    prizesApi.getAll({ limit: 100 }).then((res) => setPrizes(res.items));
-    lootboxesApi.getAll({ limit: 100 }).then((res) => setLootboxes(res.items));
-
-    // Отладочная информация
-    if (initialData) {
-      console.log('Initial data:', initialData);
-      console.log('Reward items:', initialData.reward?.items);
-    }
-  }, [initialData]);
 
   const {
     register,
@@ -88,6 +82,7 @@ export function TaskGroupForm({
     setValue,
     watch,
     control,
+    reset,
   } = useForm<TaskGroupFormData>({
     resolver: zodResolver(taskGroupSchema),
     defaultValues: initialData
@@ -135,41 +130,111 @@ export function TaskGroupForm({
     name: 'rewardItems',
   });
 
+  useEffect(() => {
+    if (!initialData) return;
+    reset({
+      name: initialData.name || '',
+      description: initialData.description || '',
+      startDate: initialData.startDate
+        ? initialData.startDate.split('T')[0]
+        : '',
+      endDate: initialData.endDate ? initialData.endDate.split('T')[0] : '',
+      rewardItems: initialData.reward?.items?.length
+        ? initialData.reward.items.map((item) => ({
+            type: (item.type || 'stars') as
+              | 'stars'
+              | 'exp'
+              | 'prize'
+              | 'lootbox',
+            amount: typeof item.amount === 'number' ? item.amount : 1,
+            title:
+              item.title ||
+              (item.type === 'stars'
+                ? 'Звезды'
+                : item.type === 'exp'
+                  ? 'Опыт'
+                  : 'Награда'),
+            objectId: item.objectId || undefined,
+          }))
+        : [{ type: 'stars', amount: 1, title: 'Звезды' }],
+      level: initialData.level || null,
+      timeType: (initialData.timeType as 'daily' | 'weekly' | 'level') || 'daily',
+    });
+  }, [initialData, reset]);
+
   const onSubmit = async (data: TaskGroupFormData) => {
     setIsLoading(true);
     try {
+      const normalizeDayRange = (dateStr: string) => {
+        const start = new Date(`${dateStr}T00:00:00.000Z`);
+        const end = new Date(`${dateStr}T23:59:59.000Z`);
+        return { start: start.toISOString(), end: end.toISOString() };
+      };
+      const normalizeWeekRange = (dateStr: string) => {
+        const base = new Date(`${dateStr}T00:00:00.000Z`);
+        const day = base.getUTCDay();
+        const diffToMonday = (day + 6) % 7;
+        const monday = new Date(base);
+        monday.setUTCDate(base.getUTCDate() - diffToMonday);
+        const sunday = new Date(monday);
+        sunday.setUTCDate(monday.getUTCDate() + 6);
+        sunday.setUTCHours(23, 59, 59, 0);
+        return { start: monday.toISOString(), end: sunday.toISOString() };
+      };
+
       const payload: any = {
         name: data.name,
         description: data.description,
         startDate: data.startDate,
         endDate: data.endDate,
-        rewardItems: data.rewardItems,
+        reward: {
+          items: data.rewardItems,
+        },
         timeType: data.timeType,
+        isActive: initialData?.isActive ?? true,
+        updatedAt: new Date().toISOString(),
       };
       if (typeof data.level === 'number') {
         payload.level = data.level;
+      } else {
+        payload.level = null;
+      }
+
+      if (!isEditing && data.timeType === 'daily') {
+        const { start, end } = normalizeDayRange(data.startDate);
+        payload.startDate = start;
+        payload.endDate = end;
+      }
+
+      if (!isEditing && data.timeType === 'weekly') {
+        const { start, end } = normalizeWeekRange(data.startDate);
+        payload.startDate = start;
+        payload.endDate = end;
       }
       if (isEditing && initialData) {
-        await taskGroupsApi.update(initialData._id, payload);
-        toast({
-          title: 'Успешно',
-          description: 'Группа заданий обновлена',
+        const promise = updateGroup({ id: initialData._id, patch: payload });
+        toast.promise(promise, {
+          loading: 'Сохраняем группу...',
+          success: 'Группа заданий обновлена',
+          error: 'Не удалось сохранить группу заданий',
         });
+        await promise;
       } else {
-        await taskGroupsApi.create(payload);
-        toast({
-          title: 'Успешно',
-          description: 'Группа заданий создана',
+        const promise = createGroup({
+          ...payload,
+          createdAt: new Date().toISOString(),
         });
+        toast.promise(promise, {
+          loading: 'Создаём группу...',
+          success: 'Группа заданий создана',
+          error: 'Не удалось сохранить группу заданий',
+        });
+        await promise;
       }
       router.push('/knowledge/task-groups');
     } catch (error) {
       console.error('Error saving task group:', error);
-      toast({
-        title: 'Ошибка',
-        description: 'Не удалось сохранить группу заданий',
-        variant: 'destructive',
-      });
+      toast.error('Не удалось сохранить группу заданий');
     } finally {
       setIsLoading(false);
     }

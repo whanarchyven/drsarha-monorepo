@@ -2,6 +2,7 @@ import { query, mutation } from "../_generated/server";
 import { v } from "convex/values";
 import { pinReportDoc, pinReportFields } from "../models/pinReport";
 import { pinReportTypeDoc, pinReportTypeFields } from "../models/pinReportType";
+import { api } from "../_generated/api";
 
 // Types CRUD
 export const createType = mutation({ args: { name: v.string() }, returns: pinReportTypeDoc, handler: async ({ db }, { name }) => { const now = new Date().toISOString(); const id = await db.insert("pin_report_type", { name, createdAt: now, updatedAt: now } as any); return (await db.get(id))!; } });
@@ -42,4 +43,49 @@ export const getById = query({ args: { id: v.id("pin_reports") }, returns: v.uni
 
 export const setStatus = mutation({ args: { id: v.id("pin_reports"), status: v.union(v.literal("approved"), v.literal("rejected")), admin_comment: v.string(), fine: v.number(), reward: v.number() }, returns: pinReportDoc, handler: async ({ db }, { id, status, admin_comment, fine, reward }) => { await db.patch(id, { status, admin_comment, fine, reward, updatedAt: new Date().toISOString() } as any); return (await db.get(id))!; } });
 
+export const adminDeletePin = mutation({
+  args: {
+    pinId: v.string(),
+    adminComment: v.string(),
+    fine: v.optional(v.number()),
+    adminId: v.optional(v.string()),
+  },
+  returns: v.object({ success: v.boolean(), deletedPinId: v.string() }),
+  handler: async (ctx, { pinId, adminComment, fine, adminId }) => {
+    if (process.env.ADMIN_ID && adminId !== process.env.ADMIN_ID) {
+      throw new Error("Forbidden");
+    }
+
+    let pin = await ctx.db.get(pinId as any);
+    if (!pin) {
+      const allPins = await (ctx.db as any).query("pins").collect();
+      pin = allPins.find((p: any) => p.mongoId === pinId) ?? null;
+    }
+
+    if (!pin) {
+      throw new Error("Pin not found");
+    }
+
+    if (typeof fine === "number" && fine > 0) {
+      const authorId = (pin as any).author;
+      let user = await ctx.db.get(authorId as any);
+      if (!user) {
+        user = await (ctx.db as any)
+          .query("users")
+          .withIndex("by_mongo_id", (q: any) => q.eq("mongoId", authorId))
+          .first();
+      }
+      if (user) {
+        await ctx.runMutation(api.functions.users.inc, {
+          id: (user as any)._id,
+          stars: -fine,
+        } as any);
+      }
+    }
+
+    await ctx.runMutation(api.functions.pins.remove, { id: (pin as any)._id });
+
+    return { success: true, deletedPinId: String((pin as any)._id) };
+  },
+});
 

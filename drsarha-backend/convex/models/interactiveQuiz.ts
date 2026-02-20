@@ -27,6 +27,7 @@ export const interactiveQuizFields = {
   correct_answer_comment: v.optional(v.union(v.null(),v.string())),
   created_at: v.optional(v.string()),
   mongoId: v.optional(v.string()),
+  idx: v.optional(v.number()),
   publishAfter: v.optional(v.number()),
   updated_at: v.optional(v.string()),
   app_visible: v.optional(v.boolean()),

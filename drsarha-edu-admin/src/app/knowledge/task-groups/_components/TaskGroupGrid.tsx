@@ -2,7 +2,8 @@
 
 import { Button } from '@/components/ui/button';
 import { Plus, Search, Edit, Trash2 } from 'lucide-react';
-import type { TaskGroup } from '@/shared/models/TaskGroup';
+import { api } from '@convex/_generated/api';
+import type { FunctionReturnType } from 'convex/server';
 import { Input } from '@/components/ui/input';
 import {
   AlertDialog,
@@ -20,7 +21,7 @@ import { useDebounce } from '@/shared/hooks/useDebounce';
 import LoadingSpinner from '@/shared/ui/LoadingSpinner/LoadingSpinner';
 
 interface TaskGroupGridProps {
-  data: TaskGroup[];
+  data: FunctionReturnType<typeof api.functions.task_groups.getAll>;
   isLoading: boolean;
   pagination: {
     total: number;
@@ -48,6 +49,20 @@ export function TaskGroupGrid({
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 300);
+
+  const getRewardTotals = (
+    group: FunctionReturnType<typeof api.functions.task_groups.getAll>[number]
+  ) => {
+    const items = group.reward?.items ?? [];
+    return items.reduce(
+      (acc, item) => {
+        if (item.type === 'stars') acc.stars += item.amount || 0;
+        if (item.type === 'exp') acc.exp += item.amount || 0;
+        return acc;
+      },
+      { stars: 0, exp: 0 }
+    );
+  };
 
   useEffect(() => {
     onSearch({ search: debouncedSearch, page: 1 });
@@ -105,47 +120,50 @@ export function TaskGroupGrid({
         ) : (
           <>
             <div className="flex flex-col gap-4">
-              {data.map((group) => (
-                <div
-                  key={group._id}
-                  className="border rounded-lg p-4 bg-card flex flex-col gap-2 hover:shadow-md transition-shadow cursor-pointer"
-                  onClick={() => onView(group._id)}>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-lg mb-1">
-                        {group.name}
-                      </h3>
-                      <div className="text-xs text-muted-foreground mb-1">
-                        {group.startDate} — {group.endDate}
+              {data.map((group) => {
+                const rewardTotals = getRewardTotals(group);
+                return (
+                  <div
+                    key={group._id}
+                    className="border rounded-lg p-4 bg-card flex flex-col gap-2 hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => onView(group._id)}>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-lg mb-1">
+                          {group.name}
+                        </h3>
+                        <div className="text-xs text-muted-foreground mb-1">
+                          {group.startDate} — {group.endDate}
+                        </div>
+                        <div className="text-sm text-muted-foreground line-clamp-2 mb-1">
+                          {group.description}
+                        </div>
+                        <div className="flex gap-2 text-xs mt-2">
+                          <span>⭐ {rewardTotals.stars}</span>
+                          <span>🧠 {rewardTotals.exp}</span>
+                          <span>Уровень: {group.level || 'Не указан'}</span>
+                        </div>
                       </div>
-                      <div className="text-sm text-muted-foreground line-clamp-2 mb-1">
-                        {group.description}
+                      <div
+                        className="flex flex-col gap-2 items-end"
+                        onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => onEdit(group._id)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => setDeleteId(group._id)}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
                       </div>
-                      <div className="flex gap-2 text-xs mt-2">
-                        <span>⭐ {group.rewardStars}</span>
-                        <span>🧠 {group.rewardExp}</span>
-                        <span>Уровень: {group.level}</span>
-                      </div>
-                    </div>
-                    <div
-                      className="flex flex-col gap-2 items-end"
-                      onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => onEdit(group._id)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setDeleteId(group._id)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {pagination.totalPages > 1 && (
