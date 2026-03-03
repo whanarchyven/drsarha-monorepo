@@ -1,4 +1,4 @@
-import { query, mutation, action } from "../_generated/server";
+import { query, mutation, action, httpAction } from "../_generated/server";
 import { v } from "convex/values";
 import { clinicTaskDoc, clinicTaskFields } from "../models/clinicTask";
 import { api, internal } from "../_generated/api";
@@ -450,6 +450,80 @@ export const getTaskCondition = query({
       return { additional_info:"",ai_scenario:"" };
     }
   },
+});
+
+export const getClinicTaskQuestionCondition = query({
+  args: { task_id: v.string(), question_id: v.string() },
+  returns: v.union(v.any(), v.null()),
+  handler: async ({ db }, { task_id, question_id }) => {
+    try {
+      const task = await db.get(task_id as any);
+      if (!task) return null;
+      const taskData = task as any;
+      const questions: any[] = Array.isArray(taskData.questions)
+        ? taskData.questions
+        : [];
+      const hit = questions.find((q) => String(q.id) === String(question_id));
+      return hit ?? null;
+    } catch {
+      return null;
+    }
+  },
+});
+
+export const getTaskConditionHttp = httpAction(async (ctx, req) => {
+  try {
+    const url = new URL(req.url);
+    const task_id = url.searchParams.get("task_id") || "";
+    if (!task_id) {
+      return new Response(
+        JSON.stringify({ additional_info: "", ai_scenario: "" }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      );
+    }
+    const result = await ctx.runQuery(api.functions.clinic_tasks.getTaskCondition, {
+      task_id,
+    });
+    return new Response(
+      JSON.stringify({
+        additional_info: result.additional_info || "",
+        ai_scenario: result.ai_scenario || "",
+      }),
+      { status: 200, headers: { "content-type": "application/json" } }
+    );
+  } catch {
+    return new Response(
+      JSON.stringify({ additional_info: "", ai_scenario: "" }),
+      { status: 200, headers: { "content-type": "application/json" } }
+    );
+  }
+});
+
+export const getClinicTaskQuestionConditionHttp = httpAction(async (ctx, req) => {
+  try {
+    const url = new URL(req.url);
+    const task_id = url.searchParams.get("task_id") || "";
+    const question_id = url.searchParams.get("question_id") || "";
+    if (!task_id || !question_id) {
+      return new Response(JSON.stringify(null), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    const result = await ctx.runQuery(
+      api.functions.clinic_tasks.getClinicTaskQuestionCondition,
+      { task_id, question_id }
+    );
+    return new Response(JSON.stringify(result ?? null), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  } catch {
+    return new Response(JSON.stringify(null), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }
 });
 
 // Get task answer treatment

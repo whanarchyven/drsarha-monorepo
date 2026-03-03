@@ -338,7 +338,10 @@ export const getSimilarPinsByTitle = query({
 });
 
 export const rating = query({
-  args: {},
+  args: {
+    start_date: v.optional(v.string()),
+    end_date: v.optional(v.string()),
+  },
   returns: v.array(
     v.object({
       authorId: v.union(v.id("users"), v.string()),
@@ -354,13 +357,28 @@ export const rating = query({
       ),
     }),
   ),
-  handler: async ({ db }) => {
+  handler: async ({ db }, { start_date, end_date }) => {
     const allPins = await (db as any).query("pins").collect();
     const users = await (db as any).query("users").collect();
     const usersById = new Map<string, any>(users.map((u: any) => [String(u._id), u]));
 
+    const parseDate = (value?: string) => {
+      if (!value) return undefined;
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? undefined : date;
+    };
+    const start = parseDate(start_date);
+    const end = parseDate(end_date);
+
     const counts = new Map<string, { authorId: any; pinsCount: number }>();
     for (const pin of allPins) {
+      if (start || end) {
+        const createdAt = (pin as any).createdAt
+          ? new Date((pin as any).createdAt)
+          : new Date((pin as any)._creationTime || 0);
+        if (start && createdAt < start) continue;
+        if (end && createdAt > end) continue;
+      }
       const key = String(pin.author);
       const current = counts.get(key);
       if (current) {

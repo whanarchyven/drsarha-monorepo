@@ -1,5 +1,6 @@
-import { query, mutation } from "../_generated/server";
+import { query, mutation, httpAction } from "../_generated/server";
 import { v } from "convex/values";
+import { api } from "../_generated/api";
 import { helpConversationDoc, helpConversationFields } from "../models/helpConversation";
 
 export const list = query({
@@ -85,29 +86,34 @@ export const remove = mutation({
   },
 });
 
-// Initialize help conversation (create or update) - for Python backend compatibility
+// Initialize help conversation (always create new) - for Python backend compatibility
 export const initHelpConversation = mutation({
   args: {
     user_id: v.string(),
     task_id: v.string(),
     question_id: v.string(),
-    comment: v.string(),
-    correct_answer: v.string(),
-    invalid_user_answer: v.string(),
-    messages: v.array(
-      v.object({
-        message: v.string(),
-        role: v.string(),
-        created_at: v.optional(v.string()),
-      })
+    comment: v.optional(v.string()),
+    correct_answer: v.optional(v.string()),
+    invalid_user_answer: v.optional(v.string()),
+    messages: v.optional(
+      v.array(
+        v.object({
+          message: v.string(),
+          role: v.string(),
+          created_at: v.optional(v.string()),
+        })
+      )
     ),
     created_at: v.optional(v.string()),
   },
-  returns: helpConversationDoc,
+  returns: v.object({
+    conversation: helpConversationDoc,
+    attempt: v.number(),
+  }),
   handler: async ({ db }, data) => {
-    // Try to find existing conversation
+    // Find all matching conversations to calculate attempt count.
     const all = await db.query("drsarha_help_conversations").collect();
-    const existing = all.find(
+    const matches = all.filter(
       (c: any) =>
         c.user_id === data.user_id &&
         c.task_id === data.task_id &&
@@ -119,25 +125,59 @@ export const initHelpConversation = mutation({
       user_id: data.user_id,
       task_id: data.task_id,
       question_id: data.question_id,
-      comment: data.comment,
-      correct_answer: data.correct_answer,
-      invalid_user_answer: data.invalid_user_answer,
-      messages: data.messages,
+      comment: data.comment || "",
+      correct_answer: data.correct_answer || "",
+      invalid_user_answer: data.invalid_user_answer || "",
+      messages: data.messages || [],
       created_at: data.created_at || now,
     };
 
-    if (existing) {
-      // Update existing
-      await db.patch(existing._id, conversationData);
-      const doc = await db.get(existing._id);
-      return doc!;
-    } else {
-      // Create new
-      const id = await db.insert("drsarha_help_conversations", conversationData);
-      const doc = await db.get(id);
-      return doc!;
-    }
+    // Always create a new conversation record.
+    const id = await db.insert("drsarha_help_conversations", conversationData);
+    const doc = await db.get(id);
+    return {
+      conversation: doc!,
+      attempt: matches.length + 1,
+    };
   },
+});
+
+export const initHelpConversationHttp = httpAction(async (ctx, req) => {
+  try {
+    const body = await req.json();
+    const result = await ctx.runMutation(
+      api.functions.drsarha_help_conversations.initHelpConversation,
+      {
+        user_id: String(body?.user_id || ""),
+        task_id: String(body?.task_id || ""),
+        question_id: String(body?.question_id || ""),
+        comment: typeof body?.comment === "string" ? body.comment : undefined,
+        correct_answer:
+          typeof body?.correct_answer === "string"
+            ? body.correct_answer
+            : undefined,
+        invalid_user_answer:
+          typeof body?.invalid_user_answer === "string"
+            ? body.invalid_user_answer
+            : undefined,
+        messages: Array.isArray(body?.messages) ? body.messages : undefined,
+        created_at:
+          typeof body?.created_at === "string" ? body.created_at : undefined,
+      }
+    );
+
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to init conversation";
+    return new Response(JSON.stringify({ error: message }), {
+      status: 400,
+      headers: { "content-type": "application/json" },
+    });
+  }
 });
 
 // Push message to help conversation - for Python backend compatibility

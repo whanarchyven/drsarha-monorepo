@@ -53,6 +53,7 @@ import type * as functions_user_saved_pins from "../functions/user_saved_pins.js
 import type * as functions_users from "../functions/users.js";
 import type * as helpers_s3 from "../helpers/s3.js";
 import type * as helpers_upload from "../helpers/upload.js";
+import type * as http from "../http.js";
 import type * as models_adminUser from "../models/adminUser.js";
 import type * as models_aiVerification from "../models/aiVerification.js";
 import type * as models_brochure from "../models/brochure.js";
@@ -143,6 +144,7 @@ declare const fullApi: ApiFromModules<{
   "functions/users": typeof functions_users;
   "helpers/s3": typeof helpers_s3;
   "helpers/upload": typeof helpers_upload;
+  http: typeof http;
   "models/adminUser": typeof models_adminUser;
   "models/aiVerification": typeof models_aiVerification;
   "models/brochure": typeof models_brochure;
