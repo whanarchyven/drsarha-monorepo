@@ -66,6 +66,15 @@ export default function KnowledgePage() {
         </Link>
 
         <Link
+          href="/knowledge/markup-tasks"
+          className="p-6 border rounded-lg hover:border-primary transition-colors">
+          <h2 className="text-xl font-semibold mb-2">Задачи на разметку</h2>
+          <p className="text-muted-foreground">
+            Управление задачами с разметкой элементов на слайдах
+          </p>
+        </Link>
+
+        <Link
           href="/knowledge/interactive-quizzes"
           className="p-6 border rounded-lg hover:border-primary transition-colors">
           <h2 className="text-xl font-semibold mb-2">Интерактивные квизы</h2>

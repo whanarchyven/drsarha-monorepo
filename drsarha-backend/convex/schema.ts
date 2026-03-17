@@ -39,6 +39,20 @@ import { foldersTable, folderCollaboratorsTable, savedPinsTable } from "./models
 import { collaborationRequestsTable } from "./models/collaborationRequest";
 import { aiVerificationsTable } from "./models/aiVerification";
 import { helpTicketsTable } from "./models/helpTicket";
+import { markupTasksTable } from "./models/markupTask";
+import { markupTaskStagesTable } from "./models/markupTaskStage";
+import { markupTaskSlidesTable } from "./models/markupTaskSlide";
+import { markupTaskElementsTable } from "./models/markupTaskElement";
+import { conferenceUsersTable } from "./models/conferenceUser";
+import { conferenceBroadcastTable } from "./models/conferenceBroadcast";
+import {
+  conferenceChatMessagesTable,
+  conferenceChatReactionsTable,
+} from "./models/conferenceChat";
+import {
+  conferenceInteractivesTable,
+  conferenceInteractiveResponsesTable,
+} from "./models/conferenceInteractive";
 
 // ⚠️ ВРЕМЕННО: Отключена валидация схемы для миграции
 // После завершения миграции и rewrite_links верните строгие валидаторы
@@ -89,6 +103,16 @@ export default defineSchema({
   collaboration_requests: MIGRATION_MODE ? defineTable(v.any()) : collaborationRequestsTable,
   ai_verifications: MIGRATION_MODE ? defineTable(v.any()) : aiVerificationsTable,
   help_tickets: MIGRATION_MODE ? defineTable(v.any()) : helpTicketsTable,
+  markup_tasks: MIGRATION_MODE ? defineTable(v.any()) : markupTasksTable,
+  markup_task_stages: MIGRATION_MODE ? defineTable(v.any()) : markupTaskStagesTable,
+  markup_task_slides: MIGRATION_MODE ? defineTable(v.any()) : markupTaskSlidesTable,
+  markup_task_elements: MIGRATION_MODE ? defineTable(v.any()) : markupTaskElementsTable,
+  conference_users: MIGRATION_MODE ? defineTable(v.any()) : conferenceUsersTable,
+  conference_broadcast: MIGRATION_MODE ? defineTable(v.any()) : conferenceBroadcastTable,
+  conference_chat_messages: MIGRATION_MODE ? defineTable(v.any()) : conferenceChatMessagesTable,
+  conference_chat_reactions: MIGRATION_MODE ? defineTable(v.any()) : conferenceChatReactionsTable,
+  conference_interactives: MIGRATION_MODE ? defineTable(v.any()) : conferenceInteractivesTable,
+  conference_interactive_responses: MIGRATION_MODE ? defineTable(v.any()) : conferenceInteractiveResponsesTable,
 
   // Remaining tables kept loose for now (no dedicated model yet)
   brochures_test: defineTable(v.any()),

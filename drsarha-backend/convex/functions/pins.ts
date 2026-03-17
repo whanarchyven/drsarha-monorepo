@@ -1,8 +1,160 @@
-import { query, mutation, action, internalQuery, internalAction } from "../_generated/server";
+import { query, mutation, action, internalQuery, internalAction, httpAction } from "../_generated/server";
 import { v } from "convex/values";
 import { pinDoc, pinFields } from "../models/pin";
 import { api, internal } from "../_generated/api";
 import type { Doc } from "../_generated/dataModel";
+
+function json(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+function normalizeQueryValue(value: string | null) {
+  return value?.trim() ?? "";
+}
+
+function parseRequestedPinIds(url: URL) {
+  const pinId = normalizeQueryValue(url.searchParams.get("pinId"));
+  const rawPinIds = url.searchParams.getAll("pinIds").map((value) => value.trim()).filter(Boolean);
+
+  if (pinId && rawPinIds.length > 0) {
+    return { error: "Use either pinId or pinIds, not both" };
+  }
+
+  if (pinId) {
+    return { pinIds: [pinId] };
+  }
+
+  if (rawPinIds.length === 0) {
+    return { error: "pinId or pinIds query param is required" };
+  }
+
+  if (rawPinIds.length > 1) {
+    return { pinIds: rawPinIds };
+  }
+
+  const [pinIdsValue] = rawPinIds;
+  if (pinIdsValue.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(pinIdsValue);
+      if (!Array.isArray(parsed) || parsed.some((item) => typeof item !== "string" || !item.trim())) {
+        return { error: "pinIds must be an array of non-empty strings" };
+      }
+      return { pinIds: parsed.map((item) => item.trim()) };
+    } catch {
+      return { error: "pinIds must be a valid JSON array of strings" };
+    }
+  }
+
+  return {
+    pinIds: pinIdsValue
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean),
+  };
+}
+
+function serializeComment(comment: any) {
+  return {
+    _id: String(comment._id),
+    _creationTime: comment._creationTime,
+    pinId: comment.pinId ? String(comment.pinId) : undefined,
+    userId: String(comment.userId),
+    content: comment.content,
+    likes: Array.isArray(comment.likes) ? comment.likes.map((like: any) => String(like)) : [],
+    parentId: comment.parentId ? String(comment.parentId) : undefined,
+    createdAt: comment.createdAt,
+    updatedAt: comment.updatedAt,
+    mongoId: comment.mongoId,
+    clinicAtlasId: comment.clinicAtlasId,
+    responseToUser: comment.responseToUser
+      ? {
+          id: String(comment.responseToUser.id),
+          fullName: comment.responseToUser.fullName,
+        }
+      : undefined,
+    userFullName: comment.userFullName,
+  };
+}
+
+function serializeAiVerification(verification: any) {
+  return {
+    isCorrect: verification.isCorrect,
+    _id: String(verification._id),
+    _creationTime: verification._creationTime,
+    userId: String(verification.userId),
+    pinId: String(verification.pinId),
+    metadata: verification.metadata,
+    created_at: verification.created_at,
+    mongoId: verification.mongoId,
+  };
+}
+
+async function buildPinSummary(db: any, pinId: string) {
+  const pin = await db.get(pinId as any);
+  if (!pin) {
+    return null;
+  }
+
+  const [likes, comments, aiVerifications] = await Promise.all([
+    db.query("pin_likes").withIndex("by_pin_user", (q: any) => q.eq("pinId", pinId)).collect(),
+    db.query("pin_comments").withIndex("by_pin_created", (q: any) => q.eq("pinId", pinId)).collect(),
+    db.query("ai_verifications").withIndex("by_pin", (q: any) => q.eq("pinId", pinId)).collect(),
+  ]);
+
+  comments.sort((a: any, b: any) => (a.createdAt || "").localeCompare(b.createdAt || ""));
+  aiVerifications.sort((a: any, b: any) => (b.created_at || "").localeCompare(a.created_at || ""));
+
+  return {
+    pinId: String(pin._id),
+    likesCount: likes.length,
+    commentsCount: comments.length,
+    comments: comments.map(serializeComment),
+    aiVerifications: aiVerifications.map(serializeAiVerification),
+  };
+}
+
+export const getPinsSummariesInternal = internalQuery({
+  args: {
+    pinIds: v.array(v.string()),
+  },
+  returns: v.array(v.any()),
+  handler: async ({ db }, { pinIds }) =>
+    Promise.all(pinIds.map((pinId) => buildPinSummary(db as any, pinId))),
+});
+
+export const getPinsSummaryHttp = httpAction(async (ctx, req) => {
+  try {
+    const url = new URL(req.url);
+    const parsed = parseRequestedPinIds(url);
+    if ("error" in parsed) {
+      return json({ error: parsed.error }, 400);
+    }
+
+    const summaries = await ctx.runQuery(
+      (internal as any).functions.pins.getPinsSummariesInternal,
+      { pinIds: parsed.pinIds }
+    );
+
+    const missingPinIds = parsed.pinIds.filter((_, index) => !summaries[index]);
+    if (missingPinIds.length > 0) {
+      return json(
+        {
+          error: "Some pins were not found",
+          pinIds: missingPinIds,
+        },
+        404
+      );
+    }
+
+    return json(parsed.pinIds.length === 1 ? summaries[0] : summaries, 200);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to get pin summary";
+    return json({ error: message }, 500);
+  }
+});
 
 export const getById = query({
   args: { id: v.id("pins") },

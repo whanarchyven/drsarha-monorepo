@@ -19,6 +19,7 @@ const navItems = [
       { name: 'Брошюры', path: '/knowledge/brochures' },
       { name: 'Лекции', path: '/knowledge/lections' },
       { name: 'Клинические задачи', path: '/knowledge/clinic-tasks' },
+      { name: 'Задачи на разметку', path: '/knowledge/markup-tasks' },
       { name: 'Интерактивные задачи', path: '/knowledge/interactive-tasks' },
       { name: 'Интерактивные квизы', path: '/knowledge/interactive-quizzes' },
       {

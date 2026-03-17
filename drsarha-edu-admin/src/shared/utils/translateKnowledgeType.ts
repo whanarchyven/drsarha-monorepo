@@ -3,6 +3,7 @@ export const translateKnowledgeType = (type: string) => {
     ['clinic_task', 'Клиническая задача'],
     ['clinic_atlas', 'Клинический атлас'],
     ['interactive_task', 'Интерактивная задача'],
+    ['markup_task', 'Задача на разметку'],
     ['brochure', 'Брошюра'],
     ['lection', 'Лекция'],
   ]);
@@ -14,6 +15,7 @@ export const translateKnowledgeTypeToSlug = (type: string) => {
     ['clinic_task', 'clinic-tasks'],
     ['clinic_atlas', 'clinic-atlases'],
     ['interactive_task', 'interactive-tasks'],
+    ['markup_task', 'markup-tasks'],
     ['interactive_quiz', 'interactive-quizzes'],
     ['interactive_match', 'interactive-matches'],
     ['brochure', 'brochures'],

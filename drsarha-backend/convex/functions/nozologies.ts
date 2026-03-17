@@ -38,7 +38,8 @@ export const getById = query({
 // Count materials per nozology
 export const materialsCount = query({
   args: {
-    nozologyId: v.string(),
+    nozologyId: v.optional(v.string()),
+    nozology: v.optional(v.string()),
     mongoId: v.optional(v.string()),
   },
   returns: v.object({
@@ -50,10 +51,21 @@ export const materialsCount = query({
     interactive_quiz: v.number(),
     total: v.number(),
   }),
-  handler: async ({ db }, { nozologyId, mongoId }) => {
-    const ids = [nozologyId, mongoId].filter(
+  handler: async ({ db }, { nozologyId, nozology, mongoId }) => {
+    const ids = [nozologyId, nozology, mongoId].filter(
       (value): value is string => Boolean(value)
     );
+    if (!ids.length) {
+      return {
+        brochures: 0,
+        clinic_atlas: 0,
+        interactive_task: 0,
+        lections: 0,
+        clinic_task: 0,
+        interactive_quiz: 0,
+        total: 0,
+      };
+    }
     // Helper to count: try index by_nozology if exists, else full scan with filter
     const countByNoz = async (table: string): Promise<number> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
