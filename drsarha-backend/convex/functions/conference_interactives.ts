@@ -11,12 +11,31 @@ type InteractiveQuestion = {
   id: string;
   image?: string;
   questionText: string;
+  selectionMode?: "single" | "multiple";
   variants: Array<{
     id: string;
     text: string;
     isCorrect?: boolean;
   }>;
 };
+
+function getDefaultSelectionMode(
+  kind: "quiz" | "poll",
+  question: InteractiveQuestion
+): "single" | "multiple" {
+  if (question.selectionMode) {
+    return question.selectionMode;
+  }
+
+  if (kind === "quiz") {
+    const correctAnswersCount = question.variants.filter(
+      (variant) => variant.isCorrect === true
+    ).length;
+    return correctAnswersCount > 1 ? "multiple" : "single";
+  }
+
+  return "single";
+}
 
 function normalizeQuestions(
   kind: "quiz" | "poll",
@@ -73,17 +92,34 @@ function normalizeQuestions(
       };
     });
 
+    const selectionMode = getDefaultSelectionMode(kind, {
+      ...question,
+      id: questionId,
+      questionText,
+      variants: normalizedVariants,
+    });
+
     if (
       kind === "quiz" &&
       normalizedVariants.every((variant) => variant.isCorrect !== true)
     ) {
       throw new Error(`Quiz question ${questionId} must have at least one correct variant`);
     }
+    if (
+      selectionMode === "single" &&
+      kind === "quiz" &&
+      normalizedVariants.filter((variant) => variant.isCorrect === true).length > 1
+    ) {
+      throw new Error(
+        `Quiz question ${questionId} cannot have multiple correct variants in single mode`
+      );
+    }
 
     return {
       id: questionId,
       ...(question.image?.trim() ? { image: question.image.trim() } : {}),
       questionText,
+      selectionMode,
       variants: normalizedVariants,
     };
   });
@@ -212,7 +248,7 @@ export const listInteractives = query({
 export const getInteractiveById = query({
   args: { id: v.id("conference_interactives") },
   returns: v.union(conferenceInteractiveDoc, v.null()),
-  handler: async ({ db }, { id }) => db.get(id),
+  handler: async ({ db }, { id }) => (await db.get(id)) as any,
 });
 
 export const getDisplayedInteractive = query({
@@ -385,6 +421,9 @@ export const submitResponse = mutation({
     const allowedVariantIds = new Set(question.variants.map((variant) => variant.id));
     if (selectedIds.some((variantId) => !allowedVariantIds.has(variantId))) {
       throw new Error("Selected variant does not belong to the question");
+    }
+    if ((question.selectionMode ?? "single") === "single" && selectedIds.length > 1) {
+      throw new Error("Question allows only one selected variant");
     }
 
     const now = Date.now();
@@ -566,7 +605,13 @@ export const getQuizLeaderboard = query({
       rows.set(key, current);
     }
 
-    const leaderboard = [];
+    const leaderboard: Array<{
+      conferenceUserId: any;
+      name: string;
+      side: "jedi" | "sith" | "ai";
+      score: number;
+      answeredQuestions: number;
+    }> = [];
     for (const row of rows.values()) {
       const user = await getConferenceUserOrThrow(db, row.conferenceUserId);
       leaderboard.push({

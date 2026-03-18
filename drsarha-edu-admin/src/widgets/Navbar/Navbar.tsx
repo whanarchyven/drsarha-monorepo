@@ -67,6 +67,15 @@ const navItems = [
     ],
     private: false,
   },
+  {
+    name: 'Трансляция',
+    path: '/broadcast',
+    children: [
+      { name: 'Настройки трансляции', path: '/broadcast' },
+      { name: 'Интерактивы', path: '/broadcast/interactives' },
+    ],
+    private: false,
+  },
 ];
 
 export const Navbar = () => {

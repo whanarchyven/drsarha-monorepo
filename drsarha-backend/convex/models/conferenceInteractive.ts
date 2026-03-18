@@ -6,6 +6,11 @@ export const conferenceInteractiveKind = v.union(
   v.literal("poll")
 );
 
+export const conferenceInteractiveSelectionMode = v.union(
+  v.literal("single"),
+  v.literal("multiple")
+);
+
 export const conferenceInteractiveVariant = v.object({
   id: v.string(),
   text: v.string(),
@@ -16,6 +21,7 @@ export const conferenceInteractiveQuestion = v.object({
   id: v.string(),
   image: v.optional(v.string()),
   questionText: v.string(),
+  selectionMode: v.optional(conferenceInteractiveSelectionMode),
   variants: v.array(conferenceInteractiveVariant),
 });
 

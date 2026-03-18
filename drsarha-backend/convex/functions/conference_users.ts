@@ -196,6 +196,41 @@ export const approveConferenceUser = mutation({
   },
 });
 
+export const loginConferenceUser = query({
+  args: {
+    email: v.string(),
+    password: v.string(),
+  },
+  returns: v.union(conferenceUserDoc, v.null()),
+  handler: async ({ db }, { email, password }) => {
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedPassword = password.trim();
+
+    if (!normalizedEmail || !normalizedPassword) {
+      return null;
+    }
+
+    const conferenceUser = await (db as any)
+      .query("conference_users")
+      .withIndex("by_email", (q: any) => q.eq("email", normalizedEmail))
+      .first();
+
+    if (!conferenceUser) {
+      return null;
+    }
+
+    if (conferenceUser.isApproved !== true || conferenceUser.isPaid !== true) {
+      return null;
+    }
+
+    if (conferenceUser.password !== normalizedPassword) {
+      return null;
+    }
+
+    return conferenceUser as any;
+  },
+});
+
 export const getConferenceUsers = query({
   args: {
     is_paid: v.optional(v.boolean()),
