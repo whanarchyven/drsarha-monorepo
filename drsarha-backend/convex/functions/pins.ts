@@ -109,6 +109,7 @@ async function buildPinSummary(db: any, pinId: string) {
 
   return {
     pinId: String(pin._id),
+    image: typeof pin.image === "string" ? pin.image : null,
     likesCount: likes.length,
     commentsCount: comments.length,
     comments: comments.map(serializeComment),

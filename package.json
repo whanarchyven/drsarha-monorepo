@@ -7,6 +7,8 @@
     "dev:backend": "pnpm -C drsarha-backend dev",
     "build": "pnpm build:admin",
     "build:admin": "pnpm -C drsarha-edu-admin build",
+    "start:admin:prod": "pnpm -C drsarha-edu-admin start:prod",
+    "prod": "pnpm build:admin && pnpm start:admin:prod",
     "lint:admin": "pnpm -C drsarha-edu-admin lint",
     "format:admin": "pnpm -C drsarha-edu-admin format",
     "format:fix:admin": "pnpm -C drsarha-edu-admin format:fix"
