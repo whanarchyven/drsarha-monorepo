@@ -46,8 +46,8 @@ export const clinicTaskFields = {
   mongoId: v.optional(v.string()),
   idx: v.optional(v.number()),
   publishAfter: v.optional(v.number()),
-  endoscopy_model: v.optional(v.string()),
-  endoscopy_video: v.optional(v.string()),
+  endoscopy_model: v.optional(v.union(v.string(), v.null())),
+  endoscopy_video: v.optional(v.union(v.string(), v.null())),
   timecodes: v.optional(
     v.array(
       v.object({
