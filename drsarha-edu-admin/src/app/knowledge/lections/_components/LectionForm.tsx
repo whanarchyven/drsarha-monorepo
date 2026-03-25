@@ -50,7 +50,10 @@ const formSchema = z.object({
   video: z.any(),
   publishAfter: publishAfterSchema,
   idx: z.preprocess(
-    (value) => (value === '' || value === null || value === undefined ? undefined : Number(value)),
+    (value) =>
+      value === '' || value === null || value === undefined
+        ? undefined
+        : Number(value),
     z.number().int().nonnegative().optional()
   ),
   feedback: z
@@ -353,7 +356,11 @@ export function LectionForm({ initialData }: LectionFormProps) {
                     placeholder="Введите индекс..."
                     value={field.value ?? ''}
                     onChange={(e) =>
-                      field.onChange(e.target.value === '' ? undefined : Number(e.target.value))
+                      field.onChange(
+                        e.target.value === ''
+                          ? undefined
+                          : Number(e.target.value)
+                      )
                     }
                   />
                 </FormControl>

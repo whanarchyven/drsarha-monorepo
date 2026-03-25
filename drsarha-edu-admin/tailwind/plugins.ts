@@ -21,7 +21,7 @@ export const plugins = {
           top: '50%',
         },
       });
-      addVariant('hocus', ['&:hover', '&:focus']),
+      (addVariant('hocus', ['&:hover', '&:focus']),
         addVariant('inverted-colors', '@media (inverted-colors: inverted)'),
         addVariant('not-last', '&:not(:last-child)'),
         addVariant('not-first', '&:not(:first-child)'),
@@ -33,7 +33,7 @@ export const plugins = {
         addVariant('child-6', '&:nth-child(6)'),
         addVariant('child-7', '&:nth-child(7)'),
         addVariant('child-8', '&:nth-child(8)'),
-        addVariant('child-9', '&:nth-child(9)');
+        addVariant('child-9', '&:nth-child(9)'));
     }),
     require('tailwindcss-aspect-ratio'),
     require('tailwindcss-animation-delay'),

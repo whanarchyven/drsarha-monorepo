@@ -88,7 +88,6 @@ export default function LectureCard({
     notes_average: null,
   });
 
-  
   return (
     <>
       <Card className="overflow-hidden">
@@ -149,11 +148,9 @@ export default function LectureCard({
             <Trash2 className="w-4 h-4" />
             <span className="sr-only">Удалить</span>
           </Button>
-          
         </CardFooter>
       </Card>
 
-      
       <Dialog open={videoOpen} onOpenChange={setVideoOpen}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>

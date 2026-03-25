@@ -4,8 +4,7 @@ import { FC } from 'react';
 import { cvaCircle, cvaLoading } from './LoadingSpinnerStyles';
 
 interface Props
-  extends VariantProps<typeof cvaLoading>,
-    VariantProps<typeof cvaCircle> {
+  extends VariantProps<typeof cvaLoading>, VariantProps<typeof cvaCircle> {
   className?: string;
 }
 

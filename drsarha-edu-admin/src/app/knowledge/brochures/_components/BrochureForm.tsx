@@ -53,7 +53,10 @@ const formSchema = z.object({
   nozology: z.string().min(1, 'Выберите нозологию'),
   publishAfter: publishAfterSchema,
   idx: z.preprocess(
-    (value) => (value === '' || value === null || value === undefined ? undefined : Number(value)),
+    (value) =>
+      value === '' || value === null || value === undefined
+        ? undefined
+        : Number(value),
     z.number().int().nonnegative().optional()
   ),
   app_visible: z.boolean().default(false),
@@ -230,9 +233,7 @@ export function BrochureForm({ initialData }: BrochureFormProps) {
       await toast.promise(submitPromise, {
         loading: 'Сохранение брошюры...',
         success: (data) =>
-          data.mode === 'updated'
-            ? 'Брошюра обновлена'
-            : 'Брошюра создана',
+          data.mode === 'updated' ? 'Брошюра обновлена' : 'Брошюра создана',
         error: 'Ошибка сохранения брошюры',
       });
       router.push('/knowledge/brochures');
@@ -446,7 +447,9 @@ export function BrochureForm({ initialData }: BrochureFormProps) {
                       value={field.value ?? ''}
                       onChange={(e) =>
                         field.onChange(
-                          e.target.value === '' ? undefined : Number(e.target.value)
+                          e.target.value === ''
+                            ? undefined
+                            : Number(e.target.value)
                         )
                       }
                     />

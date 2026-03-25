@@ -1,11 +1,11 @@
-'use server';
+import 'server-only';
 
 import { cookies } from 'next/headers';
 
 const isProduction = process.env.NODE_ENV === 'production';
 const cookieDomain = process.env.COOKIE_DOMAIN || undefined;
 
-export function getAuthCookieOptions(maxAge?: number) {
+function getAuthCookieOptions(maxAge?: number) {
   return {
     httpOnly: true,
     secure: isProduction,
@@ -16,7 +16,7 @@ export function getAuthCookieOptions(maxAge?: number) {
   };
 }
 
-export function getAuthCookieDeleteOptions(name: string) {
+function getAuthCookieDeleteOptions(name: string) {
   return {
     name,
     path: '/',

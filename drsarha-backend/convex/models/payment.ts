@@ -18,6 +18,7 @@ export const providerPaymentFields = v.object({
   description: v.optional(v.string()),
   id: v.optional(v.string()),
   metadata: v.optional(v.any()),
+  payment_amount: v.optional(v.number()),
   paid: v.optional(v.boolean()),
   recipient: v.optional(
     v.object({
@@ -74,6 +75,7 @@ export const paymentFields = {
   ),
   metadata: v.optional(v.any()),
   mongoId: v.optional(v.string()),
+  payment_amount: v.optional(v.number()),
   paid: v.optional(v.boolean()),
   payment: v.optional(v.any()),
   payment_method: v.optional(

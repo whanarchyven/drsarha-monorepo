@@ -236,69 +236,69 @@ export function UserDetailsModal({
                 <div className="space-y-4">
                   {userDetails.fullCompletions.map(
                     (completion: CompletionItem, index: number) => (
-                    <div
-                      key={completion.completion._id}
-                      className="border rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center space-x-2">
-                          {getTypeIcon(completion.completion.type)}
-                          <div>
-                            {completion.knowledge.name ? (
-                              <Link
-                                href={`/knowledge/${translateKnowledgeTypeToSlug(completion.completion.type)}/${completion.knowledge._id}/edit`}>
-                                <h4 className="font-medium">
-                                  {completion.knowledge.name}
-                                </h4>
-                              </Link>
-                            ) : (
-                              <h4 className="font-medium text-red-500 underline">{`Нет сведений о задании или оно было удалено`}</h4>
+                      <div
+                        key={completion.completion._id}
+                        className="border rounded-lg p-4">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center space-x-2">
+                            {getTypeIcon(completion.completion.type)}
+                            <div>
+                              {completion.knowledge.name ? (
+                                <Link
+                                  href={`/knowledge/${translateKnowledgeTypeToSlug(completion.completion.type)}/${completion.knowledge._id}/edit`}>
+                                  <h4 className="font-medium">
+                                    {completion.knowledge.name}
+                                  </h4>
+                                </Link>
+                              ) : (
+                                <h4 className="font-medium text-red-500 underline">{`Нет сведений о задании или оно было удалено`}</h4>
+                              )}
+                              <Badge variant="outline" className="text-xs mt-1">
+                                {getTypeName(completion.completion.type)}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            {completion.knowledge.stars && (
+                              <div className="flex items-center space-x-1">
+                                <span className="text-base font-bold text-black">
+                                  + {completion.knowledge.stars}
+                                </span>
+                                <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                              </div>
                             )}
-                            <Badge variant="outline" className="text-xs mt-1">
-                              {getTypeName(completion.completion.type)}
-                            </Badge>
                           </div>
                         </div>
-                        <div className="flex items-center space-x-1">
-                          {completion.knowledge.stars && (
-                            <div className="flex items-center space-x-1">
-                              <span className="text-base font-bold text-black">
-                                + {completion.knowledge.stars}
-                              </span>
-                              <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                            </div>
-                          )}
-                        </div>
-                      </div>
 
-                      <div className="flex items-center justify-between text-sm text-gray-500 mt-2">
-                        <div className="flex items-center space-x-1">
-                          <Calendar className="w-4 h-4" />
-                          <span>
-                            Завершено:{' '}
-                            {formatDate(
-                              completion.completion.completed_at ||
-                                completion.completion.created_at
-                            )}
-                          </span>
-                        </div>
-                        <div className="flex flex-col items-end space-y-1">
-                          {/* <Button className="flex items-center space-x-1" variant="info" size="sm" onClick={() => setShowMetadata(showMetadata.includes(completion.completion._id) ? showMetadata.filter(id => id !== completion.completion._id) : [...showMetadata, completion.completion._id])}>
+                        <div className="flex items-center justify-between text-sm text-gray-500 mt-2">
+                          <div className="flex items-center space-x-1">
+                            <Calendar className="w-4 h-4" />
+                            <span>
+                              Завершено:{' '}
+                              {formatDate(
+                                completion.completion.completed_at ||
+                                  completion.completion.created_at
+                              )}
+                            </span>
+                          </div>
+                          <div className="flex flex-col items-end space-y-1">
+                            {/* <Button className="flex items-center space-x-1" variant="info" size="sm" onClick={() => setShowMetadata(showMetadata.includes(completion.completion._id) ? showMetadata.filter(id => id !== completion.completion._id) : [...showMetadata, completion.completion._id])}>
                             <Info className="w-4 h-4" />
                             <span>Подробнее</span>
                           </Button> */}
-                          <Badge
-                            variant={
-                              completion.completion.is_completed
-                                ? 'default'
-                                : 'secondary'
-                            }>
-                            {completion.completion.is_completed
-                              ? 'Завершено'
-                              : 'В процессе'}
-                          </Badge>
+                            <Badge
+                              variant={
+                                completion.completion.is_completed
+                                  ? 'default'
+                                  : 'secondary'
+                              }>
+                              {completion.completion.is_completed
+                                ? 'Завершено'
+                                : 'В процессе'}
+                            </Badge>
+                          </div>
                         </div>
-                      </div>
-                      {/* {showMetadata.includes(completion.completion._id) && (
+                        {/* {showMetadata.includes(completion.completion._id) && (
                         <div className="mt-4">
                           <Card className="bg-gray-100 p-2 max-w-xl">
                             <CardHeader>
@@ -312,8 +312,9 @@ export function UserDetailsModal({
                           </Card>
                         </div>
                       )} */}
-                    </div>
-                  ))}
+                      </div>
+                    )
+                  )}
 
                   {userDetails.fullCompletions.length === 0 && (
                     <div className="text-center py-8 text-gray-500">

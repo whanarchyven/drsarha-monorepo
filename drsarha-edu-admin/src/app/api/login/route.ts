@@ -45,20 +45,20 @@ export async function POST(request: NextRequest) {
     const nextResponse = NextResponse.json(authResponse);
 
     nextResponse.cookies.set('token', authResponse.token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-        maxAge,
-      });
-
-    if (adminUser) {
-      nextResponse.cookies.set('user', JSON.stringify(adminUser), {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
       maxAge,
+    });
+
+    if (adminUser) {
+      nextResponse.cookies.set('user', JSON.stringify(adminUser), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge,
       });
     }
 

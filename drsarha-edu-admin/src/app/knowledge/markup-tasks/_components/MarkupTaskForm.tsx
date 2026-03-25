@@ -24,10 +24,7 @@ import {
 } from '@/components/ui/form';
 import { Badge } from '@/components/ui/badge';
 import { getContentUrl } from '@/shared/utils/url';
-import {
-  MarkupTaskElementDraft,
-  PolygonEditor,
-} from './PolygonEditor';
+import { MarkupTaskElementDraft, PolygonEditor } from './PolygonEditor';
 
 const publishAfterSchema = z.preprocess(
   (value) =>
@@ -271,10 +268,16 @@ const ensureValidStages = (stages: MarkupTaskStageDraft[]) => {
     }
 
     if (!stage.slides.length) {
-      throw new Error(`В этапе ${stageIndex + 1} должен быть хотя бы один слайд`);
+      throw new Error(
+        `В этапе ${stageIndex + 1} должен быть хотя бы один слайд`
+      );
     }
 
-    for (let slideIndex = 0; slideIndex < stage.slides.length; slideIndex += 1) {
+    for (
+      let slideIndex = 0;
+      slideIndex < stage.slides.length;
+      slideIndex += 1
+    ) {
       const slide = stage.slides[slideIndex];
       if (!slide.name.trim()) {
         throw new Error(
@@ -287,7 +290,11 @@ const ensureValidStages = (stages: MarkupTaskStageDraft[]) => {
         );
       }
 
-      for (let elementIndex = 0; elementIndex < slide.elements.length; elementIndex += 1) {
+      for (
+        let elementIndex = 0;
+        elementIndex < slide.elements.length;
+        elementIndex += 1
+      ) {
         const element = slide.elements[elementIndex];
         if (element.geometry.points.length < 3 || !element.isClosed) {
           throw new Error(
@@ -316,7 +323,9 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
   const removeElement = useMutation(api.functions.markup_task_elements.remove);
 
   const [stages, setStages] = useState<MarkupTaskStageDraft[]>(
-    initialData?.stages?.length ? normalizeStages(initialData.stages) : [emptyStage(0)]
+    initialData?.stages?.length
+      ? normalizeStages(initialData.stages)
+      : [emptyStage(0)]
   );
   const [expandedStageIndex, setExpandedStageIndex] = useState(0);
   const [expandedSlideKey, setExpandedSlideKey] = useState('0-0');
@@ -355,7 +364,9 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
     updater: (stage: MarkupTaskStageDraft) => MarkupTaskStageDraft
   ) => {
     setStages((current) =>
-      current.map((stage, index) => (index === stageIndex ? updater(stage) : stage))
+      current.map((stage, index) =>
+        index === stageIndex ? updater(stage) : stage
+      )
     );
   };
 
@@ -396,11 +407,17 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
   const deleteSlideDraft = (stageIndex: number, slideIndex: number) => {
     updateStageDraft(stageIndex, (stage) => ({
       ...stage,
-      slides: reorderByOrder(stage.slides.filter((_, index) => index !== slideIndex)),
+      slides: reorderByOrder(
+        stage.slides.filter((_, index) => index !== slideIndex)
+      ),
     }));
   };
 
-  const moveSlide = (stageIndex: number, slideIndex: number, direction: -1 | 1) => {
+  const moveSlide = (
+    stageIndex: number,
+    slideIndex: number,
+    direction: -1 | 1
+  ) => {
     updateStageDraft(stageIndex, (stage) => {
       const targetIndex = slideIndex + direction;
       if (targetIndex < 0 || targetIndex >= stage.slides.length) return stage;
@@ -455,7 +472,9 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
     existingElements: Array<{ _id: string }> = []
   ) => {
     const nextIds = new Set(
-      nextElements.filter((element) => element.id).map((element) => String(element.id))
+      nextElements
+        .filter((element) => element.id)
+        .map((element) => String(element.id))
     );
 
     for (const existingElement of existingElements) {
@@ -556,7 +575,9 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
         slideId = String(updatedSlide._id);
       } else {
         if (!slide.image) {
-          throw new Error(`У нового слайда "${slide.name || 'Без названия'}" нет изображения`);
+          throw new Error(
+            `У нового слайда "${slide.name || 'Без названия'}" нет изображения`
+          );
         }
 
         const createdSlide = await createSlide({
@@ -586,7 +607,11 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
         (candidate) => String(candidate._id) === String(slide.id)
       );
 
-      await syncElements(slideId, slide.elements, existingSlide?.elements ?? []);
+      await syncElements(
+        slideId,
+        slide.elements,
+        existingSlide?.elements ?? []
+      );
     }
   };
 
@@ -662,7 +687,9 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
           : undefined;
 
       const coverFile =
-        values.cover_image?.[0] instanceof File ? values.cover_image[0] : undefined;
+        values.cover_image?.[0] instanceof File
+          ? values.cover_image[0]
+          : undefined;
 
       let taskId = initialData?._id;
 
@@ -779,7 +806,8 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
                 <FormItem>
                   <FormLabel>Дата публикации</FormLabel>
                   <FieldHint>
-                    До этой даты задача может быть скрыта для обычных пользователей.
+                    До этой даты задача может быть скрыта для обычных
+                    пользователей.
                   </FieldHint>
                   <FormControl>
                     <Input type="date" {...field} />
@@ -829,7 +857,9 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
                         onCheckedChange={field.onChange}
                       />
                     </FormControl>
-                    <FormLabel className="mb-0">Видимость в приложении</FormLabel>
+                    <FormLabel className="mb-0">
+                      Видимость в приложении
+                    </FormLabel>
                   </div>
                   <FieldHint>
                     Включите, если задача уже готова к показу пользователям.
@@ -877,7 +907,8 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
             <div>
               <h2 className="text-xl font-semibold">Связанные задачи</h2>
               <p className="text-xs text-muted-foreground">
-                Дополнительные задания, которые логически связаны с этой разметкой.
+                Дополнительные задания, которые логически связаны с этой
+                разметкой.
               </p>
             </div>
             <Button
@@ -934,10 +965,14 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
                       <FormItem>
                         <FormLabel>Тип задачи</FormLabel>
                         <FieldHint>
-                          Например: `clinic_task`, `interactive_task`, `markup_task`.
+                          Например: `clinic_task`, `interactive_task`,
+                          `markup_task`.
                         </FieldHint>
                         <FormControl>
-                          <Input {...itemField} placeholder="clinic_task / interactive_task" />
+                          <Input
+                            {...itemField}
+                            placeholder="clinic_task / interactive_task"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -999,7 +1034,9 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
           </div>
 
           {stages.map((stage, stageIndex) => (
-            <Card key={stage.id ?? `stage-${stageIndex}`} className="p-6 space-y-6">
+            <Card
+              key={stage.id ?? `stage-${stageIndex}`}
+              className="p-6 space-y-6">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <Button
@@ -1010,7 +1047,9 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
                     onClick={() => setExpandedStageIndex(stageIndex)}>
                     Этап {stageIndex + 1}
                   </Button>
-                  <Badge variant="outline">Слайдов: {stage.slides.length}</Badge>
+                  <Badge variant="outline">
+                    Слайдов: {stage.slides.length}
+                  </Badge>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button
@@ -1058,7 +1097,8 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
                     <div className="space-y-2">
                       <div className="text-sm font-medium">Element name</div>
                       <FieldHint>
-                        Базовое имя сущности, которую пользователь ищет на слайдах.
+                        Базовое имя сущности, которую пользователь ищет на
+                        слайдах.
                       </FieldHint>
                       <Input
                         value={stage.element_name}
@@ -1076,7 +1116,8 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
                     <div className="space-y-2">
                       <div className="text-sm font-medium">Описание этапа</div>
                       <FieldHint>
-                        Что происходит на этом этапе и чего ждём от пользователя.
+                        Что происходит на этом этапе и чего ждём от
+                        пользователя.
                       </FieldHint>
                       <Textarea
                         value={stage.description}
@@ -1089,7 +1130,9 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
                       />
                     </div>
                     <div className="space-y-2">
-                      <div className="text-sm font-medium">Additional info (AI)</div>
+                      <div className="text-sm font-medium">
+                        Additional info (AI)
+                      </div>
                       <FieldHint>
                         Внутренний контекст или подсказка для AI-логики этапа.
                       </FieldHint>
@@ -1139,7 +1182,8 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
                     <div className="space-y-2">
                       <div className="text-sm font-medium">Base color</div>
                       <FieldHint>
-                        Общий цвет всех контуров этого этапа, например `#ef4444`.
+                        Общий цвет всех контуров этого этапа, например
+                        `#ef4444`.
                       </FieldHint>
                       <Input
                         value={stage.base_color}
@@ -1199,14 +1243,18 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                onClick={() => moveSlide(stageIndex, slideIndex, -1)}>
+                                onClick={() =>
+                                  moveSlide(stageIndex, slideIndex, -1)
+                                }>
                                 Вверх
                               </Button>
                               <Button
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                onClick={() => moveSlide(stageIndex, slideIndex, 1)}>
+                                onClick={() =>
+                                  moveSlide(stageIndex, slideIndex, 1)
+                                }>
                                 Вниз
                               </Button>
                               <Button
@@ -1229,7 +1277,8 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
                                     Название слайда
                                   </div>
                                   <FieldHint>
-                                    Короткое имя слайда для навигации внутри этапа.
+                                    Короткое имя слайда для навигации внутри
+                                    этапа.
                                   </FieldHint>
                                   <Input
                                     value={slide.name}
@@ -1250,7 +1299,8 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
                                     Base height
                                   </div>
                                   <FieldHint>
-                                    Базовая высота для калибровки масштаба разметки.
+                                    Базовая высота для калибровки масштаба
+                                    разметки.
                                   </FieldHint>
                                   <Input
                                     type="number"
@@ -1262,7 +1312,9 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
                                         slideIndex,
                                         (item) => ({
                                           ...item,
-                                          base_height: Number(event.target.value || 512),
+                                          base_height: Number(
+                                            event.target.value || 512
+                                          ),
                                         })
                                       )
                                     }
@@ -1275,15 +1327,20 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
                                   Описание слайда
                                 </div>
                                 <FieldHint>
-                                  Дополнительный контекст по изображению и сцене.
+                                  Дополнительный контекст по изображению и
+                                  сцене.
                                 </FieldHint>
                                 <Textarea
                                   value={slide.description}
                                   onChange={(event) =>
-                                    updateSlideDraft(stageIndex, slideIndex, (item) => ({
-                                      ...item,
-                                      description: event.target.value,
-                                    }))
+                                    updateSlideDraft(
+                                      stageIndex,
+                                      slideIndex,
+                                      (item) => ({
+                                        ...item,
+                                        description: event.target.value,
+                                      })
+                                    )
                                   }
                                 />
                               </div>
@@ -1294,7 +1351,8 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
                                     Изображение слайда
                                   </div>
                                   <FieldHint>
-                                    Основное изображение, поверх которого строятся контуры.
+                                    Основное изображение, поверх которого
+                                    строятся контуры.
                                   </FieldHint>
                                   <Input
                                     type="file"
@@ -1366,10 +1424,14 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
                                   elements={slide.elements}
                                   defaultColor={stage.base_color}
                                   onChange={(elements) =>
-                                    updateSlideDraft(stageIndex, slideIndex, (item) => ({
-                                      ...item,
-                                      elements: reorderByOrder(elements),
-                                    }))
+                                    updateSlideDraft(
+                                      stageIndex,
+                                      slideIndex,
+                                      (item) => ({
+                                        ...item,
+                                        elements: reorderByOrder(elements),
+                                      })
+                                    )
                                   }
                                 />
                               )}

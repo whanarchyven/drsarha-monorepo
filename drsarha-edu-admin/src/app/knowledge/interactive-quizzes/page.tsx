@@ -30,7 +30,9 @@ export default function InteractiveQuizzesPage() {
   }, [currentNozologyId, searchQuery, searchParams]);
 
   const response = useQuery(api.functions.interactive_quizzes.list, queryArgs);
-  const removeInteractiveQuiz = useMutation(api.functions.interactive_quizzes.remove);
+  const removeInteractiveQuiz = useMutation(
+    api.functions.interactive_quizzes.remove
+  );
   const data = response?.items;
   const isLoading = response === undefined;
 

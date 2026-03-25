@@ -51,7 +51,9 @@ const taskGroupSchema = z.object({
 type TaskGroupFormData = z.infer<typeof taskGroupSchema>;
 
 interface TaskGroupFormProps {
-  initialData?: FunctionReturnType<typeof api.functions.task_groups.getById> | null;
+  initialData?: FunctionReturnType<
+    typeof api.functions.task_groups.getById
+  > | null;
   isEditing?: boolean;
 }
 
@@ -73,7 +75,6 @@ export function TaskGroupForm({
   });
   const prizes = prizesResponse?.items ?? [];
   const lootboxes = lootboxesResponse?.items ?? [];
-
 
   const {
     register,
@@ -158,7 +159,8 @@ export function TaskGroupForm({
           }))
         : [{ type: 'stars', amount: 1, title: 'Звезды' }],
       level: initialData.level || null,
-      timeType: (initialData.timeType as 'daily' | 'weekly' | 'level') || 'daily',
+      timeType:
+        (initialData.timeType as 'daily' | 'weekly' | 'level') || 'daily',
     });
   }, [initialData, reset]);
 

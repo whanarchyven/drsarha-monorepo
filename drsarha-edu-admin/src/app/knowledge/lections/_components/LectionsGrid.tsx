@@ -14,9 +14,13 @@ import type { FunctionReturnType } from 'convex/server';
 import type { Id } from '@convex/_generated/dataModel';
 
 interface LectionsGridProps {
-  data: FunctionReturnType<typeof api.functions.lections.list>['items'] | undefined;
+  data:
+    | FunctionReturnType<typeof api.functions.lections.list>['items']
+    | undefined;
   isLoading: boolean;
-  pagination: FunctionReturnType<typeof api.functions.lections.list> | undefined;
+  pagination:
+    | FunctionReturnType<typeof api.functions.lections.list>
+    | undefined;
   onPageChange: (page: number) => void;
   onDelete: (id: Id<'lections'>) => Promise<void>;
 }
@@ -31,7 +35,9 @@ export function LectionsGrid({
   const router = useRouter();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [lectionToDelete, setLectionToDelete] = useState<Id<'lections'> | null>(null);
+  const [lectionToDelete, setLectionToDelete] = useState<Id<'lections'> | null>(
+    null
+  );
 
   const handleDelete = async () => {
     if (!lectionToDelete) return;

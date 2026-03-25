@@ -63,6 +63,40 @@ function extractConferenceUserEmail(payment: any, webhookData: any) {
   return undefined;
 }
 
+function extractConferencePromocode(payment: any, webhookData: any) {
+  const candidates = [
+    payment?.metadata?.promocode,
+    payment?.metadata?.promoCode,
+    payment?.metadata?.promo_code,
+    payment?.metadata?.conferencePromocode,
+    payment?.metadata?.conference_promocode,
+    payment?.object?.metadata?.promocode,
+    payment?.object?.metadata?.promoCode,
+    payment?.object?.metadata?.promo_code,
+    payment?.object?.metadata?.conferencePromocode,
+    payment?.object?.metadata?.conference_promocode,
+    webhookData?.metadata?.promocode,
+    webhookData?.metadata?.promoCode,
+    webhookData?.metadata?.promo_code,
+    webhookData?.metadata?.conferencePromocode,
+    webhookData?.metadata?.conference_promocode,
+    webhookData?.object?.metadata?.promocode,
+    webhookData?.object?.metadata?.promoCode,
+    webhookData?.object?.metadata?.promo_code,
+    webhookData?.object?.metadata?.conferencePromocode,
+    webhookData?.object?.metadata?.conference_promocode,
+  ];
+
+  for (const candidate of candidates) {
+    const value = normalizeOptionalString(candidate);
+    if (value) {
+      return value.toUpperCase();
+    }
+  }
+
+  return undefined;
+}
+
 async function subscribeConferenceUserToUniSender(user: {
   email: string;
   name: string;
@@ -370,6 +404,15 @@ export const approveConferenceUserHttp = httpAction(async (ctx, req) => {
         password,
       }
     );
+    const promocode = extractConferencePromocode(payment, body);
+    const promocodeMarked = promocode
+      ? await ctx.runMutation(
+          (api as any).functions.conference_promocodes.markConferencePromocodePayed,
+          {
+            code: promocode,
+          }
+        )
+      : false;
 
     const uniSenderResult = await subscribeConferenceUserToUniSender({
       email: conferenceUser.email,
@@ -385,6 +428,7 @@ export const approveConferenceUserHttp = httpAction(async (ctx, req) => {
         paymentId,
         status: status || "succeeded",
         uniSender: uniSenderResult,
+        promocode: promocode ? { code: promocode, marked: promocodeMarked } : null,
       },
       200
     );

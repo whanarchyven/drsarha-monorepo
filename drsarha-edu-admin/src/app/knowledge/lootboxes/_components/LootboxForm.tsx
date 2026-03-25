@@ -54,7 +54,9 @@ const formSchema = z.object({
 });
 
 interface LootboxFormProps {
-  initialData?: FunctionReturnType<typeof api.functions.lootboxes.getById> | null;
+  initialData?: FunctionReturnType<
+    typeof api.functions.lootboxes.getById
+  > | null;
 }
 
 const fileToBase64 = (file: File) =>
@@ -154,7 +156,9 @@ export function LootboxForm({ initialData }: LootboxFormProps) {
         };
       }),
     });
-    setImagePreview(initialData.image ? getContentUrl(initialData.image) : null);
+    setImagePreview(
+      initialData.image ? getContentUrl(initialData.image) : null
+    );
     setImageFile(null);
   }, [form, initialData]);
 

@@ -75,7 +75,10 @@ const formSchema = z.object({
   nozology: z.string().min(1, 'Нозология обязательна'),
   publishAfter: publishAfterSchema,
   idx: z.preprocess(
-    (value) => (value === '' || value === null || value === undefined ? undefined : Number(value)),
+    (value) =>
+      value === '' || value === null || value === undefined
+        ? undefined
+        : Number(value),
     z.number().int().nonnegative().optional()
   ),
   interviewMode: z.boolean().default(false),
@@ -245,7 +248,10 @@ export function ClinicTaskForm({ initialData }: ClinicTaskFormProps) {
           ? new Date(values.publishAfter).getTime()
           : undefined;
 
-      const coverFile = values.cover_image?.[0] instanceof File ? values.cover_image[0] : undefined;
+      const coverFile =
+        values.cover_image?.[0] instanceof File
+          ? values.cover_image[0]
+          : undefined;
       const endoscopyVideoCleared = values.endoscopy_video === null;
       const endoscopyModelCleared = values.endoscopy_model === null;
       const endoscopyVideoFile =
@@ -310,9 +316,7 @@ export function ClinicTaskForm({ initialData }: ClinicTaskFormProps) {
           feedback?: z.infer<typeof formSchema>['feedback'];
           questions?: Question[];
           images?: Array<{
-            image:
-              | string
-              | { base64: string; contentType: string };
+            image: string | { base64: string; contentType: string };
             is_open: boolean;
           }>;
           cover?: { base64: string; contentType: string };
@@ -321,7 +325,11 @@ export function ClinicTaskForm({ initialData }: ClinicTaskFormProps) {
           endoscopy_video?: null;
           endoscopy_model?: null;
           idx?: number;
-          timecodes?: Array<{ time: number; title: string; description?: string }>;
+          timecodes?: Array<{
+            time: number;
+            title: string;
+            description?: string;
+          }>;
         } = {
           id: initialData._id as Id<'clinic_tasks'>,
           name: values.name,
@@ -599,7 +607,9 @@ export function ClinicTaskForm({ initialData }: ClinicTaskFormProps) {
                     value={field.value ?? ''}
                     onChange={(e) =>
                       field.onChange(
-                        e.target.value === '' ? undefined : Number(e.target.value)
+                        e.target.value === ''
+                          ? undefined
+                          : Number(e.target.value)
                       )
                     }
                   />
@@ -778,9 +788,7 @@ export function ClinicTaskForm({ initialData }: ClinicTaskFormProps) {
             </div>
 
             {timecodeFields.map((field, index) => (
-              <div
-                key={field.id}
-                className="border rounded-lg p-4 space-y-3">
+              <div key={field.id} className="border rounded-lg p-4 space-y-3">
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}

@@ -13,7 +13,10 @@ import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function BroadcastSettingsForm() {
-  const config = useQuery(api.functions.conference_broadcast.getBroadcastConfig, {});
+  const config = useQuery(
+    api.functions.conference_broadcast.getBroadcastConfig,
+    {}
+  );
   const displayedInteractive = useQuery(
     api.functions.conference_interactives.getDisplayedInteractive,
     {}
@@ -113,7 +116,9 @@ export function BroadcastSettingsForm() {
 
           <div className="flex justify-end">
             <Button onClick={handleSubmit} disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isSubmitting && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
               Сохранить настройки
             </Button>
           </div>

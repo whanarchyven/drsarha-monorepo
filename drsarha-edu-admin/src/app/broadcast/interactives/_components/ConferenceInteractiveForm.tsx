@@ -24,7 +24,9 @@ import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 type ConferenceInteractive = NonNullable<
-  FunctionReturnType<typeof api.functions.conference_interactives.getInteractiveById>
+  FunctionReturnType<
+    typeof api.functions.conference_interactives.getInteractiveById
+  >
 >;
 
 type EditableVariant = {
@@ -64,7 +66,9 @@ const createQuestion = (): EditableQuestion => ({
   variants: [createVariant(), createVariant()],
 });
 
-function mapInitialQuestions(initialData?: ConferenceInteractive): EditableQuestion[] {
+function mapInitialQuestions(
+  initialData?: ConferenceInteractive
+): EditableQuestion[] {
   if (!initialData?.questions?.length) {
     return [createQuestion()];
   }
@@ -94,9 +98,15 @@ export function ConferenceInteractiveForm({
   );
 
   const [title, setTitle] = useState(initialData?.title ?? '');
-  const [kind, setKind] = useState<'quiz' | 'poll'>(initialData?.kind ?? 'quiz');
-  const [showResults, setShowResults] = useState(initialData?.showResults ?? false);
-  const [isDisplayed, setIsDisplayed] = useState(initialData?.isDisplayed ?? false);
+  const [kind, setKind] = useState<'quiz' | 'poll'>(
+    initialData?.kind ?? 'quiz'
+  );
+  const [showResults, setShowResults] = useState(
+    initialData?.showResults ?? false
+  );
+  const [isDisplayed, setIsDisplayed] = useState(
+    initialData?.isDisplayed ?? false
+  );
   const [questions, setQuestions] = useState<EditableQuestion[]>(
     mapInitialQuestions(initialData)
   );
@@ -141,7 +151,9 @@ export function ConferenceInteractiveForm({
 
   const removeQuestion = (questionId: string) => {
     setQuestions((prev) =>
-      prev.length > 1 ? prev.filter((question) => question.id !== questionId) : prev
+      prev.length > 1
+        ? prev.filter((question) => question.id !== questionId)
+        : prev
     );
   };
 
@@ -208,23 +220,29 @@ export function ConferenceInteractiveForm({
         }
 
         if (question.variants.length < 2) {
-          throw new Error(`В вопросе ${index + 1} должно быть минимум 2 варианта`);
+          throw new Error(
+            `В вопросе ${index + 1} должно быть минимум 2 варианта`
+          );
         }
 
-        const normalizedVariants = question.variants.map((variant, variantIndex) => {
-          const variantText = variant.text.trim();
-          if (!variantText) {
-            throw new Error(
-              `Заполните текст варианта ${variantIndex + 1} в вопросе ${index + 1}`
-            );
-          }
+        const normalizedVariants = question.variants.map(
+          (variant, variantIndex) => {
+            const variantText = variant.text.trim();
+            if (!variantText) {
+              throw new Error(
+                `Заполните текст варианта ${variantIndex + 1} в вопросе ${index + 1}`
+              );
+            }
 
-          return {
-            id: variant.id,
-            text: variantText,
-            ...(kind === 'quiz' ? { isCorrect: Boolean(variant.isCorrect) } : {}),
-          };
-        });
+            return {
+              id: variant.id,
+              text: variantText,
+              ...(kind === 'quiz'
+                ? { isCorrect: Boolean(variant.isCorrect) }
+                : {}),
+            };
+          }
+        );
 
         if (kind === 'quiz') {
           const correctAnswersCount = normalizedVariants.filter(
@@ -237,10 +255,7 @@ export function ConferenceInteractiveForm({
             );
           }
 
-          if (
-            question.selectionMode === 'single' &&
-            correctAnswersCount > 1
-          ) {
+          if (question.selectionMode === 'single' && correctAnswersCount > 1) {
             throw new Error(
               `Вопрос ${index + 1} в режиме single не может иметь несколько правильных ответов`
             );
@@ -283,7 +298,9 @@ export function ConferenceInteractiveForm({
           });
 
       toast.promise(promise, {
-        loading: initialData ? 'Сохраняем интерактив...' : 'Создаём интерактив...',
+        loading: initialData
+          ? 'Сохраняем интерактив...'
+          : 'Создаём интерактив...',
         success: initialData ? 'Интерактив обновлён' : 'Интерактив создан',
         error: 'Не удалось сохранить интерактив',
       });
@@ -444,14 +461,16 @@ export function ConferenceInteractiveForm({
                         selectionMode: value,
                         variants:
                           value === 'single' && kind === 'quiz'
-                            ? currentQuestion.variants.map((variant, variantIndex) => ({
-                                ...variant,
-                                isCorrect:
-                                  variant.isCorrect === true &&
-                                  currentQuestion.variants.findIndex(
-                                    (item) => item.isCorrect === true
-                                  ) === variantIndex,
-                              }))
+                            ? currentQuestion.variants.map(
+                                (variant, variantIndex) => ({
+                                  ...variant,
+                                  isCorrect:
+                                    variant.isCorrect === true &&
+                                    currentQuestion.variants.findIndex(
+                                      (item) => item.isCorrect === true
+                                    ) === variantIndex,
+                                })
+                              )
                             : currentQuestion.variants,
                       }))
                     }
@@ -492,14 +511,18 @@ export function ConferenceInteractiveForm({
                           <Input
                             value={variant.text}
                             onChange={(event) =>
-                              updateQuestion(question.id, (currentQuestion) => ({
-                                ...currentQuestion,
-                                variants: currentQuestion.variants.map((item) =>
-                                  item.id === variant.id
-                                    ? { ...item, text: event.target.value }
-                                    : item
-                                ),
-                              }))
+                              updateQuestion(
+                                question.id,
+                                (currentQuestion) => ({
+                                  ...currentQuestion,
+                                  variants: currentQuestion.variants.map(
+                                    (item) =>
+                                      item.id === variant.id
+                                        ? { ...item, text: event.target.value }
+                                        : item
+                                  ),
+                                })
+                              )
                             }
                             placeholder="Введите текст варианта"
                             disabled={isSubmitting}
@@ -510,8 +533,12 @@ export function ConferenceInteractiveForm({
                           type="button"
                           variant="ghost"
                           size="sm"
-                          disabled={isSubmitting || question.variants.length <= 2}
-                          onClick={() => removeVariant(question.id, variant.id)}>
+                          disabled={
+                            isSubmitting || question.variants.length <= 2
+                          }
+                          onClick={() =>
+                            removeVariant(question.id, variant.id)
+                          }>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>

@@ -47,16 +47,17 @@ const nextConfig = {
               protocol: 'https',
               hostname: 'https://storage.yandexcloud.net',
               pathname: '/public/**',
-            },{
+            },
+            {
               protocol: 'https',
               hostname: 'https://storage.yandexcloud.net',
               pathname: '/public/**',
             },
           ]),
-          {
-            protocol: 'https',
-            hostname: 'storage.yandexcloud.net',
-          },
+      {
+        protocol: 'https',
+        hostname: 'storage.yandexcloud.net',
+      },
       {
         protocol: 'https',
         hostname: 'api.drsarha.dev.reflectai.pro',

@@ -17,7 +17,7 @@ export default function LoginPage() {
       toast.error('Заполните все поля');
       return;
     }
-    console.log(email,password,"AUE EMAIL AND PASSWORD");
+    console.log(email, password, 'AUE EMAIL AND PASSWORD');
 
     setIsLoading(true);
 

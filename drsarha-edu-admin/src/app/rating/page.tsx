@@ -17,13 +17,12 @@ export default function RatingPage() {
   );
 
   const pageSize = 15;
-  const ratingResponse =
-    useQuery(api.functions.ratings.listUsersWithStats, {
-      page: currentPage,
-      limit: pageSize,
-    }) as
-      | FunctionReturnType<typeof api.functions.ratings.listUsersWithStats>
-      | undefined;
+  const ratingResponse = useQuery(api.functions.ratings.listUsersWithStats, {
+    page: currentPage,
+    limit: pageSize,
+  }) as
+    | FunctionReturnType<typeof api.functions.ratings.listUsersWithStats>
+    | undefined;
   const selectedUser = useQuery(
     api.functions.ratings.getUserDetails,
     selectedUserId ? { userId: selectedUserId } : 'skip'

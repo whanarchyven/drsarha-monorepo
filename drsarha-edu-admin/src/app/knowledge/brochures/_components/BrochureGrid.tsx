@@ -1,6 +1,11 @@
 'use client';
 
-import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { FileText, Plus, Edit, Trash2, Search } from 'lucide-react';
 import Image from 'next/image';

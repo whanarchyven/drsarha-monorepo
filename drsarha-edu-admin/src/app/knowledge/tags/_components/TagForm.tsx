@@ -26,7 +26,9 @@ const formSchema = z.object({
 });
 
 interface TagFormProps {
-  initialData?: FunctionReturnType<typeof api.functions.pin_tags.getById> | null;
+  initialData?: FunctionReturnType<
+    typeof api.functions.pin_tags.getById
+  > | null;
 }
 
 export function TagForm({ initialData }: TagFormProps) {
@@ -40,8 +42,8 @@ export function TagForm({ initialData }: TagFormProps) {
     defaultValues: initialData
       ? { name: initialData.name }
       : {
-      name: '',
-      },
+          name: '',
+        },
   });
 
   useEffect(() => {

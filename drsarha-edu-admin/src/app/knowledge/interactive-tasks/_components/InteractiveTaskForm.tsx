@@ -60,7 +60,10 @@ const formSchema = z.object({
   nozology: z.string().min(1, 'Нозология обязательна'),
   publishAfter: publishAfterSchema,
   idx: z.preprocess(
-    (value) => (value === '' || value === null || value === undefined ? undefined : Number(value)),
+    (value) =>
+      value === '' || value === null || value === undefined
+        ? undefined
+        : Number(value),
     z.number().int().nonnegative().optional()
   ),
   feedback: z
@@ -100,8 +103,12 @@ interface InteractiveTaskFormProps {
 export function InteractiveTaskForm({ initialData }: InteractiveTaskFormProps) {
   const router = useRouter();
   const nozologies = useQuery(api.functions.nozologies.list, {}) ?? [];
-  const createInteractiveTask = useAction(api.functions.interactive_tasks.create);
-  const updateInteractiveTask = useAction(api.functions.interactive_tasks.updateAction);
+  const createInteractiveTask = useAction(
+    api.functions.interactive_tasks.create
+  );
+  const updateInteractiveTask = useAction(
+    api.functions.interactive_tasks.updateAction
+  );
   const [references, setReferences] = useState<
     Array<{ name: string; url: string }>
   >(initialData?.references || []);
@@ -153,7 +160,9 @@ export function InteractiveTaskForm({ initialData }: InteractiveTaskFormProps) {
           : undefined;
 
       const coverFile =
-        values.cover_image?.[0] instanceof File ? values.cover_image[0] : undefined;
+        values.cover_image?.[0] instanceof File
+          ? values.cover_image[0]
+          : undefined;
 
       const answers = await Promise.all(
         values.answers.map(async (ans) => {
@@ -223,7 +232,9 @@ export function InteractiveTaskForm({ initialData }: InteractiveTaskFormProps) {
       }
 
       if (!coverFile) {
-        throw new Error('Обложка обязательна при создании интерактивной задачи');
+        throw new Error(
+          'Обложка обязательна при создании интерактивной задачи'
+        );
       }
 
       await createInteractiveTask({
@@ -402,7 +413,9 @@ export function InteractiveTaskForm({ initialData }: InteractiveTaskFormProps) {
                     value={field.value ?? ''}
                     onChange={(e) =>
                       field.onChange(
-                        e.target.value === '' ? undefined : Number(e.target.value)
+                        e.target.value === ''
+                          ? undefined
+                          : Number(e.target.value)
                       )
                     }
                   />

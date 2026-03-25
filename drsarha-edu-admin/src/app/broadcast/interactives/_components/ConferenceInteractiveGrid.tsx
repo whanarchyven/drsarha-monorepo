@@ -22,7 +22,9 @@ interface ConferenceInteractiveGridProps {
   data: ConferenceInteractiveItem[] | undefined;
   isLoading: boolean;
   pagination:
-    | FunctionReturnType<typeof api.functions.conference_interactives.listInteractives>
+    | FunctionReturnType<
+        typeof api.functions.conference_interactives.listInteractives
+      >
     | undefined;
   onPageChange: (page: number) => void;
   onDelete: (id: Id<'conference_interactives'>) => Promise<unknown>;

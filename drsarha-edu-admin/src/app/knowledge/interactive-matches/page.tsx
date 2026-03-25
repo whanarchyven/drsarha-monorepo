@@ -30,7 +30,9 @@ export default function InteractiveMatchesPage() {
   }, [nozologyId, searchQuery, searchParams]);
 
   const response = useQuery(api.functions.interactive_matches.list, queryArgs);
-  const removeInteractiveMatch = useMutation(api.functions.interactive_matches.remove);
+  const removeInteractiveMatch = useMutation(
+    api.functions.interactive_matches.remove
+  );
   const data = response?.items;
   const isLoading = response === undefined;
 

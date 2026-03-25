@@ -54,7 +54,10 @@ const formSchema = z.object({
   nozology: z.string().min(1, 'Нозология обязательна'),
   publishAfter: publishAfterSchema,
   idx: z.preprocess(
-    (value) => (value === '' || value === null || value === undefined ? undefined : Number(value)),
+    (value) =>
+      value === '' || value === null || value === undefined
+        ? undefined
+        : Number(value),
     z.number().int().nonnegative().optional()
   ),
   feedback: z
@@ -94,8 +97,12 @@ interface InteractiveQuizFormProps {
 export function InteractiveQuizForm({ initialData }: InteractiveQuizFormProps) {
   const router = useRouter();
   const nozologies = useQuery(api.functions.nozologies.list, {}) ?? [];
-  const createInteractiveQuiz = useAction(api.functions.interactive_quizzes.create);
-  const updateInteractiveQuiz = useAction(api.functions.interactive_quizzes.updateAction);
+  const createInteractiveQuiz = useAction(
+    api.functions.interactive_quizzes.create
+  );
+  const updateInteractiveQuiz = useAction(
+    api.functions.interactive_quizzes.updateAction
+  );
 
   const [questions, setQuestions] = useState<Question[]>(
     initialData?.questions || []
@@ -215,7 +222,9 @@ export function InteractiveQuizForm({ initialData }: InteractiveQuizFormProps) {
           : undefined;
 
       const coverFile =
-        values.cover_image?.[0] instanceof File ? values.cover_image[0] : undefined;
+        values.cover_image?.[0] instanceof File
+          ? values.cover_image[0]
+          : undefined;
 
       const questionsData = await Promise.all(
         questions.map(async (question) => {
@@ -451,7 +460,9 @@ export function InteractiveQuizForm({ initialData }: InteractiveQuizFormProps) {
                     value={field.value ?? ''}
                     onChange={(e) =>
                       field.onChange(
-                        e.target.value === '' ? undefined : Number(e.target.value)
+                        e.target.value === ''
+                          ? undefined
+                          : Number(e.target.value)
                       )
                     }
                   />

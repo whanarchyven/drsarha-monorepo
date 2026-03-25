@@ -86,7 +86,9 @@ type TaskFormData = z.infer<typeof taskSchema>;
 
 interface TaskFormProps {
   groupId: Id<'task_groups'>;
-  initialData?: FunctionReturnType<typeof api.functions.tasks.listByGroup>[number];
+  initialData?: FunctionReturnType<
+    typeof api.functions.tasks.listByGroup
+  >[number];
   isEditing?: boolean;
   onSuccess: () => void;
   onCancel: () => void;

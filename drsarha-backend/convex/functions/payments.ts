@@ -10,6 +10,21 @@ function json(data: unknown, status = 200) {
   });
 }
 
+function normalizeOptionalNumber(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return undefined;
+}
+
 function normalizePaymentData(raw: Record<string, unknown>) {
   const objectData =
     raw.object && typeof raw.object === "object" && !Array.isArray(raw.object)
@@ -32,6 +47,10 @@ function normalizePaymentData(raw: Record<string, unknown>) {
           : undefined,
     metadata:
       raw.metadata !== undefined ? raw.metadata : objectData?.metadata,
+    payment_amount:
+      normalizeOptionalNumber(raw.payment_amount) ??
+      normalizeOptionalNumber((raw.amount as any)?.value) ??
+      normalizeOptionalNumber((objectData?.amount as any)?.value),
   };
 }
 

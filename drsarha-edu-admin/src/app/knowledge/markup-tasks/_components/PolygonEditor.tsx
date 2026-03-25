@@ -43,7 +43,9 @@ const SVG_SIZE = 1000;
 
 const toSvgValue = (value: number) => value * SVG_SIZE;
 const toSvgPoints = (points: MarkupTaskPointDraft[]) =>
-  points.map((point) => `${toSvgValue(point.x)},${toSvgValue(point.y)}`).join(' ');
+  points
+    .map((point) => `${toSvgValue(point.x)},${toSvgValue(point.y)}`)
+    .join(' ');
 
 const reorderElements = (elements: MarkupTaskElementDraft[]) =>
   elements.map((element, index) => ({
@@ -51,7 +53,8 @@ const reorderElements = (elements: MarkupTaskElementDraft[]) =>
     order: index,
   }));
 
-const getStrokeColor = (_index: number, fallback?: string) => fallback || '#ef4444';
+const getStrokeColor = (_index: number, fallback?: string) =>
+  fallback || '#ef4444';
 
 const emptyContour = (order: number): MarkupTaskElementDraft => ({
   geometry: { type: 'polygon', points: [] },
@@ -76,7 +79,9 @@ export function PolygonEditor({
     contourIndex: number;
     pointIndex: number;
   } | null>(null);
-  const [cursorPoint, setCursorPoint] = useState<MarkupTaskPointDraft | null>(null);
+  const [cursorPoint, setCursorPoint] = useState<MarkupTaskPointDraft | null>(
+    null
+  );
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
   const previewUrl = useMemo(() => {
@@ -213,7 +218,10 @@ export function PolygonEditor({
       const firstPoint = points[0];
       const firstX = firstPoint.x * rect.width;
       const firstY = firstPoint.y * rect.height;
-      const distance = Math.hypot(event.clientX - rect.left - firstX, event.clientY - rect.top - firstY);
+      const distance = Math.hypot(
+        event.clientX - rect.left - firstX,
+        event.clientY - rect.top - firstY
+      );
 
       if (distance <= 12) {
         updateContour(activeContourIndex, (element) => ({
@@ -279,7 +287,11 @@ export function PolygonEditor({
                   </Button>
                 </div>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={previewUrl} alt="Slide preview" className="block w-full h-auto" />
+                <img
+                  src={previewUrl}
+                  alt="Slide preview"
+                  className="block w-full h-auto"
+                />
                 <svg
                   className="absolute inset-0 h-full w-full cursor-crosshair"
                   viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`}
@@ -303,26 +315,31 @@ export function PolygonEditor({
 
                     return (
                       <g key={element.id ?? `contour-${contourIndex}`}>
-                        {element.isClosed && element.geometry.points.length >= 3 && (
-                          <polygon
-                            points={points}
-                            fill={stroke}
-                            fillOpacity={0.25}
-                            stroke={stroke}
-                            strokeWidth={activeContourIndex === contourIndex ? 3 : 2}
-                            onMouseDown={(mouseEvent) => {
-                              mouseEvent.stopPropagation();
-                              setActiveContourIndex(contourIndex);
-                            }}
-                          />
-                        )}
+                        {element.isClosed &&
+                          element.geometry.points.length >= 3 && (
+                            <polygon
+                              points={points}
+                              fill={stroke}
+                              fillOpacity={0.25}
+                              stroke={stroke}
+                              strokeWidth={
+                                activeContourIndex === contourIndex ? 3 : 2
+                              }
+                              onMouseDown={(mouseEvent) => {
+                                mouseEvent.stopPropagation();
+                                setActiveContourIndex(contourIndex);
+                              }}
+                            />
+                          )}
 
                         <polyline
                           points={points}
                           fill="none"
                           stroke={stroke}
                           strokeOpacity={0.95}
-                          strokeWidth={activeContourIndex === contourIndex ? 3 : 2}
+                          strokeWidth={
+                            activeContourIndex === contourIndex ? 3 : 2
+                          }
                           onMouseDown={(mouseEvent) => {
                             mouseEvent.stopPropagation();
                             setActiveContourIndex(contourIndex);
@@ -361,18 +378,22 @@ export function PolygonEditor({
                     />
                   )}
 
-                  {!!activeContour?.geometry.points[0] && !activeContour.isClosed && (
-                    <circle
-                      cx={toSvgValue(activeContour.geometry.points[0].x)}
-                      cy={toSvgValue(activeContour.geometry.points[0].y)}
-                      r={12}
-                      fill="transparent"
-                      stroke={getStrokeColor(activeContourIndex, defaultColor)}
-                      strokeDasharray="4 4"
-                      strokeWidth={2}
-                      pointerEvents="none"
-                    />
-                  )}
+                  {!!activeContour?.geometry.points[0] &&
+                    !activeContour.isClosed && (
+                      <circle
+                        cx={toSvgValue(activeContour.geometry.points[0].x)}
+                        cy={toSvgValue(activeContour.geometry.points[0].y)}
+                        r={12}
+                        fill="transparent"
+                        stroke={getStrokeColor(
+                          activeContourIndex,
+                          defaultColor
+                        )}
+                        strokeDasharray="4 4"
+                        strokeWidth={2}
+                        pointerEvents="none"
+                      />
+                    )}
                 </svg>
               </div>
             </div>
@@ -383,7 +404,9 @@ export function PolygonEditor({
                   <Card
                     key={element.id ?? `contour-card-${contourIndex}`}
                     className={`space-y-3 p-3 ${
-                      contourIndex === activeContourIndex ? 'border-primary' : ''
+                      contourIndex === activeContourIndex
+                        ? 'border-primary'
+                        : ''
                     }`}
                     onClick={() => setActiveContourIndex(contourIndex)}>
                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -392,7 +415,9 @@ export function PolygonEditor({
                           type="button"
                           size="sm"
                           variant={
-                            contourIndex === activeContourIndex ? 'default' : 'outline'
+                            contourIndex === activeContourIndex
+                              ? 'default'
+                              : 'outline'
                           }
                           onClick={() => setActiveContourIndex(contourIndex)}>
                           Контур {contourIndex + 1}
@@ -429,7 +454,9 @@ export function PolygonEditor({
 
                     <div className="grid gap-3">
                       <div className="space-y-1">
-                        <div className="text-sm font-medium">Название элемента</div>
+                        <div className="text-sm font-medium">
+                          Название элемента
+                        </div>
                         <p className="text-xs text-muted-foreground">
                           Короткое имя зоны, которое поможет отличать контуры.
                         </p>
@@ -446,7 +473,9 @@ export function PolygonEditor({
                       </div>
 
                       <div className="space-y-1">
-                        <div className="text-sm font-medium">Описание элемента</div>
+                        <div className="text-sm font-medium">
+                          Описание элемента
+                        </div>
                         <p className="text-xs text-muted-foreground">
                           Пояснение, что именно должен отметить пользователь.
                         </p>
@@ -540,7 +569,9 @@ export function PolygonEditor({
                           updateContour(contourIndex, (item) => ({
                             ...item,
                             isClosed:
-                              element.geometry.points.length >= 3 ? !item.isClosed : false,
+                              element.geometry.points.length >= 3
+                                ? !item.isClosed
+                                : false,
                           }))
                         }
                         disabled={element.geometry.points.length < 3}>

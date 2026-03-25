@@ -86,12 +86,10 @@ let remainder = fillValue;
 Для каждого масштаба из `bigScales`:
 
 1. Вычисляем количество для заливки: `fillAmount = Math.floor(expectedValue)`
-
    - Округляем ожидаемое значение **вниз** до целого числа
    - Пример: `expectedValue = 5.7` → `fillAmount = 5`
 
 2. Обновляем значение масштаба: `scale.value = Math.round(scale.value + fillAmount)`
-
    - Добавляем округленное значение к текущему значению масштаба
 
 3. Уменьшаем остаток: `remainder = remainder - fillAmount`
@@ -103,20 +101,17 @@ let remainder = fillValue;
 Пока `remainder > 0` и есть доступные малые масштабы:
 
 1. **Случайный выбор масштаба**:
-
    - Создаем копию массива `smallScales`: `availableSmallScales = [...smallScales]`
    - Выбираем случайный индекс: `randomIndex = Math.floor(Math.random() * availableSmallScales.length)`
    - Извлекаем выбранный масштаб: `selected = availableSmallScales[randomIndex]`
    - Удаляем его из массива: `availableSmallScales.splice(randomIndex, 1)`
 
 2. **Случайный выбор количества**:
-
    - Если `remainder >= 2`: случайно выбираем 1 или 2 (50% вероятность каждого)
    - Если `remainder === 1`: выбираем 1
    - Фактическое количество: `actualFillAmount = Math.min(fillAmount, remainder)`
 
 3. **Обновление значения**:
-
    - `scale.value = Math.round(scale.value + actualFillAmount)`
    - `remainder = remainder - actualFillAmount`
 

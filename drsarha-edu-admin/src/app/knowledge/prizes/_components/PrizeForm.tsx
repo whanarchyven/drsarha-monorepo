@@ -101,7 +101,9 @@ export function PrizeForm({ initialData }: PrizeFormProps) {
         price: initialData.price,
         image: undefined,
       });
-      setImagePreview(initialData.image ? getContentUrl(initialData.image) : null);
+      setImagePreview(
+        initialData.image ? getContentUrl(initialData.image) : null
+      );
       setImageFile(null);
     }
   }, [form, initialData]);

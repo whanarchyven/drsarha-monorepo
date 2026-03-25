@@ -50,7 +50,10 @@ const formSchema = z.object({
   nozology: z.string().min(1, 'Нозология обязательна'),
   publishAfter: publishAfterSchema,
   idx: z.preprocess(
-    (value) => (value === '' || value === null || value === undefined ? undefined : Number(value)),
+    (value) =>
+      value === '' || value === null || value === undefined
+        ? undefined
+        : Number(value),
     z.number().int().nonnegative().optional()
   ),
   // interviewMode/interviewQuestions removed for this module
@@ -93,8 +96,12 @@ export function InteractiveMatchForm({
 }: InteractiveMatchFormProps) {
   const router = useRouter();
   const nozologies = useQuery(api.functions.nozologies.list, {}) ?? [];
-  const createInteractiveMatch = useAction(api.functions.interactive_matches.create);
-  const updateInteractiveMatch = useAction(api.functions.interactive_matches.updateAction);
+  const createInteractiveMatch = useAction(
+    api.functions.interactive_matches.create
+  );
+  const updateInteractiveMatch = useAction(
+    api.functions.interactive_matches.updateAction
+  );
   const [newAnswer, setNewAnswer] = useState('');
   const [answerList, setAnswerList] = useState<string[]>(
     initialData?.answers || []
@@ -483,7 +490,9 @@ export function InteractiveMatchForm({
                     value={field.value ?? ''}
                     onChange={(e) =>
                       field.onChange(
-                        e.target.value === '' ? undefined : Number(e.target.value)
+                        e.target.value === ''
+                          ? undefined
+                          : Number(e.target.value)
                       )
                     }
                   />

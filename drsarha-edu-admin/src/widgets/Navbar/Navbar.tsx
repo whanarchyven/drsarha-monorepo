@@ -73,6 +73,7 @@ const navItems = [
     children: [
       { name: 'Настройки трансляции', path: '/broadcast' },
       { name: 'Интерактивы', path: '/broadcast/interactives' },
+      { name: 'Промокоды', path: '/broadcast/promocodes' },
     ],
     private: false,
   },

@@ -45,6 +45,9 @@ import { markupTaskSlidesTable } from "./models/markupTaskSlide";
 import { markupTaskElementsTable } from "./models/markupTaskElement";
 import { conferenceUsersTable } from "./models/conferenceUser";
 import { conferenceBroadcastTable } from "./models/conferenceBroadcast";
+import { conferenceAiTextTable } from "./models/conferenceAiText";
+import { conferenceClickerBattleTable } from "./models/conferenceClickerBattle";
+import { conferencePromocodesTable } from "./models/conferencePromocode";
 import {
   conferenceChatMessagesTable,
   conferenceChatReactionsTable,
@@ -109,6 +112,11 @@ export default defineSchema({
   markup_task_elements: MIGRATION_MODE ? defineTable(v.any()) : markupTaskElementsTable,
   conference_users: MIGRATION_MODE ? defineTable(v.any()) : conferenceUsersTable,
   conference_broadcast: MIGRATION_MODE ? defineTable(v.any()) : conferenceBroadcastTable,
+  conference_ai_text: MIGRATION_MODE ? defineTable(v.any()) : conferenceAiTextTable,
+  conference_clicker_battle: MIGRATION_MODE
+    ? defineTable(v.any())
+    : conferenceClickerBattleTable,
+  conference_promocodes: MIGRATION_MODE ? defineTable(v.any()) : conferencePromocodesTable,
   conference_chat_messages: MIGRATION_MODE ? defineTable(v.any()) : conferenceChatMessagesTable,
   conference_chat_reactions: MIGRATION_MODE ? defineTable(v.any()) : conferenceChatReactionsTable,
   conference_interactives: MIGRATION_MODE ? defineTable(v.any()) : conferenceInteractivesTable,

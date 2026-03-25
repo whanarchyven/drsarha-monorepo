@@ -11,13 +11,16 @@ export default function UsersPage() {
   const createAdminUser = useMutation(api.functions.admin_users.create);
   const updateAdminUser = useMutation(api.functions.admin_users.update);
   const removeAdminUser = useMutation(api.functions.admin_users.remove);
-  const hashPassword = useAction(api.functions.admin_users_actions.hashPasswordAction);
+  const hashPassword = useAction(
+    api.functions.admin_users_actions.hashPasswordAction
+  );
   const loading = users === undefined;
   const usersList = useMemo(() => users ?? [], [users]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editingUser, setEditingUser] =
-    useState<FunctionReturnType<typeof api.functions.admin_users.getAll>[number] | null>(null);
+  const [editingUser, setEditingUser] = useState<
+    FunctionReturnType<typeof api.functions.admin_users.getAll>[number] | null
+  >(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -83,7 +86,9 @@ export default function UsersPage() {
             role: formData.role,
           };
           if (formData.password) {
-            patch.password = await hashPassword({ password: formData.password });
+            patch.password = await hashPassword({
+              password: formData.password,
+            });
           }
           await updateAdminUser({
             id: editingUser._id,

@@ -53,8 +53,9 @@ export function TaskGroupsByDate({
     onDelete(id);
   };
 
-  type TaskGroupItem =
-    FunctionReturnType<typeof api.functions.task_groups.getByDate>['daily'][number];
+  type TaskGroupItem = FunctionReturnType<
+    typeof api.functions.task_groups.getByDate
+  >['daily'][number];
 
   const getRewardTotals = (group: TaskGroupItem) => {
     const items = group.reward?.items ?? [];
@@ -71,41 +72,44 @@ export function TaskGroupsByDate({
   const renderTaskGroupCard = (group: TaskGroupItem) => {
     const rewardTotals = getRewardTotals(group);
     return (
-    <div
-      key={group._id}
-      className="border rounded-lg p-4 bg-card hover:shadow-md transition-shadow cursor-pointer"
-      onClick={() => onView(group._id)}>
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex-1">
-          <h3 className="font-semibold text-lg mb-1">{group.name}</h3>
-          <div className="text-xs text-muted-foreground mb-1">
-            {group.startDate} — {group.endDate}
+      <div
+        key={group._id}
+        className="border rounded-lg p-4 bg-card hover:shadow-md transition-shadow cursor-pointer"
+        onClick={() => onView(group._id)}>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex-1">
+            <h3 className="font-semibold text-lg mb-1">{group.name}</h3>
+            <div className="text-xs text-muted-foreground mb-1">
+              {group.startDate} — {group.endDate}
+            </div>
+            <div className="text-sm text-muted-foreground line-clamp-2 mb-1">
+              {group.description}
+            </div>
+            <div className="flex gap-2 text-xs mt-2">
+              <span>⭐ {rewardTotals.stars}</span>
+              <span>🧠 {rewardTotals.exp}</span>
+              <span>Уровень: {group.level || 'Не указан'}</span>
+            </div>
           </div>
-          <div className="text-sm text-muted-foreground line-clamp-2 mb-1">
-            {group.description}
+          <div
+            className="flex flex-col gap-2 items-end"
+            onClick={(e) => e.stopPropagation()}>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => onEdit(group._id)}>
+              <Edit className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setDeleteId(group._id)}>
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
           </div>
-          <div className="flex gap-2 text-xs mt-2">
-            <span>⭐ {rewardTotals.stars}</span>
-            <span>🧠 {rewardTotals.exp}</span>
-            <span>Уровень: {group.level || 'Не указан'}</span>
-          </div>
-        </div>
-        <div
-          className="flex flex-col gap-2 items-end"
-          onClick={(e) => e.stopPropagation()}>
-          <Button size="icon" variant="ghost" onClick={() => onEdit(group._id)}>
-            <Edit className="h-4 w-4" />
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => setDeleteId(group._id)}>
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
         </div>
       </div>
-    </div>
-  );
+    );
   };
 
   const renderSection = (

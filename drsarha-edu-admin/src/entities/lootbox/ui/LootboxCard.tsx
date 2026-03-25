@@ -17,7 +17,9 @@ import Image from 'next/image';
 import { getContentUrl } from '@/shared/utils/url';
 
 interface LootboxCardProps {
-  lootbox: FunctionReturnType<typeof api.functions.lootboxes.list>['items'][number];
+  lootbox: FunctionReturnType<
+    typeof api.functions.lootboxes.list
+  >['items'][number];
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
 }

@@ -2,11 +2,13 @@ import { httpRouter } from "convex/server";
 import { getTaskConditionHttp, getClinicTaskQuestionConditionHttp } from "./functions/clinic_tasks";
 import {
   approveConferenceUserHttp,
-  
   countConferenceUsersHttpAction,
-  
   registerConferenceUserHttp,
 } from "./functions/conference_users";
+import {
+  markConferencePromocodePayedHttp,
+  validateConferencePromocode,
+} from "./functions/conference_promocodes";
 import { initHelpConversationHttp } from "./functions/drsarha_help_conversations";
 import { createPaymentHttp } from "./functions/payments";
 import { getPinsSummaryHttp } from "./functions/pins";
@@ -65,6 +67,18 @@ http.route({
   path: "/conference-users/count",
   method: "GET",
   handler: countConferenceUsersHttpAction,
+});
+
+http.route({
+  path: "/conference-promocodes/validate",
+  method: "POST",
+  handler: validateConferencePromocode,
+});
+
+http.route({
+  path: "/conference-promocodes/mark-payed",
+  method: "POST",
+  handler: markConferencePromocodePayedHttp,
 });
 
 export default http;

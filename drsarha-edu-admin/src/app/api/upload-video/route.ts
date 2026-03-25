@@ -32,9 +32,7 @@ export async function POST(request: Request) {
     const ext = getExtension(file.name, contentType);
     const filename = `${crypto.randomUUID()}${ext}`;
     const prefix = (process.env.S3_IMAGE_DIRECTORY || '').replace(/\/$/, '');
-    const key = prefix
-      ? `${prefix}/video/${filename}`
-      : `video/${filename}`;
+    const key = prefix ? `${prefix}/video/${filename}` : `video/${filename}`;
     const relativePath = `video/${filename}`;
 
     const client = new S3Client({

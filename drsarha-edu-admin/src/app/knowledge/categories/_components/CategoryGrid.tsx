@@ -26,7 +26,7 @@ type CategoryItem = FunctionReturnType<
 interface CategoryGridProps {
   data: CategoryItem[] | undefined;
   isLoading: boolean;
-  
+
   onEdit: (id: Id<'categories'>) => void;
   onDelete: (id: Id<'categories'>) => void;
   onCreate: () => void;
@@ -87,8 +87,6 @@ export function CategoryGrid({
               />
             ))}
           </div>
-
-          
         </>
       </div>
 

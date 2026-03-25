@@ -30,7 +30,9 @@ export default function ClinicAtlasesPage() {
   }, [currentNozologyId, searchQuery, searchParams]);
 
   const response = useQuery(api.functions.interactive_tasks.list, queryArgs);
-  const removeInteractiveTask = useMutation(api.functions.interactive_tasks.remove);
+  const removeInteractiveTask = useMutation(
+    api.functions.interactive_tasks.remove
+  );
   const data = response?.items;
   const isLoading = response === undefined;
 

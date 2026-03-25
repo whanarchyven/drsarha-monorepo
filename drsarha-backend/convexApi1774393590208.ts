@@ -3323,87 +3323,6 @@ export type PublicApiType = {
       >;
     };
     pins: {
-      getById: FunctionReference<
-        "query",
-        "public",
-        { id: Id<"pins"> },
-        {
-          _creationTime: number;
-          _id: Id<"pins">;
-          author: Id<"users"> | string;
-          comments: number;
-          createdAt?: string;
-          description: string;
-          image: string;
-          likes: number;
-          mongoId?: string;
-          tags?: Array<Id<"pin_tags"> | string>;
-          title: string;
-          updatedAt: string;
-        } | null
-      >;
-      list: FunctionReference<
-        "query",
-        "public",
-        {
-          author?: string;
-          limit?: number;
-          page?: number;
-          search?: string;
-          tags?: Array<Id<"pin_tags"> | string>;
-          userId?: string;
-        },
-        {
-          hasMore: boolean;
-          items: Array<{
-            _creationTime: number;
-            _id: Id<"pins">;
-            author: Id<"users"> | string;
-            comments: number;
-            createdAt?: string;
-            description: string;
-            image: string;
-            likes: number;
-            mongoId?: string;
-            tags?: Array<Id<"pin_tags"> | string>;
-            title: string;
-            updatedAt: string;
-          }>;
-          page: number;
-          total: number;
-          totalPages: number;
-        }
-      >;
-      insert: FunctionReference<
-        "mutation",
-        "public",
-        {
-          author: Id<"users"> | string;
-          comments: number;
-          createdAt: string;
-          description: string;
-          image: string;
-          likes: number;
-          mongoId?: string;
-          tags?: Array<Id<"pin_tags"> | string>;
-          title: string;
-          updatedAt: string;
-        },
-        {
-          _creationTime: number;
-          _id: Id<"pins">;
-          author: Id<"users"> | string;
-          comments: number;
-          createdAt?: string;
-          description: string;
-          image: string;
-          likes: number;
-          mongoId?: string;
-          tags?: Array<Id<"pin_tags"> | string>;
-          title: string;
-          updatedAt: string;
-        }
-      >;
       create: FunctionReference<
         "action",
         "public",
@@ -3431,18 +3350,10 @@ export type PublicApiType = {
           updatedAt: string;
         }
       >;
-      update: FunctionReference<
-        "mutation",
+      getById: FunctionReference<
+        "query",
         "public",
-        {
-          data: {
-            description?: string;
-            image?: string;
-            tags?: Array<Id<"pin_tags"> | string>;
-            title?: string;
-          };
-          id: Id<"pins">;
-        },
+        { id: Id<"pins"> },
         {
           _creationTime: number;
           _id: Id<"pins">;
@@ -3456,13 +3367,7 @@ export type PublicApiType = {
           tags?: Array<Id<"pin_tags"> | string>;
           title: string;
           updatedAt: string;
-        }
-      >;
-      remove: FunctionReference<
-        "mutation",
-        "public",
-        { id: Id<"pins"> },
-        boolean
+        } | null
       >;
       getSimilarPins: FunctionReference<
         "query",
@@ -3508,6 +3413,68 @@ export type PublicApiType = {
           updatedAt: string;
         }>
       >;
+      insert: FunctionReference<
+        "mutation",
+        "public",
+        {
+          author: Id<"users"> | string;
+          comments: number;
+          createdAt: string;
+          description: string;
+          image: string;
+          likes: number;
+          mongoId?: string;
+          tags?: Array<Id<"pin_tags"> | string>;
+          title: string;
+          updatedAt: string;
+        },
+        {
+          _creationTime: number;
+          _id: Id<"pins">;
+          author: Id<"users"> | string;
+          comments: number;
+          createdAt?: string;
+          description: string;
+          image: string;
+          likes: number;
+          mongoId?: string;
+          tags?: Array<Id<"pin_tags"> | string>;
+          title: string;
+          updatedAt: string;
+        }
+      >;
+      list: FunctionReference<
+        "query",
+        "public",
+        {
+          author?: string;
+          limit?: number;
+          page?: number;
+          search?: string;
+          tags?: Array<Id<"pin_tags"> | string>;
+          userId?: string;
+        },
+        {
+          hasMore: boolean;
+          items: Array<{
+            _creationTime: number;
+            _id: Id<"pins">;
+            author: Id<"users"> | string;
+            comments: number;
+            createdAt?: string;
+            description: string;
+            image: string;
+            likes: number;
+            mongoId?: string;
+            tags?: Array<Id<"pin_tags"> | string>;
+            title: string;
+            updatedAt: string;
+          }>;
+          page: number;
+          total: number;
+          totalPages: number;
+        }
+      >;
       rating: FunctionReference<
         "query",
         "public",
@@ -3522,6 +3489,39 @@ export type PublicApiType = {
             fullName?: string;
           } | null;
         }>
+      >;
+      remove: FunctionReference<
+        "mutation",
+        "public",
+        { id: Id<"pins"> },
+        boolean
+      >;
+      update: FunctionReference<
+        "mutation",
+        "public",
+        {
+          data: {
+            description?: string;
+            image?: string;
+            tags?: Array<Id<"pin_tags"> | string>;
+            title?: string;
+          };
+          id: Id<"pins">;
+        },
+        {
+          _creationTime: number;
+          _id: Id<"pins">;
+          author: Id<"users"> | string;
+          comments: number;
+          createdAt?: string;
+          description: string;
+          image: string;
+          likes: number;
+          mongoId?: string;
+          tags?: Array<Id<"pin_tags"> | string>;
+          title: string;
+          updatedAt: string;
+        }
       >;
     };
     prize_claims: {
@@ -5202,12 +5202,12 @@ export type PublicApiType = {
         "mutation",
         "public",
         {
-          amount?: { currency: string; value: string };
+          amount?: { currency?: string; value?: string };
           authorization_details?: {
-            auth_code: string;
-            rrn: string;
-            three_d_secure: {
-              applied: boolean;
+            auth_code?: string;
+            rrn?: string;
+            three_d_secure?: {
+              applied?: boolean;
               authentication_value?: string;
               challenge_completed?: boolean;
               ds_transaction_id?: string;
@@ -5219,113 +5219,59 @@ export type PublicApiType = {
             };
           };
           captured_at?: string;
-          confirmation?: { confirmation_url: string; type: string };
+          confirmation?: { confirmation_url?: string; type?: string };
           created_at?: string;
           description?: string;
           event?: string;
           id?: string;
-          income_amount?: { currency: string; value: string };
-          metadata?: Record<string, never>;
+          income_amount?: { currency?: string; value?: string };
+          metadata?: any;
           mongoId?: string;
-          object?: {
-            amount: { currency: string; value: string };
-            authorization_details: {
-              auth_code: string;
-              rrn: string;
-              three_d_secure: {
-                applied: boolean;
-                challenge_completed: boolean;
-                method_completed: boolean;
-                protocol: string;
-              };
-            };
-            captured_at: string;
-            created_at: string;
-            description: string;
-            id: string;
-            income_amount: { currency: string; value: string };
-            metadata: Record<string, never>;
-            paid: boolean;
-            payment_method: {
-              card: {
-                card_product: { code: string; name: string };
-                card_type: string;
-                expiry_month: string;
-                expiry_year: string;
-                first6: string;
-                issuer_country: string;
-                issuer_name: string;
-                last4: string;
-              };
-              id: string;
-              saved: boolean;
-              status: string;
-              title: string;
-              type: string;
-            };
-            receipt_registration: string;
-            recipient: { account_id: string; gateway_id: string };
-            refundable: boolean;
-            refunded_amount: { currency: string; value: string };
-            status: string;
-            test: boolean;
-          };
+          object?: any;
           paid?: boolean;
-          payment?: {
-            amount: { currency: string; value: string };
-            confirmation: { confirmation_url: string; type: string };
-            created_at: string;
-            description: string;
-            id: string;
-            metadata: Record<string, never>;
-            paid: boolean;
-            recipient: { account_id: string; gateway_id: string };
-            refundable: boolean;
-            status: string;
-            test: boolean;
-          };
+          payment?: any;
           payment_method?: {
             account_number?: string;
             card?: {
-              card_product?: { code: string; name: string };
-              card_type: string;
-              expiry_month: string;
-              expiry_year: string;
-              first6: string;
+              card_product?: { code?: string; name?: string };
+              card_type?: string;
+              expiry_month?: string;
+              expiry_year?: string;
+              first6?: string;
               issuer_country?: string;
               issuer_name?: string;
-              last4: string;
+              last4?: string;
             };
-            id: string;
-            saved: boolean;
+            id?: string;
+            saved?: boolean;
             status?: string;
             title?: string;
-            type: string;
+            type?: string;
           };
           plan?: string;
-          recipient?: { account_id: string; gateway_id: string };
+          recipient?: { account_id?: string; gateway_id?: string };
           refundable?: boolean;
-          refunded_amount?: { currency: string; value: string };
+          refunded_amount?: { currency?: string; value?: string };
           status?: string;
           tariff?: string;
           test?: boolean;
           type?: string;
           user?: {
-            email: string;
+            email?: string;
             fullName?: string;
-            mongoId: string;
-            phone: string;
+            mongoId?: string;
+            phone?: string;
           };
         },
         {
           _creationTime: number;
           _id: Id<"payments">;
-          amount?: { currency: string; value: string };
+          amount?: { currency?: string; value?: string };
           authorization_details?: {
-            auth_code: string;
-            rrn: string;
-            three_d_secure: {
-              applied: boolean;
+            auth_code?: string;
+            rrn?: string;
+            three_d_secure?: {
+              applied?: boolean;
               authentication_value?: string;
               challenge_completed?: boolean;
               ds_transaction_id?: string;
@@ -5337,110 +5283,50 @@ export type PublicApiType = {
             };
           };
           captured_at?: string;
-          confirmation?: { confirmation_url: string; type: string };
+          confirmation?: { confirmation_url?: string; type?: string };
           created_at?: string;
           description?: string;
           event?: string;
           id?: string;
-          income_amount?: { currency: string; value: string };
-          metadata?: Record<string, never>;
+          income_amount?: { currency?: string; value?: string };
+          metadata?: any;
           mongoId?: string;
-          object?: {
-            amount: { currency: string; value: string };
-            authorization_details: {
-              auth_code: string;
-              rrn: string;
-              three_d_secure: {
-                applied: boolean;
-                challenge_completed: boolean;
-                method_completed: boolean;
-                protocol: string;
-              };
-            };
-            captured_at: string;
-            created_at: string;
-            description: string;
-            id: string;
-            income_amount: { currency: string; value: string };
-            metadata: Record<string, never>;
-            paid: boolean;
-            payment_method: {
-              card: {
-                card_product: { code: string; name: string };
-                card_type: string;
-                expiry_month: string;
-                expiry_year: string;
-                first6: string;
-                issuer_country: string;
-                issuer_name: string;
-                last4: string;
-              };
-              id: string;
-              saved: boolean;
-              status: string;
-              title: string;
-              type: string;
-            };
-            receipt_registration: string;
-            recipient: { account_id: string; gateway_id: string };
-            refundable: boolean;
-            refunded_amount: { currency: string; value: string };
-            status: string;
-            test: boolean;
-          };
+          object?: any;
           paid?: boolean;
-          payment?: {
-            amount: { currency: string; value: string };
-            confirmation: { confirmation_url: string; type: string };
-            created_at: string;
-            description: string;
-            id: string;
-            metadata: Record<string, never>;
-            paid: boolean;
-            recipient: { account_id: string; gateway_id: string };
-            refundable: boolean;
-            status: string;
-            test: boolean;
-          };
+          payment?: any;
           payment_method?: {
             account_number?: string;
             card?: {
-              card_product?: { code: string; name: string };
-              card_type: string;
-              expiry_month: string;
-              expiry_year: string;
-              first6: string;
+              card_product?: { code?: string; name?: string };
+              card_type?: string;
+              expiry_month?: string;
+              expiry_year?: string;
+              first6?: string;
               issuer_country?: string;
               issuer_name?: string;
-              last4: string;
+              last4?: string;
             };
-            id: string;
-            saved: boolean;
+            id?: string;
+            saved?: boolean;
             status?: string;
             title?: string;
-            type: string;
+            type?: string;
           };
           plan?: string;
-          recipient?: { account_id: string; gateway_id: string };
+          recipient?: { account_id?: string; gateway_id?: string };
           refundable?: boolean;
-          refunded_amount?: { currency: string; value: string };
+          refunded_amount?: { currency?: string; value?: string };
           status?: string;
           tariff?: string;
           test?: boolean;
           type?: string;
           user?: {
-            email: string;
+            email?: string;
             fullName?: string;
-            mongoId: string;
-            phone: string;
+            mongoId?: string;
+            phone?: string;
           };
         }
-      >;
-      updateByPaymentId: FunctionReference<
-        "mutation",
-        "public",
-        { patch: { status?: string }; paymentId: string },
-        boolean
       >;
       getByPaymentId: FunctionReference<
         "query",
@@ -5449,12 +5335,12 @@ export type PublicApiType = {
         {
           _creationTime: number;
           _id: Id<"payments">;
-          amount?: { currency: string; value: string };
+          amount?: { currency?: string; value?: string };
           authorization_details?: {
-            auth_code: string;
-            rrn: string;
-            three_d_secure: {
-              applied: boolean;
+            auth_code?: string;
+            rrn?: string;
+            three_d_secure?: {
+              applied?: boolean;
               authentication_value?: string;
               challenge_completed?: boolean;
               ds_transaction_id?: string;
@@ -5466,102 +5352,48 @@ export type PublicApiType = {
             };
           };
           captured_at?: string;
-          confirmation?: { confirmation_url: string; type: string };
+          confirmation?: { confirmation_url?: string; type?: string };
           created_at?: string;
           description?: string;
           event?: string;
           id?: string;
-          income_amount?: { currency: string; value: string };
-          metadata?: Record<string, never>;
+          income_amount?: { currency?: string; value?: string };
+          metadata?: any;
           mongoId?: string;
-          object?: {
-            amount: { currency: string; value: string };
-            authorization_details: {
-              auth_code: string;
-              rrn: string;
-              three_d_secure: {
-                applied: boolean;
-                challenge_completed: boolean;
-                method_completed: boolean;
-                protocol: string;
-              };
-            };
-            captured_at: string;
-            created_at: string;
-            description: string;
-            id: string;
-            income_amount: { currency: string; value: string };
-            metadata: Record<string, never>;
-            paid: boolean;
-            payment_method: {
-              card: {
-                card_product: { code: string; name: string };
-                card_type: string;
-                expiry_month: string;
-                expiry_year: string;
-                first6: string;
-                issuer_country: string;
-                issuer_name: string;
-                last4: string;
-              };
-              id: string;
-              saved: boolean;
-              status: string;
-              title: string;
-              type: string;
-            };
-            receipt_registration: string;
-            recipient: { account_id: string; gateway_id: string };
-            refundable: boolean;
-            refunded_amount: { currency: string; value: string };
-            status: string;
-            test: boolean;
-          };
+          object?: any;
           paid?: boolean;
-          payment?: {
-            amount: { currency: string; value: string };
-            confirmation: { confirmation_url: string; type: string };
-            created_at: string;
-            description: string;
-            id: string;
-            metadata: Record<string, never>;
-            paid: boolean;
-            recipient: { account_id: string; gateway_id: string };
-            refundable: boolean;
-            status: string;
-            test: boolean;
-          };
+          payment?: any;
           payment_method?: {
             account_number?: string;
             card?: {
-              card_product?: { code: string; name: string };
-              card_type: string;
-              expiry_month: string;
-              expiry_year: string;
-              first6: string;
+              card_product?: { code?: string; name?: string };
+              card_type?: string;
+              expiry_month?: string;
+              expiry_year?: string;
+              first6?: string;
               issuer_country?: string;
               issuer_name?: string;
-              last4: string;
+              last4?: string;
             };
-            id: string;
-            saved: boolean;
+            id?: string;
+            saved?: boolean;
             status?: string;
             title?: string;
-            type: string;
+            type?: string;
           };
           plan?: string;
-          recipient?: { account_id: string; gateway_id: string };
+          recipient?: { account_id?: string; gateway_id?: string };
           refundable?: boolean;
-          refunded_amount?: { currency: string; value: string };
+          refunded_amount?: { currency?: string; value?: string };
           status?: string;
           tariff?: string;
           test?: boolean;
           type?: string;
           user?: {
-            email: string;
+            email?: string;
             fullName?: string;
-            mongoId: string;
-            phone: string;
+            mongoId?: string;
+            phone?: string;
           };
         } | null
       >;
@@ -5572,12 +5404,12 @@ export type PublicApiType = {
         Array<{
           _creationTime: number;
           _id: Id<"payments">;
-          amount?: { currency: string; value: string };
+          amount?: { currency?: string; value?: string };
           authorization_details?: {
-            auth_code: string;
-            rrn: string;
-            three_d_secure: {
-              applied: boolean;
+            auth_code?: string;
+            rrn?: string;
+            three_d_secure?: {
+              applied?: boolean;
               authentication_value?: string;
               challenge_completed?: boolean;
               ds_transaction_id?: string;
@@ -5589,102 +5421,48 @@ export type PublicApiType = {
             };
           };
           captured_at?: string;
-          confirmation?: { confirmation_url: string; type: string };
+          confirmation?: { confirmation_url?: string; type?: string };
           created_at?: string;
           description?: string;
           event?: string;
           id?: string;
-          income_amount?: { currency: string; value: string };
-          metadata?: Record<string, never>;
+          income_amount?: { currency?: string; value?: string };
+          metadata?: any;
           mongoId?: string;
-          object?: {
-            amount: { currency: string; value: string };
-            authorization_details: {
-              auth_code: string;
-              rrn: string;
-              three_d_secure: {
-                applied: boolean;
-                challenge_completed: boolean;
-                method_completed: boolean;
-                protocol: string;
-              };
-            };
-            captured_at: string;
-            created_at: string;
-            description: string;
-            id: string;
-            income_amount: { currency: string; value: string };
-            metadata: Record<string, never>;
-            paid: boolean;
-            payment_method: {
-              card: {
-                card_product: { code: string; name: string };
-                card_type: string;
-                expiry_month: string;
-                expiry_year: string;
-                first6: string;
-                issuer_country: string;
-                issuer_name: string;
-                last4: string;
-              };
-              id: string;
-              saved: boolean;
-              status: string;
-              title: string;
-              type: string;
-            };
-            receipt_registration: string;
-            recipient: { account_id: string; gateway_id: string };
-            refundable: boolean;
-            refunded_amount: { currency: string; value: string };
-            status: string;
-            test: boolean;
-          };
+          object?: any;
           paid?: boolean;
-          payment?: {
-            amount: { currency: string; value: string };
-            confirmation: { confirmation_url: string; type: string };
-            created_at: string;
-            description: string;
-            id: string;
-            metadata: Record<string, never>;
-            paid: boolean;
-            recipient: { account_id: string; gateway_id: string };
-            refundable: boolean;
-            status: string;
-            test: boolean;
-          };
+          payment?: any;
           payment_method?: {
             account_number?: string;
             card?: {
-              card_product?: { code: string; name: string };
-              card_type: string;
-              expiry_month: string;
-              expiry_year: string;
-              first6: string;
+              card_product?: { code?: string; name?: string };
+              card_type?: string;
+              expiry_month?: string;
+              expiry_year?: string;
+              first6?: string;
               issuer_country?: string;
               issuer_name?: string;
-              last4: string;
+              last4?: string;
             };
-            id: string;
-            saved: boolean;
+            id?: string;
+            saved?: boolean;
             status?: string;
             title?: string;
-            type: string;
+            type?: string;
           };
           plan?: string;
-          recipient?: { account_id: string; gateway_id: string };
+          recipient?: { account_id?: string; gateway_id?: string };
           refundable?: boolean;
-          refunded_amount?: { currency: string; value: string };
+          refunded_amount?: { currency?: string; value?: string };
           status?: string;
           tariff?: string;
           test?: boolean;
           type?: string;
           user?: {
-            email: string;
+            email?: string;
             fullName?: string;
-            mongoId: string;
-            phone: string;
+            mongoId?: string;
+            phone?: string;
           };
         }>
       >;
@@ -5695,12 +5473,12 @@ export type PublicApiType = {
         Array<{
           _creationTime: number;
           _id: Id<"payments">;
-          amount?: { currency: string; value: string };
+          amount?: { currency?: string; value?: string };
           authorization_details?: {
-            auth_code: string;
-            rrn: string;
-            three_d_secure: {
-              applied: boolean;
+            auth_code?: string;
+            rrn?: string;
+            three_d_secure?: {
+              applied?: boolean;
               authentication_value?: string;
               challenge_completed?: boolean;
               ds_transaction_id?: string;
@@ -5712,104 +5490,252 @@ export type PublicApiType = {
             };
           };
           captured_at?: string;
-          confirmation?: { confirmation_url: string; type: string };
+          confirmation?: { confirmation_url?: string; type?: string };
           created_at?: string;
           description?: string;
           event?: string;
           id?: string;
-          income_amount?: { currency: string; value: string };
-          metadata?: Record<string, never>;
+          income_amount?: { currency?: string; value?: string };
+          metadata?: any;
           mongoId?: string;
-          object?: {
-            amount: { currency: string; value: string };
-            authorization_details: {
-              auth_code: string;
-              rrn: string;
-              three_d_secure: {
-                applied: boolean;
-                challenge_completed: boolean;
-                method_completed: boolean;
-                protocol: string;
-              };
-            };
-            captured_at: string;
-            created_at: string;
-            description: string;
-            id: string;
-            income_amount: { currency: string; value: string };
-            metadata: Record<string, never>;
-            paid: boolean;
-            payment_method: {
-              card: {
-                card_product: { code: string; name: string };
-                card_type: string;
-                expiry_month: string;
-                expiry_year: string;
-                first6: string;
-                issuer_country: string;
-                issuer_name: string;
-                last4: string;
-              };
-              id: string;
-              saved: boolean;
-              status: string;
-              title: string;
-              type: string;
-            };
-            receipt_registration: string;
-            recipient: { account_id: string; gateway_id: string };
-            refundable: boolean;
-            refunded_amount: { currency: string; value: string };
-            status: string;
-            test: boolean;
-          };
+          object?: any;
           paid?: boolean;
-          payment?: {
-            amount: { currency: string; value: string };
-            confirmation: { confirmation_url: string; type: string };
-            created_at: string;
-            description: string;
-            id: string;
-            metadata: Record<string, never>;
-            paid: boolean;
-            recipient: { account_id: string; gateway_id: string };
-            refundable: boolean;
-            status: string;
-            test: boolean;
-          };
+          payment?: any;
           payment_method?: {
             account_number?: string;
             card?: {
-              card_product?: { code: string; name: string };
-              card_type: string;
-              expiry_month: string;
-              expiry_year: string;
-              first6: string;
+              card_product?: { code?: string; name?: string };
+              card_type?: string;
+              expiry_month?: string;
+              expiry_year?: string;
+              first6?: string;
               issuer_country?: string;
               issuer_name?: string;
-              last4: string;
+              last4?: string;
             };
-            id: string;
-            saved: boolean;
+            id?: string;
+            saved?: boolean;
             status?: string;
             title?: string;
-            type: string;
+            type?: string;
           };
           plan?: string;
-          recipient?: { account_id: string; gateway_id: string };
+          recipient?: { account_id?: string; gateway_id?: string };
           refundable?: boolean;
-          refunded_amount?: { currency: string; value: string };
+          refunded_amount?: { currency?: string; value?: string };
           status?: string;
           tariff?: string;
           test?: boolean;
           type?: string;
           user?: {
-            email: string;
+            email?: string;
             fullName?: string;
-            mongoId: string;
-            phone: string;
+            mongoId?: string;
+            phone?: string;
           };
         }>
+      >;
+      updateByPaymentId: FunctionReference<
+        "mutation",
+        "public",
+        {
+          patch: {
+            amount?: { currency?: string; value?: string };
+            authorization_details?: {
+              auth_code?: string;
+              rrn?: string;
+              three_d_secure?: {
+                applied?: boolean;
+                authentication_value?: string;
+                challenge_completed?: boolean;
+                ds_transaction_id?: string;
+                eci?: string;
+                method_completed?: boolean;
+                protocol?: string;
+                three_d_secure_server_transaction_id?: string;
+                xid?: string;
+              };
+            };
+            captured_at?: string;
+            confirmation?: { confirmation_url?: string; type?: string };
+            created_at?: string;
+            description?: string;
+            event?: string;
+            id?: string;
+            income_amount?: { currency?: string; value?: string };
+            metadata?: any;
+            mongoId?: string;
+            object?: any;
+            paid?: boolean;
+            payment?: any;
+            payment_method?: {
+              account_number?: string;
+              card?: {
+                card_product?: { code?: string; name?: string };
+                card_type?: string;
+                expiry_month?: string;
+                expiry_year?: string;
+                first6?: string;
+                issuer_country?: string;
+                issuer_name?: string;
+                last4?: string;
+              };
+              id?: string;
+              saved?: boolean;
+              status?: string;
+              title?: string;
+              type?: string;
+            };
+            plan?: string;
+            recipient?: { account_id?: string; gateway_id?: string };
+            refundable?: boolean;
+            refunded_amount?: { currency?: string; value?: string };
+            status?: string;
+            tariff?: string;
+            test?: boolean;
+            type?: string;
+            user?: {
+              email?: string;
+              fullName?: string;
+              mongoId?: string;
+              phone?: string;
+            };
+          };
+          paymentId: string;
+        },
+        boolean
+      >;
+      upsertByPaymentId: FunctionReference<
+        "mutation",
+        "public",
+        {
+          data: {
+            amount?: { currency?: string; value?: string };
+            authorization_details?: {
+              auth_code?: string;
+              rrn?: string;
+              three_d_secure?: {
+                applied?: boolean;
+                authentication_value?: string;
+                challenge_completed?: boolean;
+                ds_transaction_id?: string;
+                eci?: string;
+                method_completed?: boolean;
+                protocol?: string;
+                three_d_secure_server_transaction_id?: string;
+                xid?: string;
+              };
+            };
+            captured_at?: string;
+            confirmation?: { confirmation_url?: string; type?: string };
+            created_at?: string;
+            description?: string;
+            event?: string;
+            id?: string;
+            income_amount?: { currency?: string; value?: string };
+            metadata?: any;
+            mongoId?: string;
+            object?: any;
+            paid?: boolean;
+            payment?: any;
+            payment_method?: {
+              account_number?: string;
+              card?: {
+                card_product?: { code?: string; name?: string };
+                card_type?: string;
+                expiry_month?: string;
+                expiry_year?: string;
+                first6?: string;
+                issuer_country?: string;
+                issuer_name?: string;
+                last4?: string;
+              };
+              id?: string;
+              saved?: boolean;
+              status?: string;
+              title?: string;
+              type?: string;
+            };
+            plan?: string;
+            recipient?: { account_id?: string; gateway_id?: string };
+            refundable?: boolean;
+            refunded_amount?: { currency?: string; value?: string };
+            status?: string;
+            tariff?: string;
+            test?: boolean;
+            type?: string;
+            user?: {
+              email?: string;
+              fullName?: string;
+              mongoId?: string;
+              phone?: string;
+            };
+          };
+        },
+        {
+          _creationTime: number;
+          _id: Id<"payments">;
+          amount?: { currency?: string; value?: string };
+          authorization_details?: {
+            auth_code?: string;
+            rrn?: string;
+            three_d_secure?: {
+              applied?: boolean;
+              authentication_value?: string;
+              challenge_completed?: boolean;
+              ds_transaction_id?: string;
+              eci?: string;
+              method_completed?: boolean;
+              protocol?: string;
+              three_d_secure_server_transaction_id?: string;
+              xid?: string;
+            };
+          };
+          captured_at?: string;
+          confirmation?: { confirmation_url?: string; type?: string };
+          created_at?: string;
+          description?: string;
+          event?: string;
+          id?: string;
+          income_amount?: { currency?: string; value?: string };
+          metadata?: any;
+          mongoId?: string;
+          object?: any;
+          paid?: boolean;
+          payment?: any;
+          payment_method?: {
+            account_number?: string;
+            card?: {
+              card_product?: { code?: string; name?: string };
+              card_type?: string;
+              expiry_month?: string;
+              expiry_year?: string;
+              first6?: string;
+              issuer_country?: string;
+              issuer_name?: string;
+              last4?: string;
+            };
+            id?: string;
+            saved?: boolean;
+            status?: string;
+            title?: string;
+            type?: string;
+          };
+          plan?: string;
+          recipient?: { account_id?: string; gateway_id?: string };
+          refundable?: boolean;
+          refunded_amount?: { currency?: string; value?: string };
+          status?: string;
+          tariff?: string;
+          test?: boolean;
+          type?: string;
+          user?: {
+            email?: string;
+            fullName?: string;
+            mongoId?: string;
+            phone?: string;
+          };
+        }
       >;
     };
     brochures: {
@@ -6176,8 +6102,8 @@ export type PublicApiType = {
           cover_image: string;
           description: string;
           difficulty: number;
-          endoscopy_model?: string;
-          endoscopy_video?: string;
+          endoscopy_model?: string | null;
+          endoscopy_video?: string | null;
           feedback: Array<{
             analytic_questions: Array<string>;
             answers: Array<{ answer: string; is_correct: boolean }>;
@@ -6224,8 +6150,8 @@ export type PublicApiType = {
           cover_image: string;
           description: string;
           difficulty: number;
-          endoscopy_model?: string;
-          endoscopy_video?: string;
+          endoscopy_model?: string | null;
+          endoscopy_video?: string | null;
           feedback: Array<{
             analytic_questions: Array<string>;
             answers: Array<{ answer: string; is_correct: boolean }>;
@@ -6294,8 +6220,8 @@ export type PublicApiType = {
           cover_image: string;
           description: string;
           difficulty: number;
-          endoscopy_model?: string;
-          endoscopy_video?: string;
+          endoscopy_model?: string | null;
+          endoscopy_video?: string | null;
           feedback: Array<{
             analytic_questions: Array<string>;
             answers: Array<{ answer: string; is_correct: boolean }>;
@@ -6337,8 +6263,8 @@ export type PublicApiType = {
           cover_image: string;
           description: string;
           difficulty: number;
-          endoscopy_model?: string;
-          endoscopy_video?: string;
+          endoscopy_model?: string | null;
+          endoscopy_video?: string | null;
           feedback: Array<{
             analytic_questions: Array<string>;
             answers: Array<{ answer: string; is_correct: boolean }>;
@@ -6395,8 +6321,8 @@ export type PublicApiType = {
             cover_image: string;
             description: string;
             difficulty: number;
-            endoscopy_model?: string;
-            endoscopy_video?: string;
+            endoscopy_model?: string | null;
+            endoscopy_video?: string | null;
             feedback: Array<{
               analytic_questions: Array<string>;
               answers: Array<{ answer: string; is_correct: boolean }>;
@@ -6488,8 +6414,8 @@ export type PublicApiType = {
           cover_image: string;
           description: string;
           difficulty: number;
-          endoscopy_model?: string;
-          endoscopy_video?: string;
+          endoscopy_model?: string | null;
+          endoscopy_video?: string | null;
           feedback: Array<{
             analytic_questions: Array<string>;
             answers: Array<{ answer: string; is_correct: boolean }>;
@@ -6574,8 +6500,8 @@ export type PublicApiType = {
           cover_image: string;
           description: string;
           difficulty: number;
-          endoscopy_model?: string;
-          endoscopy_video?: string;
+          endoscopy_model?: string | null;
+          endoscopy_video?: string | null;
           feedback: Array<{
             analytic_questions: Array<string>;
             answers: Array<{ answer: string; is_correct: boolean }>;
@@ -9555,6 +9481,823 @@ export type PublicApiType = {
           name: string;
           publishAfter?: number;
         }
+      >;
+    };
+    conference_broadcast: {
+      getBroadcastConfig: FunctionReference<
+        "query",
+        "public",
+        Record<string, never>,
+        {
+          _creationTime: number;
+          _id: Id<"conference_broadcast">;
+          createdAt: number;
+          iframeUrl: string;
+          isDisplayed: boolean;
+          key: string;
+          title?: string;
+          updatedAt: number;
+        } | null
+      >;
+      upsertBroadcastConfig: FunctionReference<
+        "mutation",
+        "public",
+        { iframeUrl: string; isDisplayed: boolean; title?: string },
+        {
+          _creationTime: number;
+          _id: Id<"conference_broadcast">;
+          createdAt: number;
+          iframeUrl: string;
+          isDisplayed: boolean;
+          key: string;
+          title?: string;
+          updatedAt: number;
+        }
+      >;
+      setBroadcastVisibility: FunctionReference<
+        "mutation",
+        "public",
+        { isDisplayed: boolean },
+        {
+          _creationTime: number;
+          _id: Id<"conference_broadcast">;
+          createdAt: number;
+          iframeUrl: string;
+          isDisplayed: boolean;
+          key: string;
+          title?: string;
+          updatedAt: number;
+        } | null
+      >;
+    };
+    conference_chat: {
+      listMessages: FunctionReference<
+        "query",
+        "public",
+        {
+          cursor?: string;
+          limit?: number;
+          parentMessageId?: Id<"conference_chat_messages"> | null;
+        },
+        {
+          cursor: string | null;
+          isDone: boolean;
+          items: Array<{
+            _creationTime: number;
+            _id: Id<"conference_chat_messages">;
+            authorName: string;
+            authorSide: "jedi" | "sith" | "ai";
+            authorType: "conference_user" | "ai";
+            conferenceUserId: Id<"conference_users"> | null;
+            createdAt: number;
+            dislikesCount: number;
+            isDeleted: boolean;
+            likesCount: number;
+            messageText: string;
+            repliesCount: number;
+            replyToMessageId: Id<"conference_chat_messages"> | null;
+            updatedAt?: number;
+          }>;
+        }
+      >;
+      createMessage: FunctionReference<
+        "mutation",
+        "public",
+        {
+          conferenceUserId: Id<"conference_users">;
+          messageText: string;
+          replyToMessageId?: Id<"conference_chat_messages">;
+        },
+        {
+          _creationTime: number;
+          _id: Id<"conference_chat_messages">;
+          authorName: string;
+          authorSide: "jedi" | "sith" | "ai";
+          authorType: "conference_user" | "ai";
+          conferenceUserId: Id<"conference_users"> | null;
+          createdAt: number;
+          dislikesCount: number;
+          isDeleted: boolean;
+          likesCount: number;
+          messageText: string;
+          repliesCount: number;
+          replyToMessageId: Id<"conference_chat_messages"> | null;
+          updatedAt?: number;
+        }
+      >;
+      createAiMessage: FunctionReference<
+        "mutation",
+        "public",
+        {
+          authorName?: string;
+          messageText: string;
+          replyToMessageId?: Id<"conference_chat_messages">;
+        },
+        {
+          _creationTime: number;
+          _id: Id<"conference_chat_messages">;
+          authorName: string;
+          authorSide: "jedi" | "sith" | "ai";
+          authorType: "conference_user" | "ai";
+          conferenceUserId: Id<"conference_users"> | null;
+          createdAt: number;
+          dislikesCount: number;
+          isDeleted: boolean;
+          likesCount: number;
+          messageText: string;
+          repliesCount: number;
+          replyToMessageId: Id<"conference_chat_messages"> | null;
+          updatedAt?: number;
+        }
+      >;
+      updateMessage: FunctionReference<
+        "mutation",
+        "public",
+        {
+          conferenceUserId: Id<"conference_users">;
+          id: Id<"conference_chat_messages">;
+          messageText: string;
+        },
+        {
+          _creationTime: number;
+          _id: Id<"conference_chat_messages">;
+          authorName: string;
+          authorSide: "jedi" | "sith" | "ai";
+          authorType: "conference_user" | "ai";
+          conferenceUserId: Id<"conference_users"> | null;
+          createdAt: number;
+          dislikesCount: number;
+          isDeleted: boolean;
+          likesCount: number;
+          messageText: string;
+          repliesCount: number;
+          replyToMessageId: Id<"conference_chat_messages"> | null;
+          updatedAt?: number;
+        }
+      >;
+      deleteMessage: FunctionReference<
+        "mutation",
+        "public",
+        {
+          conferenceUserId?: Id<"conference_users">;
+          id: Id<"conference_chat_messages">;
+        },
+        {
+          _creationTime: number;
+          _id: Id<"conference_chat_messages">;
+          authorName: string;
+          authorSide: "jedi" | "sith" | "ai";
+          authorType: "conference_user" | "ai";
+          conferenceUserId: Id<"conference_users"> | null;
+          createdAt: number;
+          dislikesCount: number;
+          isDeleted: boolean;
+          likesCount: number;
+          messageText: string;
+          repliesCount: number;
+          replyToMessageId: Id<"conference_chat_messages"> | null;
+          updatedAt?: number;
+        }
+      >;
+      toggleReaction: FunctionReference<
+        "mutation",
+        "public",
+        {
+          conferenceUserId: Id<"conference_users">;
+          messageId: Id<"conference_chat_messages">;
+          reaction: "like" | "dislike";
+        },
+        {
+          dislikesCount: number;
+          likesCount: number;
+          messageId: Id<"conference_chat_messages">;
+          reaction: "like" | "dislike" | null;
+        }
+      >;
+      getMyReactions: FunctionReference<
+        "query",
+        "public",
+        {
+          conferenceUserId: Id<"conference_users">;
+          messageIds: Array<Id<"conference_chat_messages">>;
+        },
+        Array<{
+          messageId: Id<"conference_chat_messages">;
+          reaction: "like" | "dislike";
+        }>
+      >;
+    };
+    conference_interactives: {
+      listInteractives: FunctionReference<
+        "query",
+        "public",
+        {
+          isDisplayed?: boolean;
+          kind?: "quiz" | "poll";
+          limit?: number;
+          page?: number;
+        },
+        {
+          hasMore: boolean;
+          items: Array<{
+            _creationTime: number;
+            _id: Id<"conference_interactives">;
+            createdAt: number;
+            isDisplayed: boolean;
+            kind: "quiz" | "poll";
+            questions: Array<{
+              id: string;
+              image?: string;
+              questionText: string;
+              selectionMode?: "single" | "multiple";
+              variants: Array<{
+                id: string;
+                isCorrect?: boolean;
+                text: string;
+              }>;
+            }>;
+            showResults: boolean;
+            title: string;
+            updatedAt: number;
+          }>;
+          page: number;
+          total: number;
+          totalPages: number;
+        }
+      >;
+      getInteractiveById: FunctionReference<
+        "query",
+        "public",
+        { id: Id<"conference_interactives"> },
+        {
+          _creationTime: number;
+          _id: Id<"conference_interactives">;
+          createdAt: number;
+          isDisplayed: boolean;
+          kind: "quiz" | "poll";
+          questions: Array<{
+            id: string;
+            image?: string;
+            questionText: string;
+            selectionMode?: "single" | "multiple";
+            variants: Array<{ id: string; isCorrect?: boolean; text: string }>;
+          }>;
+          showResults: boolean;
+          title: string;
+          updatedAt: number;
+        } | null
+      >;
+      getDisplayedInteractive: FunctionReference<
+        "query",
+        "public",
+        Record<string, never>,
+        {
+          _creationTime: number;
+          _id: Id<"conference_interactives">;
+          createdAt: number;
+          isDisplayed: boolean;
+          kind: "quiz" | "poll";
+          questions: Array<{
+            id: string;
+            image?: string;
+            questionText: string;
+            selectionMode?: "single" | "multiple";
+            variants: Array<{ id: string; isCorrect?: boolean; text: string }>;
+          }>;
+          showResults: boolean;
+          title: string;
+          updatedAt: number;
+        } | null
+      >;
+      createInteractive: FunctionReference<
+        "mutation",
+        "public",
+        {
+          isDisplayed: boolean;
+          kind: "quiz" | "poll";
+          questions: Array<{
+            id: string;
+            image?: string;
+            questionText: string;
+            selectionMode?: "single" | "multiple";
+            variants: Array<{ id: string; isCorrect?: boolean; text: string }>;
+          }>;
+          showResults: boolean;
+          title: string;
+        },
+        {
+          _creationTime: number;
+          _id: Id<"conference_interactives">;
+          createdAt: number;
+          isDisplayed: boolean;
+          kind: "quiz" | "poll";
+          questions: Array<{
+            id: string;
+            image?: string;
+            questionText: string;
+            selectionMode?: "single" | "multiple";
+            variants: Array<{ id: string; isCorrect?: boolean; text: string }>;
+          }>;
+          showResults: boolean;
+          title: string;
+          updatedAt: number;
+        }
+      >;
+      updateInteractive: FunctionReference<
+        "mutation",
+        "public",
+        {
+          data: {
+            isDisplayed?: boolean;
+            kind?: "quiz" | "poll";
+            questions?: Array<{
+              id: string;
+              image?: string;
+              questionText: string;
+              selectionMode?: "single" | "multiple";
+              variants: Array<{
+                id: string;
+                isCorrect?: boolean;
+                text: string;
+              }>;
+            }>;
+            showResults?: boolean;
+            title?: string;
+          };
+          id: Id<"conference_interactives">;
+        },
+        {
+          _creationTime: number;
+          _id: Id<"conference_interactives">;
+          createdAt: number;
+          isDisplayed: boolean;
+          kind: "quiz" | "poll";
+          questions: Array<{
+            id: string;
+            image?: string;
+            questionText: string;
+            selectionMode?: "single" | "multiple";
+            variants: Array<{ id: string; isCorrect?: boolean; text: string }>;
+          }>;
+          showResults: boolean;
+          title: string;
+          updatedAt: number;
+        }
+      >;
+      deleteInteractive: FunctionReference<
+        "mutation",
+        "public",
+        { id: Id<"conference_interactives"> },
+        boolean
+      >;
+      setDisplayedInteractive: FunctionReference<
+        "mutation",
+        "public",
+        { id: Id<"conference_interactives">; isDisplayed: boolean },
+        {
+          _creationTime: number;
+          _id: Id<"conference_interactives">;
+          createdAt: number;
+          isDisplayed: boolean;
+          kind: "quiz" | "poll";
+          questions: Array<{
+            id: string;
+            image?: string;
+            questionText: string;
+            selectionMode?: "single" | "multiple";
+            variants: Array<{ id: string; isCorrect?: boolean; text: string }>;
+          }>;
+          showResults: boolean;
+          title: string;
+          updatedAt: number;
+        }
+      >;
+      submitResponse: FunctionReference<
+        "mutation",
+        "public",
+        {
+          conferenceUserId: Id<"conference_users">;
+          interactiveId: Id<"conference_interactives">;
+          questionId: string;
+          selectedVariantIds: Array<string>;
+        },
+        {
+          _creationTime: number;
+          _id: Id<"conference_interactive_responses">;
+          answeredAt: number;
+          conferenceUserId: Id<"conference_users">;
+          interactiveId: Id<"conference_interactives">;
+          isCorrect?: boolean;
+          questionId: string;
+          selectedVariantIds: Array<string>;
+          updatedAt?: number;
+        }
+      >;
+      getInteractiveProgress: FunctionReference<
+        "query",
+        "public",
+        {
+          conferenceUserId: Id<"conference_users">;
+          interactiveId: Id<"conference_interactives">;
+        },
+        {
+          answeredQuestions: number;
+          correctAnswers: number | null;
+          interactiveId: Id<"conference_interactives">;
+          kind: "quiz" | "poll";
+          responses: Array<{
+            isCorrect: boolean | null;
+            questionId: string;
+            selectedVariantIds: Array<string>;
+          }>;
+          totalQuestions: number;
+        }
+      >;
+      getInteractiveStats: FunctionReference<
+        "query",
+        "public",
+        { interactiveId: Id<"conference_interactives"> },
+        {
+          interactiveId: Id<"conference_interactives">;
+          kind: "quiz" | "poll";
+          questionStats: Array<{
+            correctVariantIds: Array<string>;
+            questionId: string;
+            questionText: string;
+            totalResponses: number;
+            variants: Array<{ count: number; text: string; variantId: string }>;
+          }>;
+          totalParticipants: number;
+        } | null
+      >;
+      getQuizLeaderboard: FunctionReference<
+        "query",
+        "public",
+        { interactiveId: Id<"conference_interactives"> },
+        Array<{
+          answeredQuestions: number;
+          conferenceUserId: Id<"conference_users">;
+          name: string;
+          score: number;
+          side: "jedi" | "sith" | "ai";
+        }>
+      >;
+    };
+    conference_users: {
+      approveConferenceUser: FunctionReference<
+        "mutation",
+        "public",
+        { email: string; password: string },
+        {
+          _creationTime: number;
+          _id: Id<"conference_users">;
+          email: string;
+          isApproved: boolean;
+          isFullUser: boolean;
+          isPaid: boolean;
+          name: string;
+          password: string | null;
+          phone: string;
+          side: "jedi" | "sith" | "ai";
+        }
+      >;
+      countConferenceUsers: FunctionReference<
+        "query",
+        "public",
+        any,
+        { all: number; approved: number }
+      >;
+      getConferenceUsers: FunctionReference<
+        "query",
+        "public",
+        { is_paid?: boolean },
+        Array<{
+          _creationTime: number;
+          _id: Id<"conference_users">;
+          email: string;
+          isApproved: boolean;
+          isFullUser: boolean;
+          isPaid: boolean;
+          name: string;
+          password: string | null;
+          phone: string;
+          side: "jedi" | "sith" | "ai";
+        }>
+      >;
+      loginConferenceUser: FunctionReference<
+        "query",
+        "public",
+        { email: string; password: string },
+        {
+          _creationTime: number;
+          _id: Id<"conference_users">;
+          email: string;
+          isApproved: boolean;
+          isFullUser: boolean;
+          isPaid: boolean;
+          name: string;
+          password: string | null;
+          phone: string;
+          side: "jedi" | "sith" | "ai";
+        } | null
+      >;
+      patchConferenceUserByEmail: FunctionReference<
+        "mutation",
+        "public",
+        {
+          email: string;
+          patch: {
+            email?: string;
+            isApproved?: boolean;
+            isFullUser?: boolean;
+            isPaid?: boolean;
+            name?: string;
+            password?: string | null;
+            phone?: string;
+            side?: "jedi" | "sith" | "ai";
+          };
+        },
+        {
+          _creationTime: number;
+          _id: Id<"conference_users">;
+          email: string;
+          isApproved: boolean;
+          isFullUser: boolean;
+          isPaid: boolean;
+          name: string;
+          password: string | null;
+          phone: string;
+          side: "jedi" | "sith" | "ai";
+        } | null
+      >;
+      registerConferenceUser: FunctionReference<
+        "mutation",
+        "public",
+        { email: string; name: string; phone: string; side: "jedi" | "sith" },
+        {
+          _creationTime: number;
+          _id: Id<"conference_users">;
+          email: string;
+          isApproved: boolean;
+          isFullUser: boolean;
+          isPaid: boolean;
+          name: string;
+          password: string | null;
+          phone: string;
+          side: "jedi" | "sith" | "ai";
+        }
+      >;
+    };
+    conference_ai_text: {
+      listConferenceAiTexts: FunctionReference<
+        "query",
+        "public",
+        Record<string, never>,
+        Array<{
+          _creationTime: number;
+          _id: Id<"conference_ai_text">;
+          createdAt: number;
+          key: string;
+          markdown: string;
+          updatedAt: number;
+        }>
+      >;
+      getConferenceAiText: FunctionReference<
+        "query",
+        "public",
+        { key?: string },
+        {
+          _creationTime: number;
+          _id: Id<"conference_ai_text">;
+          createdAt: number;
+          key: string;
+          markdown: string;
+          updatedAt: number;
+        } | null
+      >;
+      createConferenceAiText: FunctionReference<
+        "mutation",
+        "public",
+        { key: string; markdown: string },
+        {
+          _creationTime: number;
+          _id: Id<"conference_ai_text">;
+          createdAt: number;
+          key: string;
+          markdown: string;
+          updatedAt: number;
+        }
+      >;
+      updateConferenceAiText: FunctionReference<
+        "mutation",
+        "public",
+        {
+          id: Id<"conference_ai_text">;
+          patch: { key?: string; markdown?: string };
+        },
+        {
+          _creationTime: number;
+          _id: Id<"conference_ai_text">;
+          createdAt: number;
+          key: string;
+          markdown: string;
+          updatedAt: number;
+        } | null
+      >;
+      upsertConferenceAiText: FunctionReference<
+        "mutation",
+        "public",
+        { key?: string; markdown: string },
+        {
+          _creationTime: number;
+          _id: Id<"conference_ai_text">;
+          createdAt: number;
+          key: string;
+          markdown: string;
+          updatedAt: number;
+        }
+      >;
+      deleteConferenceAiText: FunctionReference<
+        "mutation",
+        "public",
+        { id: Id<"conference_ai_text"> },
+        boolean
+      >;
+    };
+    conference_clicker_battle: {
+      listConferenceClickerBattle: FunctionReference<
+        "query",
+        "public",
+        Record<string, never>,
+        Array<{
+          _creationTime: number;
+          _id: Id<"conference_clicker_battle">;
+          count: number;
+          createdAt: number;
+          side: "jedi" | "sith";
+          updatedAt: number;
+        }>
+      >;
+      getConferenceClickerBattleSide: FunctionReference<
+        "query",
+        "public",
+        { side: "jedi" | "sith" },
+        {
+          _creationTime: number;
+          _id: Id<"conference_clicker_battle">;
+          count: number;
+          createdAt: number;
+          side: "jedi" | "sith";
+          updatedAt: number;
+        } | null
+      >;
+      createConferenceClickerBattleSide: FunctionReference<
+        "mutation",
+        "public",
+        { count?: number; side: "jedi" | "sith" },
+        {
+          _creationTime: number;
+          _id: Id<"conference_clicker_battle">;
+          count: number;
+          createdAt: number;
+          side: "jedi" | "sith";
+          updatedAt: number;
+        }
+      >;
+      upsertConferenceClickerBattleSide: FunctionReference<
+        "mutation",
+        "public",
+        { count: number; side: "jedi" | "sith" },
+        {
+          _creationTime: number;
+          _id: Id<"conference_clicker_battle">;
+          count: number;
+          createdAt: number;
+          side: "jedi" | "sith";
+          updatedAt: number;
+        }
+      >;
+      incrementConferenceClickerBattleSide: FunctionReference<
+        "mutation",
+        "public",
+        { delta?: number; side: "jedi" | "sith" },
+        {
+          _creationTime: number;
+          _id: Id<"conference_clicker_battle">;
+          count: number;
+          createdAt: number;
+          side: "jedi" | "sith";
+          updatedAt: number;
+        }
+      >;
+      deleteConferenceClickerBattleSide: FunctionReference<
+        "mutation",
+        "public",
+        { side: "jedi" | "sith" },
+        boolean
+      >;
+    };
+    conference_promocodes: {
+      createConferencePromocode: FunctionReference<
+        "mutation",
+        "public",
+        {
+          amount: number;
+          code: string;
+          isActive?: boolean;
+          max_usage_count?: number | null;
+        },
+        {
+          _creationTime: number;
+          _id: Id<"conference_promocodes">;
+          amount?: number;
+          code: string;
+          createdAt: number;
+          isActive: boolean;
+          max_usage_count?: number | null;
+          payed_count: number;
+          updatedAt: number;
+          usage_count: number;
+        }
+      >;
+      deleteConferencePromocode: FunctionReference<
+        "mutation",
+        "public",
+        { id: Id<"conference_promocodes"> },
+        boolean
+      >;
+      getConferencePromocode: FunctionReference<
+        "query",
+        "public",
+        { code: string },
+        {
+          _creationTime: number;
+          _id: Id<"conference_promocodes">;
+          amount?: number;
+          code: string;
+          createdAt: number;
+          isActive: boolean;
+          max_usage_count?: number | null;
+          payed_count: number;
+          updatedAt: number;
+          usage_count: number;
+        } | null
+      >;
+      listConferencePromocodes: FunctionReference<
+        "query",
+        "public",
+        Record<string, never>,
+        Array<{
+          _creationTime: number;
+          _id: Id<"conference_promocodes">;
+          amount?: number;
+          code: string;
+          createdAt: number;
+          isActive: boolean;
+          max_usage_count?: number | null;
+          payed_count: number;
+          updatedAt: number;
+          usage_count: number;
+        }>
+      >;
+      markConferencePromocodePayed: FunctionReference<
+        "mutation",
+        "public",
+        { code: string },
+        boolean
+      >;
+      updateConferencePromocode: FunctionReference<
+        "mutation",
+        "public",
+        {
+          id: Id<"conference_promocodes">;
+          patch: {
+            amount?: number;
+            code?: string;
+            isActive?: boolean;
+            max_usage_count?: number | null;
+            payed_count?: number;
+            usage_count?: number;
+          };
+        },
+        {
+          _creationTime: number;
+          _id: Id<"conference_promocodes">;
+          amount?: number;
+          code: string;
+          createdAt: number;
+          isActive: boolean;
+          max_usage_count?: number | null;
+          payed_count: number;
+          updatedAt: number;
+          usage_count: number;
+        } | null
+      >;
+      validateConferencePromocode: FunctionReference<
+        "mutation",
+        "public",
+        { code: string },
+        { amount: number; is_valid: boolean }
       >;
     };
   };

@@ -7,14 +7,12 @@ import { useMutation, useQuery } from 'convex/react';
 import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
 
-
 export default function CategoriesPage() {
-
   const router = useRouter();
   const data = useQuery(api.functions.categories.list, {});
   const isLoading = data === undefined;
   const remove = useMutation(api.functions.categories.remove);
-  
+
   const handleEdit = async (id: Id<'categories'>) => {
     router.push(`/knowledge/categories/${id}/edit`);
   };
@@ -36,14 +34,15 @@ export default function CategoriesPage() {
 
   return (
     <>
-    {/* {JSON.stringify(data)} */}
-    <CategoryGrid
-      data={data}
-      isLoading={isLoading}
-      onSearch={handleSearch}
-      onEdit={handleEdit}
-      onDelete={handleDelete}
-      onCreate={handleCreate}
-    /></>
+      {/* {JSON.stringify(data)} */}
+      <CategoryGrid
+        data={data}
+        isLoading={isLoading}
+        onSearch={handleSearch}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        onCreate={handleCreate}
+      />
+    </>
   );
 }

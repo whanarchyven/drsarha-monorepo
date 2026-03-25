@@ -35,7 +35,10 @@ const formSchema = z.object({
   name: z.string().min(2, 'Минимум 2 символа'),
   description: z.string().min(2, 'Минимум 2 символа'),
   idx: z.preprocess(
-    (value) => (value === '' || value === null || value === undefined ? undefined : Number(value)),
+    (value) =>
+      value === '' || value === null || value === undefined
+        ? undefined
+        : Number(value),
     z.number().int().nonnegative().optional()
   ),
   cover_image: z.any(),
@@ -200,7 +203,9 @@ export function NozologyForm({ initialData }: NozologyFormProps) {
                   placeholder="Введите индекс..."
                   value={field.value ?? ''}
                   onChange={(e) =>
-                    field.onChange(e.target.value === '' ? undefined : Number(e.target.value))
+                    field.onChange(
+                      e.target.value === '' ? undefined : Number(e.target.value)
+                    )
                   }
                 />
               </FormControl>

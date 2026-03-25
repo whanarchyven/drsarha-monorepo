@@ -14,9 +14,12 @@ interface EditConferenceInteractivePageProps {
 export default function EditConferenceInteractivePage({
   params,
 }: EditConferenceInteractivePageProps) {
-  const interactive = useQuery(api.functions.conference_interactives.getInteractiveById, {
-    id: params.id as Id<'conference_interactives'>,
-  });
+  const interactive = useQuery(
+    api.functions.conference_interactives.getInteractiveById,
+    {
+      id: params.id as Id<'conference_interactives'>,
+    }
+  );
 
   if (interactive === undefined) {
     return <div>Загрузка...</div>;

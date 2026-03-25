@@ -133,7 +133,9 @@ export default function TaskGroupDetailPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-3xl">{taskGroupWithTasks.name}</CardTitle>
+            <CardTitle className="text-3xl">
+              {taskGroupWithTasks.name}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-muted-foreground">

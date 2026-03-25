@@ -2,7 +2,13 @@
 
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { BroadcastSettingsForm } from './_components/BroadcastSettingsForm';
 
 export default function BroadcastPage() {
@@ -24,6 +30,11 @@ export default function BroadcastPage() {
             onClick={() => router.push('/broadcast/interactives')}>
             Все интерактивы
           </Button>
+          <Button
+            variant="outline"
+            onClick={() => router.push('/broadcast/promocodes')}>
+            Промокоды
+          </Button>
           <Button onClick={() => router.push('/broadcast/interactives/create')}>
             Создать интерактив
           </Button>
@@ -36,7 +47,8 @@ export default function BroadcastPage() {
         <CardHeader>
           <CardTitle>Быстрые действия</CardTitle>
           <CardDescription>
-            Используйте отдельный раздел для создания, редактирования и публикации интерактивов.
+            Используйте отдельный раздел для создания, редактирования и
+            публикации интерактивов.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
@@ -44,6 +56,11 @@ export default function BroadcastPage() {
             variant="secondary"
             onClick={() => router.push('/broadcast/interactives')}>
             Перейти к интерактивам
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => router.push('/broadcast/promocodes')}>
+            Перейти к промокодам
           </Button>
           <Button
             variant="outline"

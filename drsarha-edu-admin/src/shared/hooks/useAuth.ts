@@ -2,13 +2,31 @@
 
 import { useState, useEffect } from 'react';
 import { decodeJwt } from 'jose';
-import { getAuthToken } from '@/shared/utils/auth';
 
 interface TokenPayload {
   userId: string;
   expires: number;
   role: string;
 }
+
+const getCookieValue = (name: string) => {
+  if (typeof document === 'undefined') {
+    return undefined;
+  }
+
+  const cookies = document.cookie.split('; ');
+  for (const cookie of cookies) {
+    const [key, ...rest] = cookie.split('=');
+    if (key === name) {
+      return decodeURIComponent(rest.join('='));
+    }
+  }
+
+  return undefined;
+};
+
+const getAuthToken = () =>
+  getCookieValue('authToken') || getCookieValue('token');
 
 export const useAuth = () => {
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -21,7 +39,7 @@ export const useAuth = () => {
       try {
         setIsLoading(true);
 
-        const token = await getAuthToken();
+        const token = getAuthToken();
 
         if (!token) {
           setIsAuthorized(false);
