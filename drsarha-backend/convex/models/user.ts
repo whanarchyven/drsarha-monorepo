@@ -104,6 +104,7 @@ export const userFields = {
 export const usersTable = defineTable(userFields)
   .index("by_mongo_id", ["mongoId"]) 
   .index("by_email", ["email"]) 
+  .index("by_phone_isApproved", ["phone", "isApproved"])
   .index("by_isApproved", ["isApproved"]) 
   .index("by_tariff", ["tariff"]);
 

@@ -148,19 +148,18 @@ export const registerConferenceUser = mutation({
       .withIndex("by_email", (q: any) => q.eq("email", normalizedEmail))
       .first();
 
-    const approvedUsersByPhone = approvedUserByEmail
-      ? []
-      : await (db as any)
-          .query("users")
-          .collect()
-          .then((users: any[]) =>
-            users.filter(
-              (user) => user.phone === normalizedPhone && user.isApproved === true
+    const approvedUserByPhone =
+      approvedUserByEmail?.isApproved === true
+        ? null
+        : await (db as any)
+            .query("users")
+            .withIndex("by_phone_isApproved", (q: any) =>
+              q.eq("phone", normalizedPhone).eq("isApproved", true)
             )
-          );
+            .first();
 
     const isFullUser =
-      approvedUserByEmail?.isApproved === true || approvedUsersByPhone.length > 0;
+      approvedUserByEmail?.isApproved === true || approvedUserByPhone !== null;
 
     const existingConferenceUser = await (db as any)
       .query("conference_users")
