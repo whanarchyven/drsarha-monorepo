@@ -243,6 +243,14 @@ export default function LiveAvatarPage() {
           </div>
         )}
       </section>
+
+      <div className="flex justify-center pt-32 pb-12">
+        <img
+          src="/images/sarah_temp.jpg"
+          alt="Sarah"
+          className="w-full max-w-md rounded-2xl border border-neutral-200 bg-white object-contain shadow-sm"
+        />
+      </div>
     </div>
   );
 }
