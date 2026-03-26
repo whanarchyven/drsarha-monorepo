@@ -22,6 +22,7 @@ import type * as functions_conference_ai_text from "../functions/conference_ai_t
 import type * as functions_conference_broadcast from "../functions/conference_broadcast.js";
 import type * as functions_conference_chat from "../functions/conference_chat.js";
 import type * as functions_conference_clicker_battle from "../functions/conference_clicker_battle.js";
+import type * as functions_conference_generated_audio from "../functions/conference_generated_audio.js";
 import type * as functions_conference_interactives from "../functions/conference_interactives.js";
 import type * as functions_conference_promocodes from "../functions/conference_promocodes.js";
 import type * as functions_conference_users from "../functions/conference_users.js";
@@ -77,6 +78,7 @@ import type * as models_conferenceAiText from "../models/conferenceAiText.js";
 import type * as models_conferenceBroadcast from "../models/conferenceBroadcast.js";
 import type * as models_conferenceChat from "../models/conferenceChat.js";
 import type * as models_conferenceClickerBattle from "../models/conferenceClickerBattle.js";
+import type * as models_conferenceGeneratedAudio from "../models/conferenceGeneratedAudio.js";
 import type * as models_conferenceInteractive from "../models/conferenceInteractive.js";
 import type * as models_conferencePromocode from "../models/conferencePromocode.js";
 import type * as models_conferenceUser from "../models/conferenceUser.js";
@@ -135,6 +137,7 @@ declare const fullApi: ApiFromModules<{
   "functions/conference_broadcast": typeof functions_conference_broadcast;
   "functions/conference_chat": typeof functions_conference_chat;
   "functions/conference_clicker_battle": typeof functions_conference_clicker_battle;
+  "functions/conference_generated_audio": typeof functions_conference_generated_audio;
   "functions/conference_interactives": typeof functions_conference_interactives;
   "functions/conference_promocodes": typeof functions_conference_promocodes;
   "functions/conference_users": typeof functions_conference_users;
@@ -190,6 +193,7 @@ declare const fullApi: ApiFromModules<{
   "models/conferenceBroadcast": typeof models_conferenceBroadcast;
   "models/conferenceChat": typeof models_conferenceChat;
   "models/conferenceClickerBattle": typeof models_conferenceClickerBattle;
+  "models/conferenceGeneratedAudio": typeof models_conferenceGeneratedAudio;
   "models/conferenceInteractive": typeof models_conferenceInteractive;
   "models/conferencePromocode": typeof models_conferencePromocode;
   "models/conferenceUser": typeof models_conferenceUser;

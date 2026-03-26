@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import React from 'react';
 import { Button } from '@/shared/ui/button';
 
@@ -140,8 +141,16 @@ export default function LiveAvatarPage() {
         <h1 className="text-2xl font-semibold">Live Avatar</h1>
         <p className="mt-2 text-sm text-neutral-500">
           Шаг 1: получить ответ от Sarah. Шаг 2: отредактировать текст и
-          озвучить его через ElevenLabs.
+          озвучить его через ElevenLabs. Последнее аудио автоматически
+          сохраняется в Convex.
         </p>
+        <div className="mt-3">
+          <Link href="/conference/live_avatar/player">
+            <Button variant="outline" size="sm">
+              Открыть страницу воспроизведения
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
@@ -234,11 +243,19 @@ export default function LiveAvatarPage() {
             </audio>
 
             <div className="mt-3">
-              <a href={audioUrl} download={audioFileName}>
-                <Button variant="outline" size="sm">
-                  Скачать аудио
-                </Button>
-              </a>
+              <div className="flex flex-wrap gap-3">
+                <a href={audioUrl} download={audioFileName}>
+                  <Button variant="outline" size="sm">
+                    Скачать аудио
+                  </Button>
+                </a>
+
+                <Link href="/conference/live_avatar/player">
+                  <Button variant="outline" size="sm">
+                    Открыть сохранённое аудио
+                  </Button>
+                </Link>
+              </div>
             </div>
           </div>
         )}

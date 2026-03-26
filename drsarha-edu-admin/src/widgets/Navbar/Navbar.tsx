@@ -75,6 +75,7 @@ const navItems = [
       { name: 'Интерактивы', path: '/broadcast/interactives' },
       { name: 'Промокоды', path: '/broadcast/promocodes' },
       { name: 'Live Avatar', path: '/conference/live_avatar' },
+      { name: 'Live Avatar Player', path: '/conference/live_avatar/player' },
     ],
     private: false,
   },
