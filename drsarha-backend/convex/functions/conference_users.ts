@@ -1,4 +1,4 @@
-import { httpAction, mutation, query } from "../_generated/server";
+import { action, httpAction, mutation, query } from "../_generated/server";
 import { v } from "convex/values";
 import { api } from "../_generated/api";
 import { conferenceUserDoc } from "../models/conferenceUser";
@@ -126,6 +126,143 @@ async function subscribeConferenceUserToUniSender(user: {
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`UniSender subscribe failed: ${errorText}`);
+  }
+
+  return { success: true, skipped: false };
+}
+
+async function sendConferenceAccessEmailToUser(user: {
+  email: string;
+  password: string | null;
+}) {
+  const uniSenderApiKey = process.env.UNISENDER_API_KEY;
+  const senderEmail = process.env.SENDER_EMAIL;
+  const listId = "70";
+
+  if (!uniSenderApiKey || !senderEmail) {
+    return {
+      success: false,
+      skipped: true,
+      reason: "UNISENDER_API_KEY or SENDER_EMAIL is not configured",
+    };
+  }
+
+  if (!user.password) {
+    return {
+      success: false,
+      skipped: true,
+      reason: "Conference user password is empty",
+    };
+  }
+
+  const body = `
+<div style="font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.6; color: #1f2937;">
+  <div style="margin-bottom: 24px; text-align: center;">
+    <img
+      src="https://resize.yandex.net/mailservice?url=https%3A%2F%2Fimg.hiteml.com%2Fen%2Fv5%2Fuser-files%3FuserId%3D7429954%26resource%3Dhimg%26disposition%3Dinline%26name%3D6opqn9tojn3ryu4edont8wqw9sjwpg7no4fr64aymu1ado91cjxhsz8sre6ttfbgip4ckuephpsnzr&proxy=yes&key=5db28771fe76f5ed167e3d4df5704bd8"
+      alt="Dr. Sarha conference"
+      style="max-width: 100%; height: auto; border: 0; display: inline-block;"
+    />
+  </div>
+
+  <p>Всё готово — завтра, 4 апреля, мы встречаемся на онлайн-конференции «Равновесие силы: взгляд с двух сторон на терапию кожных заболеваний».</p>
+
+  <p><strong>Ваша ссылка на трансляцию:</strong><br />
+  👉 <a href="https://drsarha.ru/conference/live">https://drsarha.ru/conference/live</a></p>
+
+  <p><strong>Ваш логин:</strong><br />
+  👉 ${user.email}</p>
+
+  <p><strong>Ваш пароль:</strong><br />
+  👉 ${user.password}</p>
+
+  <p><strong>⏰ Начало в 10:00 (МСК)</strong></p>
+
+  <p><strong>📋 Инструкция для подключения</strong></p>
+
+  <ol>
+    <li>Сохраните это письмо, чтобы не искать ссылку в последний момент.</li>
+    <li>Рекомендуем подключиться за 5–10 минут до начала — в 9:50 по МСК, чтобы проверить звук и соединение.</li>
+    <li>Перейдите по ссылке выше — трансляция откроется в браузере. Лучше всего работает Google Chrome, но подойдёт и любой другой современный браузер.</li>
+    <li>Если смотрите с телефона — убедитесь, что вы подключены к стабильному Wi-Fi или мобильному интернету.</li>
+    <li>Включите звук на устройстве и проверьте громкость — трансляция идёт со звуком.</li>
+    <li>Задавайте вопросы спикерам в чате трансляции, чтобы забрать и выиграть призы.</li>
+  </ol>
+
+  <p><strong>⚠️ Если что-то пошло не так</strong></p>
+
+  <p>
+    — Ссылка не открывается? Попробуйте другой браузер или перезагрузите страницу.<br />
+    — Нет звука? Проверьте, не отключён ли звук в браузере (значок динамика на вкладке).<br />
+    — Остались вопросы? Напишите нам: @Alena_Savelova
+  </p>
+
+  <p>Ждём вас завтра в 10:00!</p>
+
+  <p>С теплом,<br />Команда Dr. Sarha</p>
+</div>`;
+
+  const urlParams = new URLSearchParams({
+    format: "json",
+    api_key: uniSenderApiKey,
+    email: user.email,
+    sender_name: "Dr. Sarha",
+    sender_email: senderEmail,
+    subject: "Ваши доступы на конференцию Равновесие силы 4 апреля.",
+    body,
+    list_id: listId,
+  });
+
+  console.log("[conference_users.sendConferenceAccessEmailToUser] request", {
+    email: user.email,
+    senderEmail,
+    listId,
+    subject: "Ваши доступы на конференцию Равновесие силы 4 апреля.",
+    hasPassword: Boolean(user.password),
+    bodyLength: body.length,
+  });
+
+  const response = await fetch(
+    `https://api.unisender.com/ru/api/sendEmail?${urlParams.toString()}`
+  );
+
+  const responseText = await response.text();
+
+  console.log("[conference_users.sendConferenceAccessEmailToUser] response", {
+    email: user.email,
+    status: response.status,
+    ok: response.ok,
+    body: responseText,
+  });
+
+  if (!response.ok) {
+    throw new Error(`UniSender sendEmail failed: ${responseText}`);
+  }
+
+  try {
+    const parsed = JSON.parse(responseText);
+
+    console.log("[conference_users.sendConferenceAccessEmailToUser] parsed", {
+      email: user.email,
+      parsed,
+    });
+
+    if (parsed?.error) {
+      throw new Error(
+        `UniSender sendEmail returned error: ${JSON.stringify(parsed)}`
+      );
+    }
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      console.log(
+        "[conference_users.sendConferenceAccessEmailToUser] response is not JSON",
+        {
+          email: user.email,
+        }
+      );
+    } else {
+      throw error;
+    }
   }
 
   return { success: true, skipped: false };
@@ -281,6 +418,28 @@ export const getConferenceUsers = query({
   },
 });
 
+export const getPaidConferenceUsers = query({
+  args: {
+    registerAfter: v.optional(v.number()),
+  },
+  returns: v.array(v.string()),
+  handler: async ({ db }, { registerAfter }) => {
+    const paidUsers = await (db as any)
+      .query("conference_users")
+      .withIndex("by_isPaid", (q: any) => q.eq("isPaid", true))
+      .collect();
+
+    return paidUsers
+      .filter((user: any) =>
+        typeof registerAfter === "number"
+          ? user._creationTime > registerAfter
+          : true
+      )
+      .map((user: any) => normalizeString(user.email).toLowerCase())
+      .filter((email: string) => email.length > 0);
+  },
+});
+
 export const patchConferenceUserByEmail = mutation({
   args: {
     email: v.string(),
@@ -301,6 +460,162 @@ export const patchConferenceUserByEmail = mutation({
 
     await db.patch(conferenceUser._id, patch as any);
     return (await db.get(conferenceUser._id))! as any;
+  },
+});
+
+export const getConferenceUserByEmail = query({
+  args: {
+    email: v.string(),
+  },
+  returns: v.union(conferenceUserDoc, v.null()),
+  handler: async ({ db }, { email }) => {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    return ((await (db as any)
+      .query("conference_users")
+      .withIndex("by_email", (q: any) => q.eq("email", normalizedEmail))
+      .first()) ?? null) as any;
+  },
+});
+
+export const sendConferenceAccessEmails = action({
+  args: {
+    emails: v.array(v.string()),
+  },
+  returns: v.object({
+    total: v.number(),
+    sent: v.number(),
+    skipped: v.number(),
+    failed: v.number(),
+    results: v.array(
+      v.object({
+        email: v.string(),
+        status: v.union(
+          v.literal("sent"),
+          v.literal("skipped"),
+          v.literal("failed")
+        ),
+        reason: v.optional(v.string()),
+      })
+    ),
+  }),
+  handler: async (ctx, { emails }) => {
+    const normalizedEmails = Array.from(
+      new Set(
+        emails
+          .map((email) => normalizeString(email).toLowerCase())
+          .filter((email) => email.includes("@"))
+      )
+    );
+
+    console.log("[conference_users.sendConferenceAccessEmails] start", {
+      requestedCount: emails.length,
+      normalizedCount: normalizedEmails.length,
+      normalizedEmails,
+    });
+
+    const results: {
+      email: string;
+      status: "sent" | "skipped" | "failed";
+      reason?: string;
+    }[] = [];
+
+    for (const email of normalizedEmails) {
+      console.log("[conference_users.sendConferenceAccessEmails] processing", {
+        email,
+      });
+
+      const conferenceUser = await ctx.runQuery(
+        (api as any).functions.conference_users.getConferenceUserByEmail,
+        { email }
+      );
+
+      if (!conferenceUser) {
+        console.log("[conference_users.sendConferenceAccessEmails] skipped", {
+          email,
+          reason: "Conference user not found",
+        });
+        results.push({
+          email,
+          status: "skipped",
+          reason: "Conference user not found",
+        });
+        continue;
+      }
+
+      console.log("[conference_users.sendConferenceAccessEmails] user found", {
+        email,
+        isPaid: conferenceUser.isPaid,
+        isApproved: conferenceUser.isApproved,
+        hasPassword: Boolean(conferenceUser.password),
+      });
+
+      if (conferenceUser.isPaid !== true) {
+        console.log("[conference_users.sendConferenceAccessEmails] skipped", {
+          email,
+          reason: "Conference user is not paid",
+        });
+        results.push({
+          email,
+          status: "skipped",
+          reason: "Conference user is not paid",
+        });
+        continue;
+      }
+
+      try {
+        console.log("[conference_users.sendConferenceAccessEmails] sending", {
+          email,
+        });
+        const sendResult = await sendConferenceAccessEmailToUser({
+          email: conferenceUser.email,
+          password: conferenceUser.password,
+        });
+
+        if (sendResult.success) {
+          console.log("[conference_users.sendConferenceAccessEmails] sent", {
+            email,
+          });
+          results.push({ email, status: "sent" });
+        } else {
+          console.log("[conference_users.sendConferenceAccessEmails] skipped", {
+            email,
+            reason: sendResult.reason,
+          });
+          results.push({
+            email,
+            status: "skipped",
+            reason: sendResult.reason,
+          });
+        }
+      } catch (error) {
+        console.error("[conference_users.sendConferenceAccessEmails] failed", {
+          email,
+          reason:
+            error instanceof Error ? error.message : "Unknown send email error",
+        });
+        results.push({
+          email,
+          status: "failed",
+          reason:
+            error instanceof Error ? error.message : "Unknown send email error",
+        });
+      }
+    }
+
+    const summary = {
+      total: normalizedEmails.length,
+      sent: results.filter((item) => item.status === "sent").length,
+      skipped: results.filter((item) => item.status === "skipped").length,
+      failed: results.filter((item) => item.status === "failed").length,
+    };
+
+    console.log("[conference_users.sendConferenceAccessEmails] done", summary);
+
+    return {
+      ...summary,
+      results,
+    };
   },
 });
 
@@ -456,4 +771,20 @@ export const countConferenceUsersHttpAction = httpAction(async (ctx, req) => {
     const message = error instanceof Error ? error.message : "Failed to count conference users";
     return json({ message: `Ошибка: ${message}` }, 400);
   }
+});
+
+export const getUnpaidConferenceUserEmails = query({
+  args: {},
+  returns: v.string(),
+  handler: async ({ db }) => {
+    const unpaidUsers = await (db as any)
+      .query("conference_users")
+      .withIndex("by_isPaid", (q: any) => q.eq("isPaid", false))
+      .collect();
+
+    return unpaidUsers
+      .map((user: any) => normalizeString(user.email).toLowerCase())
+      .filter((email: string) => email.length > 0)
+      .join("\n");
+  },
 });
