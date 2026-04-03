@@ -41,6 +41,14 @@ function normalizeOptionalString(value: unknown) {
   return normalized || undefined;
 }
 
+const conferenceUsersListResponse = v.object({
+  items: v.array(conferenceUserDoc),
+  total: v.number(),
+  page: v.number(),
+  totalPages: v.number(),
+  hasMore: v.boolean(),
+});
+
 function extractConferenceUserEmail(payment: any, webhookData: any) {
   const candidates = [
     payment?.user?.email,
@@ -415,6 +423,67 @@ export const getConferenceUsers = query({
     }
 
     return (await (db as any).query("conference_users").collect()) as any;
+  },
+});
+
+export const listConferenceUsers = query({
+  args: {
+    search: v.optional(v.string()),
+    page: v.optional(v.number()),
+    limit: v.optional(v.number()),
+  },
+  returns: conferenceUsersListResponse,
+  handler: async ({ db }, { search, page = 1, limit = 20 }) => {
+    const normalizedSearch = normalizeString(search).toLowerCase();
+    const safePage = Math.max(1, Math.floor(page));
+    const safeLimit = Math.max(1, Math.floor(limit));
+    const from = (safePage - 1) * safeLimit;
+
+    let items = await (db as any).query("conference_users").collect();
+
+    if (normalizedSearch) {
+      items = items.filter((user: any) =>
+        normalizeString(user.email).toLowerCase().includes(normalizedSearch)
+      );
+    }
+
+    items = items.sort(
+      (left: any, right: any) => right._creationTime - left._creationTime
+    );
+
+    const total = items.length;
+
+    return {
+      items: items.slice(from, from + safeLimit),
+      total,
+      page: safePage,
+      totalPages: Math.ceil(total / safeLimit) || 1,
+      hasMore: safePage * safeLimit < total,
+    };
+  },
+});
+
+export const approveConferenceUserAdmin = mutation({
+  args: {
+    id: v.id("conference_users"),
+  },
+  returns: conferenceUserDoc,
+  handler: async ({ db }, { id }) => {
+    const conferenceUser = await db.get(id);
+
+    if (!conferenceUser) {
+      throw new Error("Conference user not found");
+    }
+
+    const password = generatePassword();
+
+    await db.patch(id, {
+      isApproved: true,
+      isPaid: true,
+      password,
+    } as any);
+
+    return (await db.get(id))! as any;
   },
 });
 

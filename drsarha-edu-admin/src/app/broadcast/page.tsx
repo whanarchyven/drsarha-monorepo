@@ -32,6 +32,11 @@ export default function BroadcastPage() {
           </Button>
           <Button
             variant="outline"
+            onClick={() => router.push('/broadcast/conference-users')}>
+            Пользователи конференции
+          </Button>
+          <Button
+            variant="outline"
             onClick={() => router.push('/broadcast/promocodes')}>
             Промокоды
           </Button>
@@ -61,6 +66,11 @@ export default function BroadcastPage() {
             variant="outline"
             onClick={() => router.push('/broadcast/promocodes')}>
             Перейти к промокодам
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => router.push('/broadcast/conference-users')}>
+            Перейти к пользователям конференции
           </Button>
           <Button
             variant="outline"

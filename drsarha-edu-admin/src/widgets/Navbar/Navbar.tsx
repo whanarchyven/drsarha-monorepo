@@ -73,6 +73,7 @@ const navItems = [
     children: [
       { name: 'Настройки трансляции', path: '/broadcast' },
       { name: 'Интерактивы', path: '/broadcast/interactives' },
+      { name: 'Пользователи конференции', path: '/broadcast/conference-users' },
       { name: 'Промокоды', path: '/broadcast/promocodes' },
       { name: 'Live Avatar', path: '/conference/live_avatar' },
       { name: 'Live Avatar Player', path: '/conference/live_avatar/player' },
