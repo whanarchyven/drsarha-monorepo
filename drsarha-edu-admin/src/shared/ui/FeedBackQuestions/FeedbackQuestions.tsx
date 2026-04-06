@@ -24,9 +24,11 @@ import {
 import { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import type { BaseInsightQuestionDto } from '@/app/api/client/schemas';
+import {
+  analyticQuestionForUi,
+  truncateAnalyticLabel,
+} from '@/shared/utils/analytic-question-display';
 
-// Тип для более безопасного обращения к полям вопроса
 type AnalyticQuestion = {
   id: string;
   title: string;
@@ -59,13 +61,8 @@ export function FeedbackQuestions() {
   }, [searchQuery]);
 
   // Создаем безопасную версию вопросов с гарантированными полями
-  const analyticQuestions: AnalyticQuestion[] = analyticQuestionsRaw.map(
-    (q) => ({
-      id: q.id || '',
-      title: q.title || '',
-      prompt: q.prompt || '',
-    })
-  );
+  const analyticQuestions: AnalyticQuestion[] =
+    analyticQuestionsRaw.map(analyticQuestionForUi);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedQuestionIndex, setSelectedQuestionIndex] = useState<
@@ -188,7 +185,7 @@ export function FeedbackQuestions() {
                         return (
                           <Badge key={id} variant="secondary">
                             {question
-                              ? `${question.title.substring(0, 30)}...`
+                              ? truncateAnalyticLabel(question.title)
                               : id}
                           </Badge>
                         );

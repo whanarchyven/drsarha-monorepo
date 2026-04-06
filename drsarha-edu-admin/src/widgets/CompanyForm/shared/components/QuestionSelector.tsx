@@ -11,8 +11,8 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { BaseInsightQuestionDto } from '@/app/api/client/schemas/baseInsightQuestionDto';
 import { useInsightQuestions } from '@/shared/hooks/use-insight-questions';
+import { AnalyticsQuestion } from '@/shared/types/analytics';
 
 interface QuestionSelectorProps {
   questionId: string;
@@ -41,9 +41,9 @@ export function QuestionSelector({
 
     // Ищем вопрос в текущем списке вопросов
     const questionInList = questions.find((q) => q.id === questionId);
-    if (questionInList?.title && onQuestionTitleUpdate) {
+    if (questionInList?.text && onQuestionTitleUpdate) {
       // Обновляем кэш из списка вопросов
-      onQuestionTitleUpdate(questionId, questionInList.title);
+      onQuestionTitleUpdate(questionId, questionInList.text);
     }
   }, [questionId, questions, questionTitleCache, onQuestionTitleUpdate]);
 
@@ -58,8 +58,8 @@ export function QuestionSelector({
 
     // Если нет в кэше, ищем в текущем списке вопросов
     const questionInList = questions.find((q) => q.id === questionId);
-    if (questionInList?.title) {
-      return questionInList.title;
+    if (questionInList?.text) {
+      return questionInList.text;
     }
 
     // Если ничего не найдено, используем getQuestionText (который вернет ID)
@@ -69,12 +69,8 @@ export function QuestionSelector({
   const handleQuestionSelect = (selectedQuestionId: string) => {
     // Находим вопрос в списке и сразу обновляем кэш, если есть колбэк
     const selectedQuestion = questions.find((q) => q.id === selectedQuestionId);
-    if (
-      selectedQuestion?.title &&
-      selectedQuestionId &&
-      onQuestionTitleUpdate
-    ) {
-      onQuestionTitleUpdate(selectedQuestionId, selectedQuestion.title);
+    if (selectedQuestion?.text && selectedQuestionId && onQuestionTitleUpdate) {
+      onQuestionTitleUpdate(selectedQuestionId, selectedQuestion.text);
     }
     onSelect(selectedQuestionId);
   };
@@ -99,7 +95,7 @@ export function QuestionSelector({
         </div>
         <ScrollArea className="h-[300px] mt-4">
           <div className="space-y-2">
-            {questions.map((question: BaseInsightQuestionDto) => (
+            {questions.map((question: AnalyticsQuestion) => (
               <Button
                 key={question.id}
                 variant={questionId === question.id ? 'default' : 'outline'}
@@ -107,7 +103,7 @@ export function QuestionSelector({
                 onClick={() => {
                   handleQuestionSelect(question.id ?? '');
                 }}>
-                {question.title}
+                {question.text}
               </Button>
             ))}
           </div>

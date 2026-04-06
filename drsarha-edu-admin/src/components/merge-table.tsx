@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Table,
   TableBody,
@@ -10,12 +10,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Combine, X, Loader2 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import {
-  getConfigNamesMapGetConfigGet,
-  pushConfigNamesMapPushConfigPost,
-} from '@/app/api/sdk/insightQuestionsAPI';
+import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -25,104 +20,170 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { getConvexHttpClient } from '@/shared/lib/convex';
+import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
 
 export interface Stat {
   value: string;
   count: number;
 }
 
+function normKey(s: string) {
+  return s.trim().toLowerCase();
+}
+
 export default function MergeTable({
   initialStats,
   questionId,
+  predefinedVariants,
+  onRewritesSaved,
 }: {
   initialStats: Stat[];
   questionId: string;
+  predefinedVariants: string[];
+  onRewritesSaved?: () => void | Promise<void>;
 }) {
-  // Состояние для хранения списка статистики
+  const convexClient = getConvexHttpClient();
   const [stats, setStats] = useState<Stat[]>(initialStats);
 
-  // Выбранные варианты для объединения
-  const [selectedVariants, setSelectedVariants] = useState<string[]>([]);
+  useEffect(() => {
+    setStats(initialStats);
+  }, [initialStats]);
 
-  // Состояние диалога
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const predefinedNormSet = new Set(
+    predefinedVariants.map((v) => normKey(v)).filter(Boolean)
+  );
 
-  // Каноническое значение
-  const [canonicalValue, setCanonicalValue] = useState('');
+  const isPredefinedValue = (value: string) =>
+    predefinedNormSet.has(normKey(value));
 
+  const [rewriteForValue, setRewriteForValue] = useState<string | null>(null);
+  const [selectedTargetVariant, setSelectedTargetVariant] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [rewritesList, setRewritesList] = useState<
+    Array<{
+      _id: Id<'analytic_rewrites'>;
+      rewrite_value: string;
+      rewrite_target: string;
+    }>
+  >([]);
+  const [rewritesLoading, setRewritesLoading] = useState(false);
+  const [deletingRewriteId, setDeletingRewriteId] =
+    useState<Id<'analytic_rewrites'> | null>(null);
 
-  // Функция для переключения выбора варианта
-  const toggleVariant = (value: string) => {
-    if (selectedVariants.includes(value)) {
-      setSelectedVariants(selectedVariants.filter((v) => v !== value));
-    } else {
-      setSelectedVariants([...selectedVariants, value]);
+  const fetchRewrites = useCallback(async () => {
+    const list = await convexClient.query(
+      api.functions.analytic_rewrites.listByQuestion,
+      { question_id: questionId as Id<'analytic_questions'> }
+    );
+    setRewritesList(list);
+  }, [convexClient, questionId]);
+
+  useEffect(() => {
+    if (!questionId) return;
+    setRewritesLoading(true);
+    void fetchRewrites()
+      .catch((err) => {
+        console.error(err);
+        toast.error('Не удалось загрузить реврайты');
+      })
+      .finally(() => setRewritesLoading(false));
+  }, [questionId, fetchRewrites]);
+
+  const openRewriteDialog = (value: string) => {
+    setRewriteForValue(value);
+    const firstTarget =
+      predefinedVariants.find((v) => normKey(v) !== normKey(value)) ??
+      predefinedVariants[0] ??
+      '';
+    setSelectedTargetVariant(firstTarget);
+  };
+
+  const closeDialog = () => {
+    setRewriteForValue(null);
+    setSelectedTargetVariant('');
+  };
+
+  const saveRewrite = async () => {
+    if (!rewriteForValue || !selectedTargetVariant.trim()) {
+      toast.error('Выберите предустановленный вариант');
+      return;
     }
-  };
 
-  // Функция для очистки выбранных вариантов
-  const clearSelection = () => {
-    setSelectedVariants([]);
-  };
-
-  // Функция для открытия диалога ввода канонического имени
-  const openMergeDialog = () => {
-    setDialogOpen(true);
-    setCanonicalValue('');
-  };
-
-  // Функция для завершения объединения
-  const completeMerge = async () => {
-    if (!canonicalValue.trim()) {
-      toast.error('Введите каноническое имя');
+    if (normKey(rewriteForValue) === normKey(selectedTargetVariant)) {
+      toast.error('Нельзя реврайтить в тот же вариант');
       return;
     }
 
     setIsLoading(true);
 
     try {
-      // Создаем объект маппингов для API
-      const mappingsObject: Record<string, string> = {};
+      const existingRewrites = await convexClient.query(
+        api.functions.analytic_rewrites.listByQuestion,
+        {
+          question_id: questionId as any,
+        }
+      );
 
-      // Каждый выбранный вариант как ключ, каноническое значение как значение
-      selectedVariants.forEach((variant) => {
-        const key = variant.toString().toLowerCase().split('(*)')[0].trim();
-        mappingsObject[key] = canonicalValue.trim();
-      });
+      const existingRewrite = existingRewrites.find(
+        (r) => normKey(r.rewrite_value) === normKey(rewriteForValue)
+      );
 
-      console.log('Объект маппингов для API:', mappingsObject);
+      if (existingRewrite) {
+        await convexClient.mutation(api.functions.analytic_rewrites.update, {
+          id: existingRewrite._id,
+          data: {
+            rewrite_value: rewriteForValue,
+            rewrite_target: selectedTargetVariant.trim(),
+          },
+        });
+      } else {
+        await convexClient.mutation(api.functions.analytic_rewrites.insert, {
+          question_id: questionId as any,
+          rewrite_value: rewriteForValue,
+          rewrite_target: selectedTargetVariant.trim(),
+        });
+      }
 
-      const alreadyExistsConfig = await getConfigNamesMapGetConfigGet();
-      console.log('Уже существующие конфигурации:', alreadyExistsConfig.data);
-      console.log({ [`${questionId}`]: { ...mappingsObject } });
-      console.log({
-        [`${questionId}`]: { ...mappingsObject, ...alreadyExistsConfig.data },
-      });
-
-      let newData = { ...alreadyExistsConfig.data };
-      newData[`${questionId}`] = {
-        ...mappingsObject,
-        ...alreadyExistsConfig.data[`${questionId}`],
-      };
-      console.log('newData', newData);
-      const res = await pushConfigNamesMapPushConfigPost({
-        ...newData,
-      });
-
-      console.log('Ответ от сервера:', res);
-      setIsLoading(false);
-      setSelectedVariants([]);
-      setDialogOpen(false);
-      toast.success('Варианты ответов объединены');
+      await fetchRewrites();
+      await onRewritesSaved?.();
+      toast.success('Реврайт сохранён');
+      closeDialog();
     } catch (error) {
       console.error(error);
+      toast.error('Не удалось сохранить реврайт');
+    } finally {
       setIsLoading(false);
-      toast.error('Ошибка при объединении вариантов ответов');
     }
   };
+
+  const handleDeleteRewrite = async (rewriteId: Id<'analytic_rewrites'>) => {
+    setDeletingRewriteId(rewriteId);
+    try {
+      await convexClient.mutation(api.functions.analytic_rewrites.remove, {
+        id: rewriteId,
+      });
+      await fetchRewrites();
+      await onRewritesSaved?.();
+      toast.success('Реврайт удалён');
+    } catch (error) {
+      console.error(error);
+      toast.error('Не удалось удалить реврайт');
+    } finally {
+      setDeletingRewriteId(null);
+    }
+  };
+
+  const canRewrite = predefinedVariants.length > 0;
 
   return (
     <div className="space-y-6">
@@ -132,32 +193,25 @@ export default function MergeTable({
             <TableRow>
               <TableHead>Вариант ответа</TableHead>
               <TableHead>Количество ответов</TableHead>
-              <TableHead className="w-[100px]">Действия</TableHead>
+              <TableHead className="w-[120px]">Действия</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {stats.map((stat) => (
-              <TableRow
-                key={stat.value}
-                className={
-                  selectedVariants.includes(stat.value) ? 'bg-muted/50' : ''
-                }>
+              <TableRow key={`${normKey(stat.value)}-${stat.value}`}>
                 <TableCell>{stat.value}</TableCell>
                 <TableCell>{stat.count}</TableCell>
                 <TableCell>
-                  <Button
-                    variant={
-                      selectedVariants.includes(stat.value)
-                        ? 'destructive'
-                        : 'outline'
-                    }
-                    size="sm"
-                    onClick={() => toggleVariant(stat.value)}>
-                    <Combine className="h-4 w-4 mr-1" />
-                    {selectedVariants.includes(stat.value)
-                      ? 'Отменить'
-                      : 'Выбрать'}
-                  </Button>
+                  {canRewrite && !isPredefinedValue(stat.value) ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openRewriteDialog(stat.value)}>
+                      Реврайт
+                    </Button>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">—</span>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
@@ -165,90 +219,128 @@ export default function MergeTable({
         </Table>
       </div>
 
-      {selectedVariants.length > 0 && (
-        <div className="border rounded-md p-4">
-          <h3 className="font-medium mb-2">
-            Выбранные варианты для объединения:
-          </h3>
-          <div className="space-y-2 mb-4">
-            <div className="flex flex-wrap gap-2">
-              {selectedVariants.map((variant, index) => (
-                <Badge
-                  key={index}
-                  variant="outline"
-                  className="text-sm flex items-center gap-1">
-                  {variant}
-                  <button
-                    className="ml-1 rounded-full hover:bg-muted p-0.5"
-                    onClick={() => toggleVariant(variant)}>
-                    <X className="h-3 w-3" />
-                    <span className="sr-only">Удалить</span>
-                  </button>
-                </Badge>
-              ))}
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={openMergeDialog} variant="default">
-              Объединить
-            </Button>
-            <Button onClick={clearSelection} variant="outline">
-              Очистить
-            </Button>
-          </div>
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold">Реврайты</h3>
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Исходное значение</TableHead>
+                <TableHead>Реврайт в</TableHead>
+                <TableHead className="w-[140px] text-right">Действия</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rewritesLoading ? (
+                <TableRow>
+                  <TableCell colSpan={3}>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Загрузка реврайтов…
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : rewritesList.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={3}
+                    className="text-sm text-muted-foreground">
+                    Нет реврайтов для этого вопроса.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                rewritesList.map((r) => (
+                  <TableRow key={r._id}>
+                    <TableCell className="font-medium">{r.rewrite_value}</TableCell>
+                    <TableCell>{r.rewrite_target}</TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        disabled={deletingRewriteId === r._id}
+                        onClick={() => void handleDeleteRewrite(r._id)}>
+                        {deletingRewriteId === r._id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          'Удалить'
+                        )}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
         </div>
-      )}
+      </div>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog
+        open={rewriteForValue !== null}
+        onOpenChange={(open) => {
+          if (!open) closeDialog();
+        }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Введите каноническое имя</DialogTitle>
+            <DialogTitle>Реврайт ответа</DialogTitle>
             <DialogDescription>
-              Это имя будет использоваться как стандартное значение для всех
-              выбранных вариантов.
+              Выберите предустановленный вариант, в который будут сопоставляться
+              ответы со значением ниже.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-4 py-2">
             <div className="grid gap-2">
-              <Label htmlFor="canonical-name">Каноническое имя</Label>
-              <Input
-                id="canonical-name"
-                value={canonicalValue}
-                onChange={(e) => setCanonicalValue(e.target.value)}
-                placeholder="Введите стандартное имя"
-                autoFocus
-              />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground mb-2">
-                Выбранные варианты:
+              <Label>Исходное значение в статистике</Label>
+              <p className="text-sm rounded-md border bg-muted/40 px-3 py-2">
+                {rewriteForValue ?? ''}
               </p>
-              <div className="flex flex-wrap gap-2">
-                {selectedVariants.map((variant, index) => (
-                  <Badge key={index} variant="secondary" className="text-sm">
-                    {variant}
-                  </Badge>
-                ))}
-              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="rewrite-target">Предустановленный вариант</Label>
+              <Select
+                value={selectedTargetVariant}
+                onValueChange={setSelectedTargetVariant}>
+                <SelectTrigger id="rewrite-target">
+                  <SelectValue placeholder="Выберите вариант" />
+                </SelectTrigger>
+                <SelectContent>
+                  {predefinedVariants.map((v) => (
+                    <SelectItem
+                      key={v}
+                      value={v}
+                      disabled={
+                        rewriteForValue !== null &&
+                        normKey(v) === normKey(rewriteForValue)
+                      }>
+                      {v}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>
             <Button
-              onClick={() => setDialogOpen(false)}
+              onClick={closeDialog}
               variant="outline"
               disabled={isLoading}>
               Отмена
             </Button>
             <Button
-              onClick={completeMerge}
-              disabled={isLoading || !canonicalValue.trim()}>
+              onClick={() => void saveRewrite()}
+              disabled={
+                isLoading ||
+                !selectedTargetVariant.trim() ||
+                (rewriteForValue !== null &&
+                  normKey(selectedTargetVariant) === normKey(rewriteForValue))
+              }>
               {isLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Обработка...
+                  Сохранение…
                 </>
               ) : (
-                'Объединить'
+                'Сохранить'
               )}
             </Button>
           </DialogFooter>

@@ -41,12 +41,12 @@ import {
   LoadingStats,
   ExpandedRealResults,
 } from '../types';
-import { summaryByInsightQuestionIdInsightResultsSummaryByInsightQuestionIdInsightQuestionIdGet } from '@/app/api/sdk/insightQuestionsAPI';
 import { toast } from 'sonner';
-import { getInsightQuestionInsightQuestionsGetQuestionIdGet } from '@/app/api/sdk/insightQuestionsAPI';
-import { BaseInsightQuestionDto } from '@/app/api/client/schemas/baseInsightQuestionDto';
+import { getConvexHttpClient } from '@/shared/lib/convex';
+import { api } from '@convex/_generated/api';
 
 export function useCompanyForm(initialCompany: Company | null) {
+  const convexClient = getConvexHttpClient();
   const [company, setCompany] = useState<Company | null>(initialCompany);
   const [expandedDashboards, setExpandedDashboards] = useState<string[]>([]);
   const [expandedRealResults, setExpandedRealResults] =
@@ -114,11 +114,13 @@ export function useCompanyForm(initialCompany: Company | null) {
 
     setLoadingStats((prev) => ({ ...prev, [questionId]: true }));
     try {
-      const response =
-        await summaryByInsightQuestionIdInsightResultsSummaryByInsightQuestionIdInsightQuestionIdGet(
-          questionId
-        );
-      const results = response.data?.results;
+      const response = await convexClient.query(
+        api.functions.analytic_insights.summaryByQuestion,
+        {
+          question_id: questionId as any,
+        }
+      );
+      const results = response?.results;
       const stats: { value: string; count: number }[] = Array.isArray(results)
         ? results
         : [];
@@ -172,11 +174,15 @@ export function useCompanyForm(initialCompany: Company | null) {
     loadingTitlesRef.current.add(questionId);
 
     try {
-      const resp: any =
-        await getInsightQuestionInsightQuestionsGetQuestionIdGet(questionId);
-      const title = resp?.data?.data?.title;
+      const question = await convexClient.query(
+        api.functions.analytic_questions.getById,
+        {
+          id: questionId,
+        }
+      );
+      const title = question?.text;
       if (title) {
-        updateQuestionTitleCache(questionId, title);
+        updateQuestionTitleCache(questionId, String(title));
       }
     } catch (error) {
       console.error('Error fetching question title:', error);

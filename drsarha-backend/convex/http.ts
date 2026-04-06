@@ -1,6 +1,13 @@
 import { httpRouter } from "convex/server";
 import { getTaskConditionHttp, getClinicTaskQuestionConditionHttp } from "./functions/clinic_tasks";
 import {
+  extractUserInsightsHttp,
+  getQuestionInfoHttp,
+  getQuestionInsightsHttp,
+  getQuestionSummaryHttp,
+} from "./functions/analytic_pipeline";
+import { fillCompaniesHttp, getBySlugInfoHttp } from "./functions/companies";
+import {
   approveConferenceUserHttp,
   countConferenceUsersHttpAction,
   registerConferenceUserHttp,
@@ -79,6 +86,54 @@ http.route({
   path: "/conference-promocodes/mark-payed",
   method: "POST",
   handler: markConferencePromocodePayedHttp,
+});
+
+http.route({
+  path: "/analytics/insights/extract",
+  method: "POST",
+  handler: extractUserInsightsHttp,
+});
+
+http.route({
+  path: "/analytics/questions/summary",
+  method: "GET",
+  handler: getQuestionSummaryHttp,
+});
+
+http.route({
+  path: "/analytics/questions/insights",
+  method: "GET",
+  handler: getQuestionInsightsHttp,
+});
+
+http.route({
+  path: "/analytics/questions/info",
+  method: "GET",
+  handler: getQuestionInfoHttp,
+});
+
+http.route({
+  path: "/insight-results/summary-by-insight-question-id",
+  method: "GET",
+  handler: getQuestionSummaryHttp,
+});
+
+http.route({
+  path: "/companies/fill",
+  method: "POST",
+  handler: fillCompaniesHttp,
+});
+
+http.route({
+  path: "/companies/get-by-slug-info",
+  method: "GET",
+  handler: getBySlugInfoHttp,
+});
+
+http.route({
+  path: "/companies/get-by-slug",
+  method: "GET",
+  handler: getBySlugInfoHttp,
 });
 
 export default http;

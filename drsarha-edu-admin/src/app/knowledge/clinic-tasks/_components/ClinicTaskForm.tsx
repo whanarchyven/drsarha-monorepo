@@ -35,6 +35,10 @@ import { toast } from 'sonner';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useInsightQuestions } from '@/shared/hooks/use-insight-questions';
 import {
+  analyticQuestionForUi,
+  truncateAnalyticLabel,
+} from '@/shared/utils/analytic-question-display';
+import {
   Dialog,
   DialogContent,
   DialogFooter,
@@ -445,13 +449,8 @@ export function ClinicTaskForm({ initialData }: ClinicTaskFormProps) {
   };
 
   // Создаем безопасную версию вопросов с гарантированными полями
-  const analyticQuestions: AnalyticQuestion[] = analyticQuestionsRaw.map(
-    (q) => ({
-      id: q.id || '',
-      title: q.title || '',
-      prompt: q.prompt || '',
-    })
-  );
+  const analyticQuestions: AnalyticQuestion[] =
+    analyticQuestionsRaw.map(analyticQuestionForUi);
 
   // Функции для работы с аналитическими вопросами
   const openAnalyticsDialog = () => {
@@ -932,7 +931,7 @@ export function ClinicTaskForm({ initialData }: ClinicTaskFormProps) {
                       return (
                         <Badge key={id} variant="secondary">
                           {question
-                            ? `${question.title.substring(0, 30)}...`
+                            ? truncateAnalyticLabel(question.title)
                             : id}
                         </Badge>
                       );

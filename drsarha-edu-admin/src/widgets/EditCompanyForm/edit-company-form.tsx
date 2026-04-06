@@ -13,7 +13,6 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { toast } from 'sonner';
-import { companiesApi } from '@/shared/api/companies';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { Company } from '@/entities/company/model';
 import { useCompanyForm } from '../CompanyForm/shared/hooks/use-company-form';
@@ -21,6 +20,8 @@ import { CompanyInfoCard } from '../CompanyForm/shared/components/CompanyInfoCar
 import { DashboardsCard } from '../CompanyForm/shared/components/DashboardsCard';
 import { FillDialog } from '../CompanyForm/shared/components/FillDialog';
 import { DefaultDistributionDialog } from '../CompanyForm/shared/components/DefaultDistributionDialog';
+import { getConvexHttpClient } from '@/shared/lib/convex';
+import { api } from '@convex/_generated/api';
 
 export default function EditDashboardForm({
   initialCompany,
@@ -30,6 +31,7 @@ export default function EditDashboardForm({
   const router = useRouter();
   const companyId = initialCompany._id || 'comp123';
   const { role } = useAuth();
+  const convexClient = getConvexHttpClient();
   const roleValue = role || undefined;
   const [isSaving, setIsSaving] = useState(false);
 
@@ -87,9 +89,10 @@ export default function EditDashboardForm({
         updated_at: new Date().toISOString(),
       };
 
-      console.log(updatedCompany, 'updatedCompany');
-      const response = await companiesApi.update(companyId, updatedCompany);
-      console.log(response);
+      await convexClient.mutation(api.functions.companies.update, {
+        id: companyId as any,
+        data: updatedCompany,
+      });
       toast.success('Компания успешно обновлена');
     } catch (error) {
       console.error('Error saving company:', error);

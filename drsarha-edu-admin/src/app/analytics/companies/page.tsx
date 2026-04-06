@@ -2,50 +2,23 @@
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { companiesApi } from '@/shared/api/companies';
 import { Badge } from '@/components/ui/badge';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Company } from '@/entities/company/model';
-import { PaginatedResponse } from '@/shared/api/types';
+import { useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
 export default function CompaniesAnalyticsPage() {
-  const [companies, setCompanies] = useState<PaginatedResponse<Company>>({
-    items: [],
-    total: 0,
-    page: 1,
-    totalPages: 1,
-    hasMore: false,
-  });
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
+  const companies = useQuery(api.functions.companies.list, { page, limit });
+  const isLoading = companies === undefined;
   const totalPages = useMemo(() => {
     if (!companies?.total) return 1;
     return Math.max(1, Math.ceil(companies.total / limit));
   }, [companies?.total, limit]);
 
-  useEffect(() => {
-    const fetchCompanies = async () => {
-      try {
-        setIsLoading(true);
-        const companies = await companiesApi.getAll({ page, limit });
-        console.log(companies, 'COMPANIES');
-        setCompanies(companies);
-      } catch (error) {
-        setError('Ошибка при загрузке компаний');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchCompanies();
-  }, [page, limit]);
-
   if (isLoading) {
     return <div>Загрузка компаний...</div>;
-  }
-
-  if (error) {
-    return <div>Ошибка при загрузке компаний: {error}</div>;
   }
 
   return (

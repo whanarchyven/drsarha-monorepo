@@ -65,8 +65,8 @@ export const prepareCompanyForSubmit = (company: Company): Company => {
         delete stat.cols;
       }
       // Убедимся, что question_summary не пустой
-      if (stat.question_summary === undefined) {
-        stat.question_summary = undefined;
+      if ('question_summary' in stat) {
+        delete stat.question_summary;
       }
 
       // Обработаем поля масштабов
@@ -155,6 +155,10 @@ export const prepareCompanyForSubmit = (company: Company): Company => {
     companyToSubmit.totalGrowth !== null
   ) {
     companyToSubmit.totalGrowth = Number(companyToSubmit.totalGrowth);
+  }
+
+  if ('_id' in companyToSubmit && !companyToSubmit._id) {
+    delete (companyToSubmit as Partial<Company>)._id;
   }
 
   return companyToSubmit;

@@ -15,55 +15,47 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-
-// Типы данных
-type ResponseType = 'int' | 'variants_multiple';
-
-interface CreateInsightQuestionDto {
-  title: string;
-  prompt: string;
-  response_type: ResponseType;
-  response_variants: string[];
-  llm_model: string;
-  llm_temperature: number;
-}
-
-type InsightQuestionFormData = CreateInsightQuestionDto;
+import { AnalyticsQuestionFormData } from '@/shared/types/analytics';
 
 interface InsightQuestionFormProps {
-  onSubmit: (data: InsightQuestionFormData) => Promise<void>;
+  initialData?: AnalyticsQuestionFormData;
+  onSubmit: (data: AnalyticsQuestionFormData) => Promise<void>;
   onCancel: () => void;
 }
 
 export function InsightQuestionForm({
+  initialData,
   onSubmit,
   onCancel,
 }: InsightQuestionFormProps) {
-  const [formData, setFormData] = useState<InsightQuestionFormData>({
-    title: '',
-    prompt: '',
-    response_type: 'int',
-    response_variants: [],
-    llm_model: 'gpt-4o',
-    llm_temperature: 0,
+  const [formData, setFormData] = useState<AnalyticsQuestionFormData>({
+    text: initialData?.text ?? '',
+    type: initialData?.type ?? 'text',
+    variants: initialData?.variants ?? [],
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onSubmit(formData);
+    await onSubmit({
+      text: formData.text.trim(),
+      type: formData.type,
+      variants: formData.variants
+        .map((variant) => variant.trim())
+        .filter(Boolean),
+    });
   };
 
   const handleAddOption = () => {
     setFormData((prev) => ({
       ...prev,
-      response_variants: [...(prev.response_variants || []), ''],
+      variants: [...(prev.variants || []), ''],
     }));
   };
 
   const handleOptionChange = (index: number, value: string) => {
     setFormData((prev) => ({
       ...prev,
-      response_variants: prev.response_variants.map((opt, i) =>
+      variants: prev.variants.map((opt, i) =>
         i === index ? value : opt
       ),
     }));
@@ -72,7 +64,7 @@ export function InsightQuestionForm({
   const handleRemoveOption = (index: number) => {
     setFormData((prev) => ({
       ...prev,
-      response_variants: prev.response_variants.filter((_, i) => i !== index),
+      variants: prev.variants.filter((_, i) => i !== index),
     }));
   };
 
@@ -80,24 +72,12 @@ export function InsightQuestionForm({
     <div className="space-y-4">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="title">Название</Label>
-          <Input
-            id="title"
-            value={formData.title}
-            onChange={(e) =>
-              setFormData({ ...formData, title: e.target.value })
-            }
-            required
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="prompt">Текст вопроса</Label>
+          <Label htmlFor="question-text">Текст вопроса</Label>
           <Textarea
-            id="prompt"
-            value={formData.prompt}
+            id="question-text"
+            value={formData.text}
             onChange={(e) =>
-              setFormData({ ...formData, prompt: e.target.value })
+              setFormData({ ...formData, text: e.target.value })
             }
             rows={3}
             required
@@ -105,32 +85,27 @@ export function InsightQuestionForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="response-type">Тип ответа</Label>
+          <Label htmlFor="response-type">Тип вопроса</Label>
           <Select
-            value={formData.response_type}
-            onValueChange={(value: ResponseType) =>
+            value={formData.type}
+            onValueChange={(value: 'numeric' | 'text') =>
               setFormData({
                 ...formData,
-                response_type: value,
-                response_variants:
-                  value === 'variants_multiple'
-                    ? formData.response_variants
-                    : [],
+                type: value,
+                variants: value === 'text' ? formData.variants : [],
               })
             }>
             <SelectTrigger id="response-type">
-              <SelectValue placeholder="Выберите тип ответа" />
+              <SelectValue placeholder="Выберите тип вопроса" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="int">Целое число</SelectItem>
-              <SelectItem value="variants_multiple">
-                Несколько из списка
-              </SelectItem>
+              <SelectItem value="numeric">Числовой</SelectItem>
+              <SelectItem value="text">Текстовый / с вариантами</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
-        {formData.response_type === 'variants_multiple' && (
+        {formData.type === 'text' && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label>Варианты ответов</Label>
@@ -143,13 +118,13 @@ export function InsightQuestionForm({
               </Button>
             </div>
 
-            {formData.response_variants.length === 0 && (
+            {formData.variants.length === 0 && (
               <p className="text-sm text-muted-foreground">
-                Нет вариантов ответа. Добавьте хотя бы один вариант.
+                Можно оставить список пустым или добавить варианты ответа.
               </p>
             )}
 
-            {formData.response_variants.map((option, index) => (
+            {formData.variants.map((option, index) => (
               <div key={index} className="flex items-center gap-2">
                 <Input
                   value={option}

@@ -43,6 +43,9 @@ import { markupTasksTable } from "./models/markupTask";
 import { markupTaskStagesTable } from "./models/markupTaskStage";
 import { markupTaskSlidesTable } from "./models/markupTaskSlide";
 import { markupTaskElementsTable } from "./models/markupTaskElement";
+import { analyticQuestionsTable } from "./models/analyticQuestion";
+import { analyticInsightsTable } from "./models/analyticInsight";
+import { analyticRewritesTable } from "./models/analyticRewrite";
 import { conferenceUsersTable } from "./models/conferenceUser";
 import { conferenceBroadcastTable } from "./models/conferenceBroadcast";
 import { conferenceAiTextTable } from "./models/conferenceAiText";
@@ -112,6 +115,9 @@ export default defineSchema({
   markup_task_stages: MIGRATION_MODE ? defineTable(v.any()) : markupTaskStagesTable,
   markup_task_slides: MIGRATION_MODE ? defineTable(v.any()) : markupTaskSlidesTable,
   markup_task_elements: MIGRATION_MODE ? defineTable(v.any()) : markupTaskElementsTable,
+  analytic_questions: MIGRATION_MODE ? defineTable(v.any()) : analyticQuestionsTable,
+  analytic_insights: MIGRATION_MODE ? defineTable(v.any()) : analyticInsightsTable,
+  analytic_rewrites: MIGRATION_MODE ? defineTable(v.any()) : analyticRewritesTable,
   conference_users: MIGRATION_MODE ? defineTable(v.any()) : conferenceUsersTable,
   conference_broadcast: MIGRATION_MODE ? defineTable(v.any()) : conferenceBroadcastTable,
   conference_ai_text: MIGRATION_MODE ? defineTable(v.any()) : conferenceAiTextTable,

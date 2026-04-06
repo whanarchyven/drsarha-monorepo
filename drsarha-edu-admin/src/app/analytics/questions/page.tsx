@@ -12,10 +12,6 @@ import {
 } from '@/components/ui/dialog';
 import { InsightQuestionForm } from '@/components/insight-question-form';
 import {
-  BaseInsightQuestionDto,
-  CreateInsightQuestionDto,
-} from '@/app/api/client/schemas';
-import {
   AlertDialog,
   AlertDialogTitle,
   AlertDialogHeader,
@@ -27,11 +23,19 @@ import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { AnalyticsQuestion, AnalyticsQuestionFormData } from '@/shared/types/analytics';
+import { getConvexHttpClient } from '@/shared/lib/convex';
+import { api } from '@convex/_generated/api';
 const QuestionsPage = () => {
   const [search, setSearch] = useState<string>('');
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  const convexClient = getConvexHttpClient();
 
   const currentPage = useMemo(() => {
     const pageParam = Number(searchParams.get('page') || '1');
@@ -48,29 +52,66 @@ const QuestionsPage = () => {
     questions,
     isLoadingQuestions,
     addInsightQuestion,
+    updateInsightQuestion,
     deleteQuestion,
-    createSurveyResponse,
-    selectedQuestionsIds,
-    setSelectedQuestionsIds,
-    canCreateSurveyResponse,
     getStats,
   } = useInsightQuestions(search, limit, skip);
-
-  console.log(questions, 'QUESTIONS');
   const [createPopOpen, setCreatePopOpen] = useState(false);
-  const [deletePopOpen, setDeletePopOpen] = useState(false);
+  const [editPopOpen, setEditPopOpen] = useState(false);
 
   const [questionToDelete, setQuestionToDelete] =
-    useState<BaseInsightQuestionDto | null>(null);
+    useState<AnalyticsQuestion | null>(null);
+  const [questionToEdit, setQuestionToEdit] =
+    useState<AnalyticsQuestion | null>(null);
+  const [autoInsightForm, setAutoInsightForm] = useState({
+    questionId: '',
+    userId: 'manual:auto',
+    response: '',
+    timestamp: new Date().toISOString().slice(0, 16),
+  });
 
-  const handleAddInsightQuestion = async (data: CreateInsightQuestionDto) => {
-    await addInsightQuestion({
-      ...data,
-      llm_model: 'gpt-4o',
-      llm_temperature: 0,
-    });
-
+  const handleAddInsightQuestion = async (data: AnalyticsQuestionFormData) => {
+    await addInsightQuestion(data);
     setCreatePopOpen(false);
+  };
+
+  const handleEditInsightQuestion = async (data: AnalyticsQuestionFormData) => {
+    if (!questionToEdit) return;
+    await updateInsightQuestion(questionToEdit.id, data);
+    setEditPopOpen(false);
+    setQuestionToEdit(null);
+  };
+
+  const handleCreateAutoInsight = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (
+      !autoInsightForm.questionId ||
+      !autoInsightForm.userId.trim() ||
+      !autoInsightForm.response.trim() ||
+      !autoInsightForm.timestamp
+    ) {
+      toast.error('Заполните все поля для auto insight');
+      return;
+    }
+
+    try {
+      await convexClient.mutation(api.functions.analytic_insights.insert, {
+        question_id: autoInsightForm.questionId as any,
+        user_id: autoInsightForm.userId.trim(),
+        response: autoInsightForm.response.trim(),
+        type: 'auto',
+        timestamp: new Date(autoInsightForm.timestamp).getTime(),
+      });
+      toast.success('Auto insight создан');
+      setAutoInsightForm((prev) => ({
+        ...prev,
+        response: '',
+      }));
+    } catch (error) {
+      console.error(error);
+      toast.error('Не удалось создать auto insight');
+    }
   };
 
   const { role } = useAuth();
@@ -93,77 +134,160 @@ const QuestionsPage = () => {
 
   return (
     <div className="bg-slate-100 p-4 rounded-md">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Вопросы</h1>
-        <Button onClick={() => setCreatePopOpen(true)}>Добавить вопрос</Button>
-      </div>
-      <Input
-        placeholder="Поиск"
-        className="mt-4 bg-white"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
-      <div className="flex mt-4 flex-col gap-4">
-        {isLoadingQuestions ? (
-          <div className="flex justify-center items-center h-full">
-            <Loader2 className="w-4 h-4 animate-spin" />
-          </div>
-        ) : (
-          questions.map((question: BaseInsightQuestionDto) => (
-            <InsightQuestion
-              onSubmitResponse={async (
-                questionId: string,
-                response: string | number | string[]
-              ) => {
-                console.log(
-                  response,
-                  'RESPONSE',
-                  [questionId],
-                  'SELECTED QUESTIONS IDS'
-                );
-                await createSurveyResponse(String(response), [questionId]);
-              }}
-              setQuestionToDelete={setQuestionToDelete}
-              getStats={getStats}
-              key={question.id}
-              question={question}
-              isAdmin={isAdmin}
+      <Tabs defaultValue="questions" className="w-full">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold">Вопросы</h1>
+          <TabsList>
+            <TabsTrigger value="questions">Вопросы</TabsTrigger>
+            <TabsTrigger value="auto-insight">Ручной auto insight</TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value="questions" className="space-y-4 mt-4">
+          <div className="flex justify-between items-center gap-4">
+            <Input
+              placeholder="Поиск"
+              className="bg-white"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
             />
-          ))
-        )}
-      </div>
-      <div className="flex items-center justify-end mt-4 gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            if (currentPage <= 1 || isLoadingQuestions) return;
-            const params = new URLSearchParams(searchParams.toString());
-            params.set('page', String(currentPage - 1));
-            params.set('limit', String(limit));
-            router.replace(`${pathname}?${params.toString()}`, {
-              scroll: false,
-            });
-          }}
-          disabled={currentPage === 1 || isLoadingQuestions}>
-          Назад
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            if (!hasMore || isLoadingQuestions) return;
-            const params = new URLSearchParams(searchParams.toString());
-            params.set('page', String(currentPage + 1));
-            params.set('limit', String(limit));
-            router.replace(`${pathname}?${params.toString()}`, {
-              scroll: false,
-            });
-          }}
-          disabled={!hasMore || isLoadingQuestions}>
-          Вперед
-        </Button>
-      </div>
+            <Button onClick={() => setCreatePopOpen(true)}>Добавить вопрос</Button>
+          </div>
+          <div className="flex flex-col gap-4">
+            {isLoadingQuestions ? (
+              <div className="flex justify-center items-center h-full">
+                <Loader2 className="w-4 h-4 animate-spin" />
+              </div>
+            ) : (
+              questions.map((question: AnalyticsQuestion) => (
+                <InsightQuestion
+                  setQuestionToDelete={setQuestionToDelete}
+                  getStats={getStats}
+                  key={question.id}
+                  question={question}
+                  onEdit={(value) => {
+                    setQuestionToEdit(value);
+                    setEditPopOpen(true);
+                  }}
+                  isAdmin={isAdmin}
+                />
+              ))
+            )}
+          </div>
+          <div className="flex items-center justify-end mt-4 gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (currentPage <= 1 || isLoadingQuestions) return;
+                const params = new URLSearchParams(searchParams.toString());
+                params.set('page', String(currentPage - 1));
+                params.set('limit', String(limit));
+                router.replace(`${pathname}?${params.toString()}`, {
+                  scroll: false,
+                });
+              }}
+              disabled={currentPage === 1 || isLoadingQuestions}>
+              Назад
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (!hasMore || isLoadingQuestions) return;
+                const params = new URLSearchParams(searchParams.toString());
+                params.set('page', String(currentPage + 1));
+                params.set('limit', String(limit));
+                router.replace(`${pathname}?${params.toString()}`, {
+                  scroll: false,
+                });
+              }}
+              disabled={!hasMore || isLoadingQuestions}>
+              Вперед
+            </Button>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="auto-insight" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Создать auto insight вручную</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleCreateAutoInsight} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="auto-question-id">Вопрос</Label>
+                  <select
+                    id="auto-question-id"
+                    className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+                    value={autoInsightForm.questionId}
+                    onChange={(e) =>
+                      setAutoInsightForm((prev) => ({
+                        ...prev,
+                        questionId: e.target.value,
+                      }))
+                    }>
+                    <option value="">Выберите вопрос</option>
+                    {questions.map((question) => (
+                      <option key={question.id} value={question.id}>
+                        {question.text}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="auto-user-id">user_id</Label>
+                  <Input
+                    id="auto-user-id"
+                    value={autoInsightForm.userId}
+                    onChange={(e) =>
+                      setAutoInsightForm((prev) => ({
+                        ...prev,
+                        userId: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="auto-response">Ответ</Label>
+                  <Textarea
+                    id="auto-response"
+                    value={autoInsightForm.response}
+                    onChange={(e) =>
+                      setAutoInsightForm((prev) => ({
+                        ...prev,
+                        response: e.target.value,
+                      }))
+                    }
+                    rows={4}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="auto-timestamp">Дата и время</Label>
+                  <Input
+                    id="auto-timestamp"
+                    type="datetime-local"
+                    value={autoInsightForm.timestamp}
+                    onChange={(e) =>
+                      setAutoInsightForm((prev) => ({
+                        ...prev,
+                        timestamp: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                <div className="flex justify-end">
+                  <Button type="submit">Создать auto insight</Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
       <Dialog open={createPopOpen} onOpenChange={setCreatePopOpen}>
         <DialogContent>
           <DialogHeader>
@@ -172,6 +296,37 @@ const QuestionsPage = () => {
           <InsightQuestionForm
             onSubmit={handleAddInsightQuestion}
             onCancel={() => setCreatePopOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={editPopOpen}
+        onOpenChange={(open) => {
+          setEditPopOpen(open);
+          if (!open) {
+            setQuestionToEdit(null);
+          }
+        }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Редактировать вопрос</DialogTitle>
+          </DialogHeader>
+          <InsightQuestionForm
+            initialData={
+              questionToEdit
+                ? {
+                    text: questionToEdit.text,
+                    type: questionToEdit.type,
+                    variants: questionToEdit.variants,
+                  }
+                : undefined
+            }
+            onSubmit={handleEditInsightQuestion}
+            onCancel={() => {
+              setEditPopOpen(false);
+              setQuestionToEdit(null);
+            }}
           />
         </DialogContent>
       </Dialog>

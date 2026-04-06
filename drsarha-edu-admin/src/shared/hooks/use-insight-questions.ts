@@ -1,59 +1,92 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { api } from '@convex/_generated/api';
+import { getConvexHttpClient } from '@/shared/lib/convex';
 import {
-  CreateInsightQuestionDto,
-  CreateSurveyResponseDto,
-} from '@/app/api/client/schemas';
-import {
-  createInsightQuestionInsightQuestionsPost,
-  useCreateInsightQuestionInsightQuestionsPost,
-  useGetInsightQuestionInsightQuestionsGetQuestionIdGet,
-  useListQuestionsInsightQuestionsListGet,
-  deleteInsightQuestionInsightQuestionsQuestionIdDelete,
-  createAndGainInsightsSurveyResponsesCreateAndGainInsightsPost,
-  summaryByInsightQuestionIdInsightResultsSummaryByInsightQuestionIdInsightQuestionIdGet,
-} from '@/app/api/sdk/insightQuestionsAPI';
+  AnalyticsQuestion,
+  AnalyticsQuestionFormData,
+  AnalyticsQuestionSummary,
+} from '@/shared/types/analytics';
+
+function mapQuestion(question: any): AnalyticsQuestion {
+  return {
+    id: String(question._id),
+    text: question.text,
+    type: question.type,
+    variants: question.variants ?? [],
+  };
+}
 
 export const useInsightQuestions = (
   search?: string,
   limit?: number,
   skip?: number
 ) => {
-  const {
-    data: questionsData,
-    isLoading: isLoadingQuestions,
-    mutate,
-  } = useListQuestionsInsightQuestionsListGet({
-    title: search || undefined,
-    limit: limit,
-    skip: skip,
-  });
-  const questions = questionsData?.data ?? [];
+  const client = useMemo(() => getConvexHttpClient(), []);
+  const [questions, setQuestions] = useState<AnalyticsQuestion[]>([]);
+  const [isLoadingQuestions, setIsLoadingQuestions] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
   const [selectedQuestionsIds, setSelectedQuestionsIds] = useState<string[]>(
     []
   );
 
-  const addInsightQuestion = async (question: CreateInsightQuestionDto) => {
-    await createInsightQuestionInsightQuestionsPost(question);
-    mutate(); // Обновляем список вопросов после добавления
+  const page = Math.floor((skip ?? 0) / (limit ?? 100)) + 1;
+
+  const loadQuestions = useCallback(async () => {
+    setIsLoadingQuestions(true);
+    try {
+      const result = await client.query(api.functions.analytic_questions.list, {
+        search: search || undefined,
+        page,
+        limit: limit ?? 100,
+      });
+      setQuestions((result.items ?? []).map(mapQuestion));
+    } finally {
+      setIsLoadingQuestions(false);
+    }
+  }, [client, limit, page, search]);
+
+  useEffect(() => {
+    void loadQuestions();
+  }, [loadQuestions, reloadKey]);
+
+  const refresh = () => setReloadKey((prev) => prev + 1);
+
+  const addInsightQuestion = async (question: AnalyticsQuestionFormData) => {
+    await client.mutation(api.functions.analytic_questions.insert, {
+      text: question.text,
+      type: question.type,
+      variants: question.type === 'text' ? question.variants : undefined,
+    });
+    refresh();
   };
+
+  const updateInsightQuestion = async (
+    id: string,
+    question: AnalyticsQuestionFormData
+  ) => {
+    await client.mutation(api.functions.analytic_questions.update, {
+      id: id as any,
+      data: {
+        text: question.text,
+        type: question.type,
+        variants: question.type === 'text' ? question.variants : undefined,
+      },
+    });
+    refresh();
+  };
+
   const canCreateSurveyResponse = selectedQuestionsIds.length > 0;
 
   const getStats = async (questionId: string) => {
-    const stats =
-      summaryByInsightQuestionIdInsightResultsSummaryByInsightQuestionIdInsightQuestionIdGet(
-        questionId
-      )
-        .then((d) => d.data)
-        .then((d) => {
-          return d;
-        });
-    return stats;
+    return (await client.query(api.functions.analytic_insights.summaryByQuestion, {
+      question_id: questionId as any,
+    })) as AnalyticsQuestionSummary;
   };
+
   const createSurveyResponse = async (
     response: string,
     questionIds?: string[]
   ) => {
-    // Используем переданные ID вопросов, если они есть, иначе используем selectedQuestionsIds
     const idsToUse = questionIds || selectedQuestionsIds;
 
     if (!idsToUse.length) {
@@ -61,23 +94,23 @@ export const useInsightQuestions = (
       return;
     }
 
-    await createAndGainInsightsSurveyResponsesCreateAndGainInsightsPost({
-      response,
-      insight_question_ids: idsToUse,
-    });
-
-    mutate(); // Обновляем список вопросов после добавления
+    throw new Error(
+      'Создание user insight через extractor в админке не подключено'
+    );
   };
 
   const deleteQuestion = async (questionId: string) => {
-    await deleteInsightQuestionInsightQuestionsQuestionIdDelete(questionId);
-    mutate(); // Обновляем список вопросов после удаления
+    await client.mutation(api.functions.analytic_questions.remove, {
+      id: questionId as any,
+    });
+    refresh();
   };
 
   return {
     questions,
     isLoadingQuestions,
     addInsightQuestion,
+    updateInsightQuestion,
     deleteQuestion,
     selectedQuestionsIds,
     setSelectedQuestionsIds,
@@ -88,8 +121,30 @@ export const useInsightQuestions = (
 };
 
 export const useInsightQuestion = (questionId: string) => {
-  const { data: questionData, isLoading: isLoadingQuestion } =
-    useGetInsightQuestionInsightQuestionsGetQuestionIdGet(questionId);
-  const question = questionData?.data;
+  const client = useMemo(() => getConvexHttpClient(), []);
+  const [question, setQuestion] = useState<AnalyticsQuestion | null>(null);
+  const [isLoadingQuestion, setIsLoadingQuestion] = useState(true);
+
+  useEffect(() => {
+    const loadQuestion = async () => {
+      setIsLoadingQuestion(true);
+      try {
+        const result = await client.query(api.functions.analytic_questions.getById, {
+          id: questionId,
+        });
+        setQuestion(result ? mapQuestion(result) : null);
+      } finally {
+        setIsLoadingQuestion(false);
+      }
+    };
+
+    if (questionId) {
+      void loadQuestion();
+    } else {
+      setQuestion(null);
+      setIsLoadingQuestion(false);
+    }
+  }, [client, questionId]);
+
   return { question, isLoadingQuestion };
 };

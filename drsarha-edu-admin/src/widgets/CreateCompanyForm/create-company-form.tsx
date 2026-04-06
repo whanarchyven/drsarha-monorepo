@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardFooter } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { companiesApi } from '@/shared/api/companies';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { Company } from '@/entities/company/model';
 import { useCompanyForm } from '../CompanyForm/shared/hooks/use-company-form';
@@ -12,6 +11,8 @@ import { CompanyInfoCard } from '../CompanyForm/shared/components/CompanyInfoCar
 import { DashboardsCard } from '../CompanyForm/shared/components/DashboardsCard';
 import { FillDialog } from '../CompanyForm/shared/components/FillDialog';
 import { DefaultDistributionDialog } from '../CompanyForm/shared/components/DefaultDistributionDialog';
+import { getConvexHttpClient } from '@/shared/lib/convex';
+import { api } from '@convex/_generated/api';
 
 const initialCompany: Company = {
   _id: '',
@@ -31,6 +32,7 @@ const initialCompany: Company = {
 
 export default function DashboardForm() {
   const { role } = useAuth();
+  const convexClient = getConvexHttpClient();
 
   const {
     company,
@@ -80,9 +82,7 @@ export default function DashboardForm() {
 
     try {
       const companyToSubmit = prepareForSubmit();
-      console.log('Company to submit:', companyToSubmit);
-      const response = await companiesApi.create(companyToSubmit);
-      console.log('Company created:', response);
+      await convexClient.mutation(api.functions.companies.insert, companyToSubmit);
       toast.success('Компания успешно создана');
     } catch (error) {
       console.error('Error creating company:', error);
