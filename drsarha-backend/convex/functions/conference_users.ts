@@ -1,6 +1,7 @@
 import { action, httpAction, mutation, query } from "../_generated/server";
 import { v } from "convex/values";
 import { api } from "../_generated/api";
+import { conferenceEmailLogDoc } from "../models/conferenceEmailLog";
 import { conferenceUserDoc } from "../models/conferenceUser";
 
 declare const process: {
@@ -17,6 +18,9 @@ const conferenceUserPatch = {
   side: v.optional(v.union(v.literal("jedi"), v.literal("sith"), v.literal("ai"))),
   password: v.optional(v.union(v.string(), v.null())),
 };
+
+const CONFERENCE_ACCESS_EMAIL_SUBJECT =
+  "Ваши доступы на конференцию Равновесие силы 4 апреля.";
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -142,12 +146,17 @@ async function subscribeConferenceUserToUniSender(user: {
 async function sendConferenceAccessEmailToUser(user: {
   email: string;
   password: string | null;
+  log: (message: string, details?: unknown) => void;
 }) {
   const uniSenderApiKey = process.env.UNISENDER_API_KEY;
   const senderEmail = process.env.SENDER_EMAIL;
   const listId = "70";
 
   if (!uniSenderApiKey || !senderEmail) {
+    user.log("skip: unisender config is missing", {
+      hasApiKey: Boolean(uniSenderApiKey),
+      hasSenderEmail: Boolean(senderEmail),
+    });
     return {
       success: false,
       skipped: true,
@@ -156,6 +165,7 @@ async function sendConferenceAccessEmailToUser(user: {
   }
 
   if (!user.password) {
+    user.log("skip: conference user password is empty");
     return {
       success: false,
       skipped: true,
@@ -216,16 +226,16 @@ async function sendConferenceAccessEmailToUser(user: {
     email: user.email,
     sender_name: "Dr. Sarha",
     sender_email: senderEmail,
-    subject: "Ваши доступы на конференцию Равновесие силы 4 апреля.",
+    subject: CONFERENCE_ACCESS_EMAIL_SUBJECT,
     body,
     list_id: listId,
   });
 
-  console.log("[conference_users.sendConferenceAccessEmailToUser] request", {
+  user.log("unisender request", {
     email: user.email,
     senderEmail,
     listId,
-    subject: "Ваши доступы на конференцию Равновесие силы 4 апреля.",
+    subject: CONFERENCE_ACCESS_EMAIL_SUBJECT,
     hasPassword: Boolean(user.password),
     bodyLength: body.length,
   });
@@ -236,7 +246,7 @@ async function sendConferenceAccessEmailToUser(user: {
 
   const responseText = await response.text();
 
-  console.log("[conference_users.sendConferenceAccessEmailToUser] response", {
+  user.log("unisender response", {
     email: user.email,
     status: response.status,
     ok: response.ok,
@@ -244,36 +254,41 @@ async function sendConferenceAccessEmailToUser(user: {
   });
 
   if (!response.ok) {
-    throw new Error(`UniSender sendEmail failed: ${responseText}`);
+    return {
+      success: false,
+      skipped: false,
+      reason: `UniSender sendEmail failed: ${responseText}`,
+      responseBody: responseText,
+    };
   }
 
   try {
     const parsed = JSON.parse(responseText);
 
-    console.log("[conference_users.sendConferenceAccessEmailToUser] parsed", {
+    user.log("unisender parsed response", {
       email: user.email,
       parsed,
     });
 
     if (parsed?.error) {
-      throw new Error(
-        `UniSender sendEmail returned error: ${JSON.stringify(parsed)}`
-      );
+      return {
+        success: false,
+        skipped: false,
+        reason: `UniSender sendEmail returned error: ${JSON.stringify(parsed)}`,
+        responseBody: responseText,
+      };
     }
   } catch (error) {
     if (error instanceof SyntaxError) {
-      console.log(
-        "[conference_users.sendConferenceAccessEmailToUser] response is not JSON",
-        {
-          email: user.email,
-        }
-      );
+      user.log("unisender response is not JSON");
     } else {
       throw error;
     }
   }
 
-  return { success: true, skipped: false };
+  user.log("unisender accepted message");
+
+  return { success: true, skipped: false, responseBody: responseText };
 }
 
 export const registerConferenceUser = mutation({
@@ -547,6 +562,31 @@ export const getConferenceUserByEmail = query({
   },
 });
 
+export const createConferenceEmailLog = mutation({
+  args: {
+    email: v.string(),
+    subject: v.string(),
+    provider: v.string(),
+    status: v.union(
+      v.literal("delivered"),
+      v.literal("skipped"),
+      v.literal("error")
+    ),
+    logs: v.array(v.string()),
+    responseBody: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
+  },
+  returns: conferenceEmailLogDoc,
+  handler: async ({ db }, args) => {
+    const id = await db.insert("conference_email_logs", {
+      ...args,
+      createdAt: Date.now(),
+    } as any);
+
+    return (await db.get(id))! as any;
+  },
+});
+
 export const sendConferenceAccessEmails = action({
   args: {
     emails: v.array(v.string()),
@@ -590,9 +630,25 @@ export const sendConferenceAccessEmails = action({
     }[] = [];
 
     for (const email of normalizedEmails) {
-      console.log("[conference_users.sendConferenceAccessEmails] processing", {
-        email,
-      });
+      const emailLogs: string[] = [];
+      const pushEmailLog = (message: string, details?: unknown) => {
+        const line =
+          details === undefined
+            ? message
+            : `${message} ${JSON.stringify(details)}`;
+        emailLogs.push(line);
+        console.log("[conference_users.sendConferenceAccessEmails]", {
+          email,
+          message,
+          details,
+        });
+      };
+
+      let emailStatus: "delivered" | "skipped" | "error" = "skipped";
+      let responseBody: string | undefined;
+      let errorMessage: string | undefined;
+
+      pushEmailLog("processing started");
 
       const conferenceUser = await ctx.runQuery(
         (api as any).functions.conference_users.getConferenceUserByEmail,
@@ -600,75 +656,100 @@ export const sendConferenceAccessEmails = action({
       );
 
       if (!conferenceUser) {
-        console.log("[conference_users.sendConferenceAccessEmails] skipped", {
-          email,
-          reason: "Conference user not found",
-        });
+        pushEmailLog("skipped: conference user not found");
         results.push({
           email,
           status: "skipped",
           reason: "Conference user not found",
         });
-        continue;
-      }
-
-      console.log("[conference_users.sendConferenceAccessEmails] user found", {
-        email,
-        isPaid: conferenceUser.isPaid,
-        isApproved: conferenceUser.isApproved,
-        hasPassword: Boolean(conferenceUser.password),
-      });
-
-      if (conferenceUser.isPaid !== true) {
-        console.log("[conference_users.sendConferenceAccessEmails] skipped", {
-          email,
-          reason: "Conference user is not paid",
-        });
-        results.push({
-          email,
-          status: "skipped",
-          reason: "Conference user is not paid",
-        });
-        continue;
-      }
-
-      try {
-        console.log("[conference_users.sendConferenceAccessEmails] sending", {
-          email,
-        });
-        const sendResult = await sendConferenceAccessEmailToUser({
-          email: conferenceUser.email,
-          password: conferenceUser.password,
+      } else {
+        pushEmailLog("conference user found", {
+          isPaid: conferenceUser.isPaid,
+          isApproved: conferenceUser.isApproved,
+          hasPassword: Boolean(conferenceUser.password),
         });
 
-        if (sendResult.success) {
-          console.log("[conference_users.sendConferenceAccessEmails] sent", {
-            email,
-          });
-          results.push({ email, status: "sent" });
-        } else {
-          console.log("[conference_users.sendConferenceAccessEmails] skipped", {
-            email,
-            reason: sendResult.reason,
-          });
+        if (conferenceUser.isPaid !== true) {
+          pushEmailLog("skipped: conference user is not paid");
           results.push({
             email,
             status: "skipped",
-            reason: sendResult.reason,
+            reason: "Conference user is not paid",
           });
+        } else {
+          try {
+            pushEmailLog("sending email");
+            const sendResult = await sendConferenceAccessEmailToUser({
+              email: conferenceUser.email,
+              password: conferenceUser.password,
+              log: pushEmailLog,
+            });
+
+            responseBody = sendResult.responseBody;
+
+            if (sendResult.success) {
+              emailStatus = "delivered";
+              pushEmailLog("email delivered to provider");
+              results.push({ email, status: "sent" });
+            } else {
+              errorMessage = sendResult.reason;
+
+              if (sendResult.skipped) {
+                emailStatus = "skipped";
+                pushEmailLog("email skipped", { reason: sendResult.reason });
+                results.push({
+                  email,
+                  status: "skipped",
+                  reason: sendResult.reason,
+                });
+              } else {
+                emailStatus = "error";
+                pushEmailLog("email failed", { reason: sendResult.reason });
+                results.push({
+                  email,
+                  status: "failed",
+                  reason: sendResult.reason,
+                });
+              }
+            }
+          } catch (error) {
+            errorMessage =
+              error instanceof Error ? error.message : "Unknown send email error";
+            emailStatus = "error";
+            pushEmailLog("unexpected send error", { reason: errorMessage });
+            results.push({
+              email,
+              status: "failed",
+              reason: errorMessage,
+            });
+          }
         }
-      } catch (error) {
-        console.error("[conference_users.sendConferenceAccessEmails] failed", {
-          email,
-          reason:
-            error instanceof Error ? error.message : "Unknown send email error",
-        });
-        results.push({
-          email,
-          status: "failed",
-          reason:
-            error instanceof Error ? error.message : "Unknown send email error",
-        });
+      }
+
+      try {
+        await ctx.runMutation(
+          (api as any).functions.conference_users.createConferenceEmailLog,
+          {
+            email,
+            subject: CONFERENCE_ACCESS_EMAIL_SUBJECT,
+            provider: "unisender",
+            status: emailStatus,
+            logs: emailLogs,
+            responseBody,
+            errorMessage,
+          }
+        );
+      } catch (logError) {
+        console.error(
+          "[conference_users.sendConferenceAccessEmails] failed to save log",
+          {
+            email,
+            reason:
+              logError instanceof Error
+                ? logError.message
+                : "Unknown log save error",
+          }
+        );
       }
     }
 

@@ -78,6 +78,7 @@ import type * as models_conferenceAiText from "../models/conferenceAiText.js";
 import type * as models_conferenceBroadcast from "../models/conferenceBroadcast.js";
 import type * as models_conferenceChat from "../models/conferenceChat.js";
 import type * as models_conferenceClickerBattle from "../models/conferenceClickerBattle.js";
+import type * as models_conferenceEmailLog from "../models/conferenceEmailLog.js";
 import type * as models_conferenceGeneratedAudio from "../models/conferenceGeneratedAudio.js";
 import type * as models_conferenceInteractive from "../models/conferenceInteractive.js";
 import type * as models_conferencePromocode from "../models/conferencePromocode.js";
@@ -193,6 +194,7 @@ declare const fullApi: ApiFromModules<{
   "models/conferenceBroadcast": typeof models_conferenceBroadcast;
   "models/conferenceChat": typeof models_conferenceChat;
   "models/conferenceClickerBattle": typeof models_conferenceClickerBattle;
+  "models/conferenceEmailLog": typeof models_conferenceEmailLog;
   "models/conferenceGeneratedAudio": typeof models_conferenceGeneratedAudio;
   "models/conferenceInteractive": typeof models_conferenceInteractive;
   "models/conferencePromocode": typeof models_conferencePromocode;

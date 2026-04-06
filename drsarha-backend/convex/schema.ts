@@ -46,6 +46,7 @@ import { markupTaskElementsTable } from "./models/markupTaskElement";
 import { conferenceUsersTable } from "./models/conferenceUser";
 import { conferenceBroadcastTable } from "./models/conferenceBroadcast";
 import { conferenceAiTextTable } from "./models/conferenceAiText";
+import { conferenceEmailLogTable } from "./models/conferenceEmailLog";
 import { conferenceGeneratedAudioTable } from "./models/conferenceGeneratedAudio";
 import { conferenceClickerBattleTable } from "./models/conferenceClickerBattle";
 import { conferencePromocodesTable } from "./models/conferencePromocode";
@@ -114,6 +115,7 @@ export default defineSchema({
   conference_users: MIGRATION_MODE ? defineTable(v.any()) : conferenceUsersTable,
   conference_broadcast: MIGRATION_MODE ? defineTable(v.any()) : conferenceBroadcastTable,
   conference_ai_text: MIGRATION_MODE ? defineTable(v.any()) : conferenceAiTextTable,
+  conference_email_logs: MIGRATION_MODE ? defineTable(v.any()) : conferenceEmailLogTable,
   conference_generated_audio: MIGRATION_MODE
     ? defineTable(v.any())
     : conferenceGeneratedAudioTable,
