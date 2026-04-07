@@ -7,7 +7,17 @@ const dashboardType = v.union(
   v.literal("pie"),
   v.literal("area"),
   v.literal("table"),
+  v.literal("tab"),
 );
+
+const statTabMode = v.union(
+  v.literal("count_all"),
+  v.literal("top_variant"),
+  v.literal("average"),
+  v.literal("variant_percent"),
+);
+
+const statUnit = v.union(v.literal("count"), v.literal("percent"));
 
 export const scaleFields = v.object({
   name: v.string(),
@@ -25,6 +35,11 @@ export const scaleFields = v.object({
 export const graphicFields = v.object({
   type: dashboardType,
   cols: v.number(),
+  stat_tab: v.optional(statTabMode),
+  stat_title: v.optional(v.string()),
+  stat_subtitle: v.optional(v.string()),
+  stat_unit: v.optional(v.union(statUnit, v.null())),
+  stat_variant: v.optional(v.union(v.string(), v.number())),
 });
 
 export const statFields = v.object({

@@ -12,9 +12,11 @@ export { DashboardType };
 
 export interface FillDialogState {
   open: boolean;
-  type: 'stat' | 'dashboard' | 'all';
+  type: 'stat' | 'dashboard' | 'all' | 'variant';
   dashboardIndex?: number;
   statIndex?: number;
+  /** Текст ответа для заливки одного варианта */
+  variantResponse?: string;
 }
 
 export interface DefaultDistributionDialogState {
@@ -24,7 +26,7 @@ export interface DefaultDistributionDialogState {
 }
 
 export interface QuestionStats {
-  [questionId: string]: { value: string; count: number }[];
+  [questionId: string]: { value: string | number; count: number }[];
 }
 
 export interface LoadingStats {

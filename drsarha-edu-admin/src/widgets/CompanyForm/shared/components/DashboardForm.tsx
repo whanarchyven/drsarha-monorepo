@@ -1,6 +1,7 @@
 'use client';
 
 import { Dashboard } from '@/entities/company/model';
+import { canUseAdvancedDashboardTools } from '../utils/dashboard-access';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -17,6 +18,8 @@ export function DashboardForm({
   role,
   onUpdate,
 }: DashboardFormProps) {
+  const advanced = canUseAdvancedDashboardTools(role);
+
   return (
     <div className="space-y-4 p-4 bg-purple-50/30 dark:bg-purple-950/10">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-purple-200 dark:border-purple-800">
@@ -41,7 +44,7 @@ export function DashboardForm({
           />
         </div>
       </div>
-      {role === 'admin' && (
+      {advanced && (
         <div className="space-y-2 p-4 bg-white dark:bg-gray-800 rounded-lg border border-purple-200 dark:border-purple-800">
           <Label htmlFor={`dashboard-percent-${dashboardIndex}`}>
             Процент дашборда (от 0 до 100%)

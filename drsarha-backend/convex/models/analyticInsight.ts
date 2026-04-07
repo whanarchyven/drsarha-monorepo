@@ -5,7 +5,7 @@ import { analyticsInsightType } from "../helpers/analytics";
 export const analyticInsightFields = {
   question_id: v.id("analytic_questions"),
   user_id: v.string(),
-  response: v.string(),
+  response: v.union(v.string(), v.number()),
   responseNormalized: v.string(),
   type: analyticsInsightType,
   timestamp: v.number(),

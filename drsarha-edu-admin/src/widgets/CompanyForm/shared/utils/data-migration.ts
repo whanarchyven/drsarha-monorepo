@@ -1,14 +1,37 @@
-import { DashboardType, Graphic, Company } from '@/entities/company/model';
+import {
+  DashboardType,
+  Graphic,
+  Company,
+  StatTabMode,
+} from '@/entities/company/model';
+
+const SAVE_LOG = '[CompanySave]';
 
 export const migrateCompanyData = (initialCompany: Company): Company => {
   const migratedCompany = {
     ...initialCompany,
-    dashboards: initialCompany.dashboards.map((dashboard) => ({
+    dashboards: (initialCompany.dashboards ?? []).map((dashboard) => ({
       ...dashboard,
-      stats: dashboard.stats.map((stat: any) => {
+      stats: (dashboard.stats ?? []).map((stat: any) => {
         // Если есть graphics, используем их
         if (stat.graphics && Array.isArray(stat.graphics)) {
-          return stat;
+          const scalesRaw = Array.isArray(stat.scales) ? stat.scales : [];
+          return {
+            ...stat,
+            scaleAll:
+              stat.scaleAll !== undefined && stat.scaleAll !== null
+                ? Number(stat.scaleAll)
+                : 1,
+            scales: scalesRaw.map((scale: any) => ({
+              ...scale,
+              autoscale: scale.autoscale || {
+                enabled: false,
+                min_step: 0,
+                max_step: 0,
+                extremum: 0,
+              },
+            })),
+          };
         }
         // Иначе мигрируем из старой структуры
         const graphics: Graphic[] = [];
@@ -39,6 +62,11 @@ export const migrateCompanyData = (initialCompany: Company): Company => {
 
         return {
           ...restStat,
+          scaleAll:
+            restStat.scaleAll !== undefined && restStat.scaleAll !== null
+              ? Number(restStat.scaleAll)
+              : 1,
+          scales: Array.isArray(restStat.scales) ? restStat.scales : [],
           graphics,
         };
       }),
@@ -49,13 +77,42 @@ export const migrateCompanyData = (initialCompany: Company): Company => {
 };
 
 export const prepareCompanyForSubmit = (company: Company): Company => {
-  const companyToSubmit = { ...company };
+  let companyToSubmit: Company;
+  try {
+    companyToSubmit = structuredClone(company) as Company;
+  } catch (e) {
+    console.error(`${SAVE_LOG} structuredClone failed, falling back to JSON`, e);
+    companyToSubmit = JSON.parse(JSON.stringify(company)) as Company;
+  }
+
+  console.log(`${SAVE_LOG} prepare: clone OK`, {
+    _id: companyToSubmit._id,
+    dashboards: companyToSubmit.dashboards?.length ?? 0,
+  });
 
   // Убедимся, что у всех статистик есть массив graphics и удалим старые поля
   companyToSubmit.dashboards.forEach((dashboard) => {
     dashboard.stats.forEach((stat: any) => {
       if (!stat.graphics || stat.graphics.length === 0) {
         stat.graphics = [{ type: DashboardType.LINE, cols: 1 }];
+      }
+      if (Array.isArray(stat.graphics)) {
+        stat.graphics.forEach((g: Graphic) => {
+          if (g.type === DashboardType.TAB) {
+            if (g.stat_tab === undefined) {
+              g.stat_tab = StatTabMode.COUNT_ALL;
+            }
+            if (g.stat_tab !== StatTabMode.VARIANT_PERCENT) {
+              delete g.stat_variant;
+            }
+          } else {
+            delete g.stat_tab;
+            delete g.stat_title;
+            delete g.stat_subtitle;
+            delete g.stat_unit;
+            delete g.stat_variant;
+          }
+        });
       }
       // Удаляем старые поля type и cols, если они есть
       if ('type' in stat) {
@@ -160,6 +217,21 @@ export const prepareCompanyForSubmit = (company: Company): Company => {
   if ('_id' in companyToSubmit && !companyToSubmit._id) {
     delete (companyToSubmit as Partial<Company>)._id;
   }
+
+  const statsTotal = companyToSubmit.dashboards.reduce(
+    (n, d) => n + (d.stats?.length ?? 0),
+    0
+  );
+  console.log(`${SAVE_LOG} prepare: done`, {
+    dashboards: companyToSubmit.dashboards.length,
+    statsTotal,
+    scalesTotal: companyToSubmit.dashboards.reduce(
+      (n, d) =>
+        n +
+        (d.stats ?? []).reduce((sn, s) => sn + (s.scales?.length ?? 0), 0),
+      0
+    ),
+  });
 
   return companyToSubmit;
 };

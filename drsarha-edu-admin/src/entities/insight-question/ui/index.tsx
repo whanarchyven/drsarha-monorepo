@@ -2,12 +2,14 @@
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import {
   ChartColumnIncreasing,
   Pencil,
   Trash,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { copyToClipboard } from '@/shared/utils/copyToClipboard';
 import { toast } from 'sonner';
 import MergeTable, { Stat } from '@/components/merge-table';
@@ -15,11 +17,16 @@ import { AnalyticsQuestion } from '@/shared/types/analytics';
 
 interface InsightQuestionProps {
   question: AnalyticsQuestion;
-  getStats?: (id: string) => Promise<any>;
+  getStats?: (
+    id: string,
+    opts?: { onlyUserResponses?: boolean }
+  ) => Promise<any>;
   setQuestionToDelete?: (question: AnalyticsQuestion) => void;
   onEdit?: (question: AnalyticsQuestion) => void;
   hideBtns?: boolean;
   isAdmin?: boolean;
+  /** Свитчер «только user» (админ) */
+  showRealUserOnlySwitch?: boolean;
 }
 
 export const InsightQuestion = ({
@@ -29,16 +36,29 @@ export const InsightQuestion = ({
   onEdit,
   hideBtns = false,
   isAdmin = false,
+  showRealUserOnlySwitch = false,
 }: InsightQuestionProps) => {
   const [openStats, setOpenStats] = useState(false);
   const [stats, setStats] = useState<any[]>([]);
+  const [realUserOnly, setRealUserOnly] = useState(false);
 
-  const handleShowStats = async () => {
+  const loadStats = async () => {
     if (!getStats) return;
-    const stats = await getStats(question.id ?? '');
-    setStats(stats.results);
+    const data = await getStats(question.id ?? '', {
+      onlyUserResponses: realUserOnly,
+    });
+    setStats(data.results);
+  };
+
+  const handleShowStats = () => {
     setOpenStats(true);
   };
+
+  useEffect(() => {
+    if (!openStats || !getStats) return;
+    void loadStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- перезагрузка при переключателе и открытии панели
+  }, [realUserOnly, openStats, question.id]);
 
   return (
     <Card>
@@ -97,8 +117,22 @@ export const InsightQuestion = ({
           </div>
         )}
         {openStats && (
-          <div className="flex flex-col gap-2 mt-4 p-2 border rounded-md">
-            <p className="text-sm font-bold">Статистика:</p>
+          <div className="flex flex-col gap-3 mt-4 p-2 border rounded-md">
+            <p className="text-sm font-bold">Статистика</p>
+            {showRealUserOnlySwitch ? (
+              <div className="flex items-center gap-3 rounded-md border bg-muted/40 px-3 py-2.5">
+                <Switch
+                  id={`real-answers-${question.id}`}
+                  checked={realUserOnly}
+                  onCheckedChange={(c) => setRealUserOnly(c === true)}
+                />
+                <Label
+                  htmlFor={`real-answers-${question.id}`}
+                  className="text-sm font-medium cursor-pointer leading-none">
+                  Настоящие ответы (только инсайты type: user)
+                </Label>
+              </div>
+            ) : null}
             <MergeTable
               initialStats={stats as Stat[]}
               questionId={question.id ?? ''}
@@ -108,7 +142,9 @@ export const InsightQuestion = ({
               onRewritesSaved={
                 getStats
                   ? async () => {
-                      const next = await getStats(question.id ?? '');
+                      const next = await getStats(question.id ?? '', {
+                        onlyUserResponses: realUserOnly,
+                      });
                       setStats(next.results);
                     }
                   : undefined

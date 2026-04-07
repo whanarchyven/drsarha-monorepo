@@ -11,6 +11,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { canUseAdvancedDashboardTools } from '../utils/dashboard-access';
 
 interface CompanyInfoCardProps {
   company: Company;
@@ -23,7 +24,8 @@ export function CompanyInfoCard({
   onUpdate,
   role,
 }: CompanyInfoCardProps) {
-  console.log(role, 'ROLE');
+  const advanced = canUseAdvancedDashboardTools(role);
+
   return (
     <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
       <CardHeader className="border-b border-blue-200 dark:border-blue-800">
@@ -115,7 +117,7 @@ export function CompanyInfoCard({
             </div>
           </div>
         )}
-        {role === 'admin' && (
+        {advanced && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="minGrowth">Минимальный рост</Label>

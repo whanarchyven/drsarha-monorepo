@@ -21,7 +21,7 @@ export interface AnalyticsQuestionSummary {
     variants?: string[];
   };
   results: Array<{
-    value: string;
+    value: string | number;
     count: number;
     sourceCount?: number;
   }>;

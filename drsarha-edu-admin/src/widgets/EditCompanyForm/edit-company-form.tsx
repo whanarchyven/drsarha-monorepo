@@ -23,16 +23,34 @@ import { DefaultDistributionDialog } from '../CompanyForm/shared/components/Defa
 import { getConvexHttpClient } from '@/shared/lib/convex';
 import { api } from '@convex/_generated/api';
 
+const SAVE_LOG = '[CompanySave]';
+
+function logConvexError(error: unknown) {
+  console.error(`${SAVE_LOG} raw error:`, error);
+  if (error && typeof error === 'object') {
+    const anyErr = error as Record<string, unknown>;
+    if ('message' in anyErr) {
+      console.error(`${SAVE_LOG} message:`, anyErr.message);
+    }
+    if ('data' in anyErr) {
+      console.error(`${SAVE_LOG} Convex error data:`, anyErr.data);
+    }
+    if ('cause' in anyErr && anyErr.cause) {
+      console.error(`${SAVE_LOG} cause:`, anyErr.cause);
+    }
+  }
+}
+
 export default function EditDashboardForm({
   initialCompany,
 }: {
   initialCompany: Company;
 }) {
   const router = useRouter();
-  const companyId = initialCompany._id || 'comp123';
   const { role } = useAuth();
   const convexClient = getConvexHttpClient();
-  const roleValue = role || undefined;
+  const formRole =
+    role === 'admin' || role === 'moderator' ? role : 'admin';
   const [isSaving, setIsSaving] = useState(false);
 
   const {
@@ -50,6 +68,11 @@ export default function EditDashboardForm({
     setFillDialog,
     fillValue,
     setFillValue,
+    fillDateStart,
+    setFillDateStart,
+    fillDateEnd,
+    setFillDateEnd,
+    isApplyingInsightFill,
     updateCompany,
     handleAddDashboard,
     handleUpdateDashboard,
@@ -70,7 +93,7 @@ export default function EditDashboardForm({
     handleRemoveScale,
     handleAddScaleFromVariant,
     handleApplyDefaultDistribution,
-    handleFillValues,
+    handleApplyInsightFill,
     handleFillDialogOpen,
     getQuestionText,
     updateQuestionTitleCache,
@@ -79,24 +102,80 @@ export default function EditDashboardForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!company) return;
+    if (!company) {
+      console.warn(`${SAVE_LOG} submit aborted: company is null`);
+      return;
+    }
 
     setIsSaving(true);
 
     try {
-      const updatedCompany = {
-        ...prepareForSubmit(),
+      console.groupCollapsed(`${SAVE_LOG} submit start`);
+      console.log(`${SAVE_LOG} state.company._id`, company._id);
+      console.log(`${SAVE_LOG} initialCompany._id`, initialCompany._id);
+      console.log(`${SAVE_LOG} dashboards in state`, company.dashboards?.length ?? 0);
+      const statsInState = company.dashboards?.reduce(
+        (n, d) => n + (d.stats?.length ?? 0),
+        0
+      );
+      console.log(`${SAVE_LOG} stats in state (total)`, statsInState ?? 0);
+
+      let prepared;
+      try {
+        prepared = prepareForSubmit();
+      } catch (prepErr) {
+        console.error(`${SAVE_LOG} prepareForSubmit threw:`, prepErr);
+        logConvexError(prepErr);
+        toast.error('Ошибка подготовки данных (см. консоль)');
+        return;
+      }
+
+      const convexCompanyId = prepared._id || initialCompany._id;
+      console.log(`${SAVE_LOG} convexCompanyId`, convexCompanyId, typeof convexCompanyId);
+
+      if (!convexCompanyId) {
+        console.error(`${SAVE_LOG} missing company id after prepare`);
+        toast.error('Не удалось определить ID компании');
+        return;
+      }
+
+      const { _id: _omitId, _creationTime, ...patchData } = prepared as any;
+      const payload = {
+        ...patchData,
         updated_at: new Date().toISOString(),
       };
 
-      await convexClient.mutation(api.functions.companies.update, {
-        id: companyId as any,
-        data: updatedCompany,
-      });
+      const dashCount = payload.dashboards?.length ?? 'no dashboards key';
+      console.log(`${SAVE_LOG} patch top-level keys`, Object.keys(payload));
+      console.log(`${SAVE_LOG} payload.dashboards length`, dashCount);
+
+      let jsonProbe: string | null = null;
+      try {
+        jsonProbe = JSON.stringify(payload);
+        console.log(
+          `${SAVE_LOG} JSON payload length (chars)`,
+          jsonProbe.length
+        );
+      } catch (serErr) {
+        console.error(`${SAVE_LOG} JSON.stringify(payload) failed`, serErr);
+      }
+
+      console.log(`${SAVE_LOG} calling companies.update…`);
+      console.groupEnd();
+
+      const result = await convexClient.mutation(
+        api.functions.companies.update,
+        {
+          id: convexCompanyId as any,
+          data: payload,
+        }
+      );
+
+      console.log(`${SAVE_LOG} mutation OK, returned _id`, (result as any)?._id);
       toast.success('Компания успешно обновлена');
     } catch (error) {
-      console.error('Error saving company:', error);
-      toast.error('Ошибка при обновлении компании');
+      logConvexError(error);
+      toast.error('Ошибка при обновлении компании (детали в консоли)');
     } finally {
       setIsSaving(false);
     }
@@ -150,7 +229,7 @@ export default function EditDashboardForm({
         <CompanyInfoCard
           company={company}
           onUpdate={updateCompany}
-          role={roleValue}
+          role={formRole}
         />
 
         <DashboardsCard
@@ -162,7 +241,7 @@ export default function EditDashboardForm({
           questionTitleCache={questionTitleCache}
           questionStats={questionStats}
           loadingStats={loadingStats}
-          role={roleValue}
+          role={formRole}
           onDashboardAdd={handleAddDashboard}
           onDashboardUpdate={handleUpdateDashboard}
           onDashboardRemove={handleRemoveDashboard}
@@ -183,6 +262,7 @@ export default function EditDashboardForm({
           onScaleAddFromVariant={handleAddScaleFromVariant}
           onDefaultDistribution={handleApplyDefaultDistribution}
           onFillValues={handleFillDialogOpen}
+          insightFillEnabled={Boolean(company._id?.trim())}
           getQuestionText={getQuestionText}
           onQuestionTitleUpdate={updateQuestionTitleCache}
         />
@@ -230,9 +310,14 @@ export default function EditDashboardForm({
       <FillDialog
         dialog={fillDialog}
         fillValue={fillValue}
+        fillDateStart={fillDateStart}
+        fillDateEnd={fillDateEnd}
+        isApplying={isApplyingInsightFill}
         onOpenChange={(open) => setFillDialog({ ...fillDialog, open })}
         onValueChange={setFillValue}
-        onApply={handleFillValues}
+        onDateStartChange={setFillDateStart}
+        onDateEndChange={setFillDateEnd}
+        onApply={handleApplyInsightFill}
       />
     </div>
   );

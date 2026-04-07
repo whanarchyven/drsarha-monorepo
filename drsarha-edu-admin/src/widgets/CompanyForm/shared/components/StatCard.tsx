@@ -1,6 +1,6 @@
 'use client';
 
-import { Stat } from '@/entities/company/model';
+import { Stat, Graphic } from '@/entities/company/model';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,6 +10,7 @@ import { QuestionSelector } from './QuestionSelector';
 import { RealResultsTable } from './RealResultsTable';
 import { GraphicsList } from './GraphicsList';
 import { ScalesList } from './ScalesList';
+import { canUseAdvancedDashboardTools } from '../utils/dashboard-access';
 
 interface StatCardProps {
   stat: Stat;
@@ -17,7 +18,7 @@ interface StatCardProps {
   statIndex: number;
   role?: string;
   questionTitleCache: Record<string, string>;
-  questionStats?: { value: string; count: number }[];
+  questionStats?: { value: string | number; count: number }[];
   loadingStats?: boolean;
   isRealResultsExpanded: boolean;
   onRealResultsExpandedChange: (expanded: boolean) => void;
@@ -31,8 +32,8 @@ interface StatCardProps {
   onAddGraphic: () => void;
   onUpdateGraphic: (
     graphicIndex: number,
-    field: 'type' | 'cols',
-    value: any
+    field: keyof Graphic,
+    value: unknown
   ) => void;
   onRemoveGraphic: (graphicIndex: number) => void;
   onAddScale: () => void;
@@ -74,6 +75,8 @@ export function StatCard({
   getQuestionText,
   onQuestionTitleUpdate,
 }: StatCardProps) {
+  const advanced = canUseAdvancedDashboardTools(role);
+
   return (
     <Card className="relative border-2 border-green-300 dark:border-green-700 bg-green-50/50 dark:bg-green-950/20">
       <div className="absolute right-2 top-2 flex gap-1">
@@ -112,7 +115,7 @@ export function StatCard({
           <CardTitle className="text-base text-green-900 dark:text-green-100">
             {stat.name || `Статистика ${statIndex + 1}`}
           </CardTitle>
-          {role === 'admin' && onFillValues && (
+          {advanced && onFillValues && (
             <Button
               type="button"
               onClick={onFillValues}
@@ -148,24 +151,6 @@ export function StatCard({
           />
         </div>
 
-        {role === 'admin' && (
-          <div className="space-y-2">
-            <Label htmlFor={`scale-all-${dashboardIndex}-${statIndex}`}>
-              Общий масштаб
-            </Label>
-            <Input
-              id={`scale-all-${dashboardIndex}-${statIndex}`}
-              type="number"
-              value={stat.scaleAll}
-              onChange={(e) =>
-                onUpdate('scaleAll', Number.parseFloat(e.target.value) || 1)
-              }
-              min="0"
-              step="0.1"
-            />
-          </div>
-        )}
-
         <GraphicsList
           graphics={stat.graphics}
           dashboardIndex={dashboardIndex}
@@ -175,7 +160,7 @@ export function StatCard({
           onRemove={onRemoveGraphic}
         />
 
-        {stat.question_id && role == 'admin' && (
+        {stat.question_id && advanced && (
           <RealResultsTable
             stat={stat}
             dashboardIndex={dashboardIndex}
@@ -188,7 +173,7 @@ export function StatCard({
           />
         )}
 
-        {role === 'admin' && (
+        {advanced && (
           <ScalesList
             scales={stat.scales}
             dashboardIndex={dashboardIndex}

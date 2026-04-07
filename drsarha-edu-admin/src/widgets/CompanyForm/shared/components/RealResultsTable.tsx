@@ -23,7 +23,7 @@ interface RealResultsTableProps {
   stat: Stat;
   dashboardIndex: number;
   statIndex: number;
-  questionStats?: { value: string; count: number }[];
+  questionStats?: { value: string | number; count: number }[];
   loading: boolean;
   isExpanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
@@ -63,8 +63,8 @@ export function RealResultsTable({
   };
 
   // Функция для нестрогого сравнения значений
-  const isValueInScales = (value: string): boolean => {
-    const normalizedValue = normalizeValue(value);
+  const isValueInScales = (value: string | number): boolean => {
+    const normalizedValue = normalizeValue(String(value));
 
     // Проверяем точное совпадение после нормализации
     if (existingScaleNames.has(normalizedValue)) {
@@ -137,7 +137,7 @@ export function RealResultsTable({
                       const isInScales = isValueInScales(item.value);
                       return (
                         <TableRow
-                          key={item.value}
+                          key={String(item.value)}
                           className={
                             isInScales ? 'bg-green-50 dark:bg-green-950/20' : ''
                           }>
@@ -156,7 +156,7 @@ export function RealResultsTable({
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                onClick={() => onAddScale(item.value)}>
+                                onClick={() => onAddScale(String(item.value))}>
                                 <PlusCircle className="mr-2 h-4 w-4" />
                                 Добавить в масштаб
                               </Button>

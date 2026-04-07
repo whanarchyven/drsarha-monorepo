@@ -120,9 +120,15 @@ export async function middleware(request: NextRequest) {
       return response;
     }
 
-    // Проверяем срок действия токена
+    // Срок: Convex JWT кладёт `exp` (секунды); старый код ожидал `expires`
     const currentTime = Math.floor(Date.now() / 1000);
-    if (decodedToken.expires && decodedToken.expires < currentTime) {
+    const expSec =
+      typeof decodedToken.exp === 'number'
+        ? decodedToken.exp
+        : typeof (decodedToken as { expires?: number }).expires === 'number'
+          ? (decodedToken as { expires: number }).expires
+          : undefined;
+    if (expSec !== undefined && expSec < currentTime) {
       console.log('⏰ Token expired, redirecting to login');
       // Токен истек, удаляем куки и редиректим на логин
       const response = NextResponse.redirect(new URL('/login', request.url));

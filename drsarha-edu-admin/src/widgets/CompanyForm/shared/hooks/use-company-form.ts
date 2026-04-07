@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Company,
   Dashboard,
@@ -28,7 +28,6 @@ import {
   removeScale,
   addScaleFromVariant,
   applyDefaultDistribution,
-  fillValues,
 } from '../utils';
 import {
   migrateCompanyData,
@@ -45,9 +44,31 @@ import { toast } from 'sonner';
 import { getConvexHttpClient } from '@/shared/lib/convex';
 import { api } from '@convex/_generated/api';
 
+function toDatetimeLocalValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function defaultFillDateRange() {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date();
+  end.setHours(23, 59, 0, 0);
+  return { start: toDatetimeLocalValue(start), end: toDatetimeLocalValue(end) };
+}
+
 export function useCompanyForm(initialCompany: Company | null) {
   const convexClient = getConvexHttpClient();
-  const [company, setCompany] = useState<Company | null>(initialCompany);
+  const [company, setCompany] = useState<Company | null>(() =>
+    initialCompany ? migrateCompanyData(initialCompany) : null
+  );
+
+  const editRevision = useMemo(() => {
+    if (!initialCompany?._id) return '';
+    const id = String(initialCompany._id).trim();
+    if (!id) return '';
+    return `${id}:${initialCompany.updated_at ?? ''}`;
+  }, [initialCompany?._id, initialCompany?.updated_at]);
   const [expandedDashboards, setExpandedDashboards] = useState<string[]>([]);
   const [expandedRealResults, setExpandedRealResults] =
     useState<ExpandedRealResults>({});
@@ -69,14 +90,46 @@ export function useCompanyForm(initialCompany: Company | null) {
     type: 'stat',
   });
   const [fillValue, setFillValue] = useState<string>('');
+  const [fillDateStart, setFillDateStart] = useState(
+    () => defaultFillDateRange().start
+  );
+  const [fillDateEnd, setFillDateEnd] = useState(
+    () => defaultFillDateRange().end
+  );
+  const [isApplyingInsightFill, setIsApplyingInsightFill] = useState(false);
 
-  // Миграция данных при инициализации
+  // RSC → клиент иногда отдаёт неполный объект (пустые поля). Редактирование: полная копия через Convex.
   useEffect(() => {
-    if (initialCompany && !company) {
-      const migrated = migrateCompanyData(initialCompany);
-      setCompany(migrated);
+    if (!initialCompany) {
+      setCompany(null);
+      return;
     }
-  }, [initialCompany, company]);
+
+    const idStr = String(initialCompany._id ?? '').trim();
+
+    if (!idStr) {
+      setCompany(migrateCompanyData(initialCompany));
+      return;
+    }
+
+    let cancelled = false;
+    void convexClient
+      .query(api.functions.companies.getById, { id: idStr })
+      .then((doc) => {
+        if (cancelled || !doc) return;
+        setCompany(migrateCompanyData(doc as Company));
+      })
+      .catch((err) => {
+        console.error('[useCompanyForm] getById (client):', err);
+        setCompany(migrateCompanyData(initialCompany));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // initialCompany только внутри эффекта (null / create / catch); перезапуск по id+updated_at, не при новой ссылке на проп
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editRevision, convexClient]);
 
   // Загружаем статистику только при открытии аккордеона реальных результатов
   useEffect(() => {
@@ -121,7 +174,9 @@ export function useCompanyForm(initialCompany: Company | null) {
         }
       );
       const results = response?.results;
-      const stats: { value: string; count: number }[] = Array.isArray(results)
+      const stats: { value: string | number; count: number }[] = Array.isArray(
+        results
+      )
         ? results
         : [];
       setQuestionStats((prev) => ({
@@ -191,32 +246,29 @@ export function useCompanyForm(initialCompany: Company | null) {
     }
   };
 
-  // Загрузка названий вопросов только при первой загрузке компании
+  // После getById данные в company; RSC-проп может быть пустым — опираемся на company
   useEffect(() => {
-    if (!initialCompany) return;
+    if (!company?.dashboards?.length) return;
 
-    // Загружаем только при первой инициализации
     const allIds = new Set<string>();
-    initialCompany.dashboards.forEach((d) =>
+    company.dashboards.forEach((d) =>
       d.stats.forEach((s) => s.question_id && allIds.add(s.question_id))
     );
 
-    // Проверяем через ref, какие вопросы нужно загрузить
     const missingIds = Array.from(allIds).filter(
       (id) =>
         !questionTitleCacheRef.current[id] && !loadingTitlesRef.current.has(id)
     );
 
     if (missingIds.length > 0) {
-      // Загружаем все недостающие вопросы параллельно
       missingIds.forEach((id) => {
         loadQuestionTitle(id).catch((error) => {
           console.error(`Error loading question title ${id}:`, error);
         });
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialCompany]); // Зависимость только от initialCompany, не от company!
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- кэш/ref сами гардят повторы
+  }, [company]);
 
   // Обновление компании
   const updateCompany = (updates: Partial<Company>) => {
@@ -358,8 +410,8 @@ export function useCompanyForm(initialCompany: Company | null) {
     dashboardIndex: number,
     statIndex: number,
     graphicIndex: number,
-    field: 'type' | 'cols',
-    value: any
+    field: keyof Graphic,
+    value: unknown
   ) => {
     if (!company) return;
     setCompany(
@@ -462,19 +514,75 @@ export function useCompanyForm(initialCompany: Company | null) {
     toast.success('Распределение по умолчанию применено');
   };
 
-  const handleFillValues = (value: number) => {
-    if (!company) return;
-    const updated = fillValues(
-      company,
-      fillDialog.type,
-      value,
-      fillDialog.dashboardIndex,
-      fillDialog.statIndex
-    );
-    setCompany(updated);
-    setFillDialog({ open: false, type: 'stat' });
-    setFillValue('');
-    toast.success('Значения залиты');
+  const handleApplyInsightFill = async (value: number) => {
+    const cid = company?._id?.trim();
+    if (!cid) {
+      toast.error('Сохраните компанию, чтобы создавать инсайты');
+      return;
+    }
+
+    const startMs = new Date(fillDateStart).getTime();
+    const endMs = new Date(fillDateEnd).getTime();
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+      toast.error('Укажите корректный интервал дат');
+      return;
+    }
+    if (endMs < startMs) {
+      toast.error('Конец периода не может быть раньше начала');
+      return;
+    }
+
+    let scope:
+      | 'all'
+      | { kind: 'dashboard'; dashboardIndex: number }
+      | { kind: 'stat'; dashboardIndex: number; statIndex: number };
+
+    if (fillDialog.type === 'all') {
+      scope = 'all';
+    } else if (fillDialog.type === 'dashboard') {
+      const di = fillDialog.dashboardIndex;
+      if (di === undefined || di < 0) {
+        toast.error('Не выбран дашборд');
+        return;
+      }
+      scope = { kind: 'dashboard', dashboardIndex: di };
+    } else {
+      const di = fillDialog.dashboardIndex;
+      const si = fillDialog.statIndex;
+      if (di === undefined || si === undefined || di < 0 || si < 0) {
+        toast.error('Не выбрана статистика');
+        return;
+      }
+      scope = { kind: 'stat', dashboardIndex: di, statIndex: si };
+    }
+
+    setIsApplyingInsightFill(true);
+    try {
+      const { createdInsights } = await convexClient.mutation(
+        api.functions.companies.fillInsightsForCompany,
+        {
+          companyId: cid as any,
+          fillValue: Math.floor(value),
+          startDate: startMs,
+          endDate: endMs,
+          scope,
+        }
+      );
+      toast.success(
+        createdInsights > 0
+          ? `Создано инсайтов: ${createdInsights}`
+          : 'Ни одного инсайта не создано (проверьте вопросы и распределения масштабов)'
+      );
+      setFillDialog({ open: false, type: 'stat' });
+      setFillValue('');
+    } catch (e) {
+      console.error('[useCompanyForm] fillInsightsForCompany', e);
+      toast.error(
+        e instanceof Error ? e.message : 'Ошибка при создании инсайтов'
+      );
+    } finally {
+      setIsApplyingInsightFill(false);
+    }
   };
 
   const handleFillDialogOpen = (
@@ -482,6 +590,9 @@ export function useCompanyForm(initialCompany: Company | null) {
     dashboardIndex?: number,
     statIndex?: number
   ) => {
+    const d = defaultFillDateRange();
+    setFillDateStart(d.start);
+    setFillDateEnd(d.end);
     setFillDialog({
       open: true,
       type,
@@ -518,6 +629,11 @@ export function useCompanyForm(initialCompany: Company | null) {
     setFillDialog,
     fillValue,
     setFillValue,
+    fillDateStart,
+    setFillDateStart,
+    fillDateEnd,
+    setFillDateEnd,
+    isApplyingInsightFill,
     updateCompany,
     handleAddDashboard,
     handleUpdateDashboard,
@@ -538,7 +654,7 @@ export function useCompanyForm(initialCompany: Company | null) {
     handleRemoveScale,
     handleAddScaleFromVariant,
     handleApplyDefaultDistribution,
-    handleFillValues,
+    handleApplyInsightFill,
     handleFillDialogOpen,
     getQuestionText,
     updateQuestionTitleCache,

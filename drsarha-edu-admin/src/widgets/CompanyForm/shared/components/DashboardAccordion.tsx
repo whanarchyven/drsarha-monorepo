@@ -1,6 +1,6 @@
 'use client';
 
-import { Dashboard, Company } from '@/entities/company/model';
+import { Dashboard, Company, Graphic, Stat } from '@/entities/company/model';
 import {
   Accordion,
   AccordionContent,
@@ -13,8 +13,8 @@ import { Badge } from '@/components/ui/badge';
 import { PlusCircle, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { DashboardForm } from './DashboardForm';
 import { StatCard } from './StatCard';
-import { Stat } from '@/entities/company/model';
 import { QuestionStats, LoadingStats, ExpandedRealResults } from '../types';
+import { canUseAdvancedDashboardTools } from '../utils/dashboard-access';
 
 interface DashboardAccordionProps {
   company: Company;
@@ -54,8 +54,8 @@ interface DashboardAccordionProps {
     dashboardIndex: number,
     statIndex: number,
     graphicIndex: number,
-    field: 'type' | 'cols',
-    value: any
+    field: keyof Graphic,
+    value: unknown
   ) => void;
   onGraphicRemove: (
     dashboardIndex: number,
@@ -86,6 +86,7 @@ interface DashboardAccordionProps {
     dashboardIndex: number,
     statIndex?: number
   ) => void;
+  insightFillEnabled?: boolean;
   getQuestionText: (questionId: string) => string;
   onQuestionTitleUpdate?: (questionId: string, title: string) => void;
 }
@@ -119,9 +120,12 @@ export function DashboardAccordion({
   onScaleAddFromVariant,
   onDefaultDistribution,
   onFillValues,
+  insightFillEnabled = true,
   getQuestionText,
   onQuestionTitleUpdate,
 }: DashboardAccordionProps) {
+  const advanced = canUseAdvancedDashboardTools(role);
+
   if (company.dashboards.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-8 text-center border border-dashed rounded-lg">
@@ -205,7 +209,7 @@ export function DashboardAccordion({
               <div className="flex items-center justify-between sticky top-0 bg-background z-10 py-2">
                 <Label>Статистика</Label>
                 <div className="flex gap-2">
-                  {role === 'admin' && (
+                  {advanced && insightFillEnabled && (
                     <Button
                       type="button"
                       onClick={() => onFillValues('dashboard', dashboardIndex)}
@@ -313,8 +317,15 @@ export function DashboardAccordion({
                                 onDefaultDistribution(dashboardIndex, statIndex)
                             : undefined
                         }
-                        onFillValues={() =>
-                          onFillValues('stat', dashboardIndex, statIndex)
+                        onFillValues={
+                          insightFillEnabled
+                            ? () =>
+                                onFillValues(
+                                  'stat',
+                                  dashboardIndex,
+                                  statIndex
+                                )
+                            : undefined
                         }
                         getQuestionText={getQuestionText}
                         onQuestionTitleUpdate={onQuestionTitleUpdate}

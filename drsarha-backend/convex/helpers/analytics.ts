@@ -16,7 +16,7 @@ export const analyticsCountResult = v.object({
 });
 
 export const analyticsSummaryResult = v.object({
-  value: v.string(),
+  value: v.union(v.string(), v.number()),
   count: v.number(),
   sourceCount: v.optional(v.number()),
 });
@@ -41,6 +41,49 @@ export function cleanupAnalyticsValue(value: unknown) {
 
 export function normalizeAnalyticsValue(value: unknown) {
   return cleanupAnalyticsValue(value).toLowerCase();
+}
+
+/** Число из ответа инсайта (число в БД, строка из заливки/legacy). */
+export function coerceToFiniteNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value === 0 ? 0 : value;
+  }
+  if (typeof value === "string") {
+    const s = cleanupAnalyticsValue(value).replace(",", ".");
+    if (s === "") {
+      return null;
+    }
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+/** Ключ группировки для числовых ответов (совпадает с String(n) для обычных чисел). */
+export function numericNormalizedKey(n: number): string {
+  if (!Number.isFinite(n)) {
+    return "";
+  }
+  const x = n === 0 ? 0 : n;
+  return String(x);
+}
+
+export function normalizeInsightResponseForStorage(
+  value: unknown,
+  questionType: "numeric" | "text",
+): { response: string | number; responseNormalized: string } | null {
+  if (questionType === "numeric") {
+    const n = coerceToFiniteNumber(value);
+    if (n === null) {
+      return null;
+    }
+    return { response: n, responseNormalized: numericNormalizedKey(n) };
+  }
+  const s = cleanupAnalyticsValue(value);
+  if (!s) {
+    return null;
+  }
+  return { response: s, responseNormalized: normalizeAnalyticsValue(s) };
 }
 
 export function parseAnalyticsDate(value: unknown) {
@@ -109,7 +152,7 @@ export function sanitizeVariants(variants?: string[]) {
 }
 
 type InsightSummaryInput = {
-  response: string;
+  response: string | number;
 };
 
 type RewriteSummaryInput = {
@@ -117,15 +160,182 @@ type RewriteSummaryInput = {
   rewrite_target: string;
 };
 
-type QuestionSummaryInput = {
+export type QuestionSummaryInput = {
   variants?: string[];
+  type?: "numeric" | "text";
 };
+
+function summarizeNumericAnalyticsResponses(
+  question: QuestionSummaryInput,
+  insights: InsightSummaryInput[],
+  rewrites: RewriteSummaryInput[],
+) {
+  const variants = sanitizeVariants(question.variants) ?? [];
+
+  const variantNormForLabel = (label: string): string => {
+    const n = coerceToFiniteNumber(label);
+    return n !== null ? numericNormalizedKey(n) : normalizeAnalyticsValue(label);
+  };
+
+  const variantNormSet = new Set(variants.map(variantNormForLabel));
+
+  const directByNorm = new Map<string, number>();
+  const finalByNorm = new Map<string, number>();
+  const labelByNorm = new Map<string, string | number>();
+
+  for (const variant of variants) {
+    const norm = variantNormForLabel(variant);
+    const displayNum = coerceToFiniteNumber(variant);
+    directByNorm.set(norm, 0);
+    finalByNorm.set(norm, 0);
+    labelByNorm.set(norm, displayNum !== null ? displayNum : variant);
+  }
+
+  const rewriteMap = new Map<string, string>();
+  const rewriteTargetLabel = new Map<string, string | number>();
+  for (const rewrite of rewrites) {
+    const srcNum = coerceToFiniteNumber(rewrite.rewrite_value);
+    const tgtNum = coerceToFiniteNumber(rewrite.rewrite_target);
+    const rewriteValueNorm =
+      srcNum !== null
+        ? numericNormalizedKey(srcNum)
+        : normalizeAnalyticsValue(cleanupAnalyticsValue(rewrite.rewrite_value));
+    const rewriteTargetNorm =
+      tgtNum !== null
+        ? numericNormalizedKey(tgtNum)
+        : normalizeAnalyticsValue(cleanupAnalyticsValue(rewrite.rewrite_target));
+    if (!rewriteValueNorm || !rewriteTargetNorm) {
+      continue;
+    }
+    rewriteMap.set(rewriteValueNorm, rewriteTargetNorm);
+    if (!rewriteTargetLabel.has(rewriteTargetNorm)) {
+      const targetClean = cleanupAnalyticsValue(rewrite.rewrite_target);
+      rewriteTargetLabel.set(
+        rewriteTargetNorm,
+        tgtNum !== null ? tgtNum : targetClean || rewrite.rewrite_target,
+      );
+    }
+  }
+
+  const isVariantNorm = (n: string) => variantNormSet.has(n);
+
+  for (const insight of insights) {
+    const num = coerceToFiniteNumber(insight.response);
+    if (num === null) {
+      continue;
+    }
+    const normalizedResponse = numericNormalizedKey(num);
+
+    if (isVariantNorm(normalizedResponse)) {
+      directByNorm.set(
+        normalizedResponse,
+        (directByNorm.get(normalizedResponse) ?? 0) + 1,
+      );
+      finalByNorm.set(
+        normalizedResponse,
+        (finalByNorm.get(normalizedResponse) ?? 0) + 1,
+      );
+      continue;
+    }
+
+    const rewriteTarget = rewriteMap.get(normalizedResponse);
+    if (rewriteTarget) {
+      if (isVariantNorm(rewriteTarget)) {
+        finalByNorm.set(
+          rewriteTarget,
+          (finalByNorm.get(rewriteTarget) ?? 0) + 1,
+        );
+      } else {
+        if (!finalByNorm.has(rewriteTarget)) {
+          finalByNorm.set(rewriteTarget, 0);
+          directByNorm.set(rewriteTarget, 0);
+          labelByNorm.set(
+            rewriteTarget,
+            rewriteTargetLabel.get(rewriteTarget) ?? rewriteTarget,
+          );
+        }
+        finalByNorm.set(
+          rewriteTarget,
+          (finalByNorm.get(rewriteTarget) ?? 0) + 1,
+        );
+      }
+      continue;
+    }
+
+    if (!finalByNorm.has(normalizedResponse)) {
+      finalByNorm.set(normalizedResponse, 0);
+      directByNorm.set(normalizedResponse, 0);
+      labelByNorm.set(normalizedResponse, num);
+    }
+    finalByNorm.set(
+      normalizedResponse,
+      (finalByNorm.get(normalizedResponse) ?? 0) + 1,
+    );
+  }
+
+  const results: Array<{
+    value: string | number;
+    count: number;
+    sourceCount?: number;
+  }> = variants.map((variant) => {
+    const norm = variantNormForLabel(variant);
+    const displayNum = coerceToFiniteNumber(variant);
+    return {
+      value: displayNum !== null ? displayNum : variant,
+      count: finalByNorm.get(norm) ?? 0,
+      sourceCount: directByNorm.get(norm) ?? 0,
+    };
+  });
+
+  const extraNorms = Array.from(finalByNorm.keys()).filter(
+    (n) => !variantNormSet.has(n) && (finalByNorm.get(n) ?? 0) > 0,
+  );
+  extraNorms.sort((a, b) => {
+    const ca = finalByNorm.get(a) ?? 0;
+    const cb = finalByNorm.get(b) ?? 0;
+    if (cb !== ca) {
+      return cb - ca;
+    }
+    const la = labelByNorm.get(a);
+    const lb = labelByNorm.get(b);
+    const na = typeof la === "number" ? la : Number.NaN;
+    const nb = typeof lb === "number" ? lb : Number.NaN;
+    if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) {
+      return na - nb;
+    }
+    return String(la ?? a).localeCompare(String(lb ?? b));
+  });
+
+  for (const n of extraNorms) {
+    const label = labelByNorm.get(n);
+    const value: string | number =
+      label !== undefined
+        ? label
+        : (() => {
+            const parsed = coerceToFiniteNumber(n);
+            return parsed !== null ? parsed : n;
+          })();
+    results.push({
+      value,
+      count: finalByNorm.get(n) ?? 0,
+    });
+  }
+
+  return {
+    results,
+    totalInsights: insights.length,
+  };
+}
 
 export function summarizeAnalyticsResponses(
   question: QuestionSummaryInput,
   insights: InsightSummaryInput[],
   rewrites: RewriteSummaryInput[],
 ) {
+  if (question.type === "numeric") {
+    return summarizeNumericAnalyticsResponses(question, insights, rewrites);
+  }
+
   const variants = sanitizeVariants(question.variants) ?? [];
   const variantNormSet = new Set(
     variants.map((v) => normalizeAnalyticsValue(v)),
@@ -214,7 +424,7 @@ export function summarizeAnalyticsResponses(
   }
 
   const results: Array<{
-    value: string;
+    value: string | number;
     count: number;
     sourceCount?: number;
   }> = variants.map((variant) => {

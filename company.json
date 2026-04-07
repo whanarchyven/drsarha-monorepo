@@ -1,0 +1,974 @@
+{
+    "_creationTime": 1774296588537.9192,
+    "_id": "k174ek1y7d8f5z32p1sm7rqaf183fgrx",
+    "created_at": "2026-03-23T20:09:48.482Z",
+    "dashboards": [
+      {
+        "icon": "BriefcaseMedical",
+        "name": "Врачи",
+        "stats": [
+          {
+            "graphics": [
+              {
+                "cols": 4,
+                "type": "area"
+              }
+            ],
+            "name": "Распределение по городу",
+            "question_id": "a858f49f-257a-4406-848f-f173ed3c450e",
+            "question_summary": {
+              "results": [
+                {
+                  "value": "Москва",
+                  "count": 257
+                },
+                {
+                  "value": "Санкт-Петербург",
+                  "count": 138
+                },
+                {
+                  "value": "Московская область",
+                  "count": 19
+                },
+                {
+                  "value": "Воронеж",
+                  "count": 10
+                },
+                {
+                  "value": "Екатеринбург",
+                  "count": 10
+                },
+                {
+                  "value": "Краснодар",
+                  "count": 9
+                },
+                {
+                  "value": "Ульяновск",
+                  "count": 9
+                },
+                {
+                  "value": "Казань",
+                  "count": 9
+                },
+                {
+                  "value": "Ростов-на-Дону",
+                  "count": 8
+                },
+                {
+                  "value": "Бишкек",
+                  "count": 7
+                },
+                {
+                  "value": "Уфа",
+                  "count": 6
+                },
+                {
+                  "value": "Пермь",
+                  "count": 5
+                },
+                {
+                  "value": "Минск",
+                  "count": 5
+                },
+                {
+                  "value": "Смоленск",
+                  "count": 5
+                },
+                {
+                  "value": "Гродно",
+                  "count": 5
+                },
+                {
+                  "value": "Самара",
+                  "count": 5
+                },
+                {
+                  "value": "Нижний Новгород",
+                  "count": 5
+                },
+                {
+                  "value": "Тюмень",
+                  "count": 4
+                },
+                {
+                  "value": "Саратов",
+                  "count": 4
+                },
+                {
+                  "value": "Ярославль",
+                  "count": 4
+                },
+                {
+                  "value": "Оренбург",
+                  "count": 4
+                },
+                {
+                  "value": "Белгород",
+                  "count": 4
+                },
+                {
+                  "value": "Иркутск",
+                  "count": 4
+                },
+                {
+                  "value": "Сочи",
+                  "count": 4
+                },
+                {
+                  "value": "Караганда",
+                  "count": 4
+                },
+                {
+                  "value": "Алматы",
+                  "count": 4
+                },
+                {
+                  "value": "Сургут",
+                  "count": 4
+                },
+                {
+                  "value": "Саранск",
+                  "count": 4
+                },
+                {
+                  "value": "Норильск",
+                  "count": 3
+                },
+                {
+                  "value": "Архангельск",
+                  "count": 3
+                },
+                {
+                  "value": "Рязань",
+                  "count": 3
+                },
+                {
+                  "value": "Хабаровск",
+                  "count": 3
+                },
+                {
+                  "value": "Махачкала",
+                  "count": 3
+                },
+                {
+                  "value": "Грозный",
+                  "count": 3
+                },
+                {
+                  "value": "Астана",
+                  "count": 3
+                },
+                {
+                  "value": "Красноярск",
+                  "count": 2
+                },
+                {
+                  "value": "Петрозаводск",
+                  "count": 2
+                },
+                {
+                  "value": "Симферополь",
+                  "count": 2
+                },
+                {
+                  "value": "Актобе",
+                  "count": 2
+                },
+                {
+                  "value": "Новосибирск",
+                  "count": 2
+                },
+                {
+                  "value": "Курск",
+                  "count": 2
+                },
+                {
+                  "value": "Когалым",
+                  "count": 2
+                },
+                {
+                  "value": "Ханты-Мансийск",
+                  "count": 2
+                },
+                {
+                  "value": "Волжский",
+                  "count": 2
+                },
+                {
+                  "value": "Измаил",
+                  "count": 2
+                },
+                {
+                  "value": "Одесса",
+                  "count": 2
+                },
+                {
+                  "value": "Набережные Челны",
+                  "count": 2
+                },
+                {
+                  "value": "Сухум",
+                  "count": 2
+                },
+                {
+                  "value": "Тверь",
+                  "count": 2
+                },
+                {
+                  "value": "Киров",
+                  "count": 2
+                },
+                {
+                  "value": "Владимир",
+                  "count": 2
+                },
+                {
+                  "value": "Калуга",
+                  "count": 2
+                },
+                {
+                  "value": "Брест",
+                  "count": 2
+                },
+                {
+                  "value": "Липецк",
+                  "count": 2
+                },
+                {
+                  "value": "Нальчик",
+                  "count": 2
+                },
+                {
+                  "value": "Владивосток",
+                  "count": 2
+                },
+                {
+                  "value": "Владикавказ",
+                  "count": 2
+                },
+                {
+                  "value": "Нижнекамск",
+                  "count": 1
+                },
+                {
+                  "value": "Армавир",
+                  "count": 1
+                },
+                {
+                  "value": "Королев",
+                  "count": 1
+                },
+                {
+                  "value": "Андижан",
+                  "count": 1
+                },
+                {
+                  "value": "Евпатория",
+                  "count": 1
+                },
+                {
+                  "value": "Абакан",
+                  "count": 1
+                },
+                {
+                  "value": "Иваново",
+                  "count": 1
+                },
+                {
+                  "value": "Кимовск",
+                  "count": 1
+                },
+                {
+                  "value": "Новозыбков",
+                  "count": 1
+                },
+                {
+                  "value": "Геленджик",
+                  "count": 1
+                },
+                {
+                  "value": "Ленинск-Кузнецкий",
+                  "count": 1
+                },
+                {
+                  "value": "Пятигорск",
+                  "count": 1
+                },
+                {
+                  "value": "Ялта",
+                  "count": 1
+                },
+                {
+                  "value": "Челябинск",
+                  "count": 1
+                },
+                {
+                  "value": "Г. Бухара респ. Узбекистан",
+                  "count": 1
+                },
+                {
+                  "value": "Луганск",
+                  "count": 1
+                },
+                {
+                  "value": "Севастополь",
+                  "count": 1
+                },
+                {
+                  "value": "Вологда",
+                  "count": 1
+                },
+                {
+                  "value": "Солигорск РБ",
+                  "count": 1
+                },
+                {
+                  "value": "Томск",
+                  "count": 1
+                },
+                {
+                  "value": "Ташкент",
+                  "count": 1
+                },
+                {
+                  "value": "Ижевск",
+                  "count": 1
+                },
+                {
+                  "value": "Тула",
+                  "count": 1
+                },
+                {
+                  "value": "Михайловск",
+                  "count": 1
+                },
+                {
+                  "value": "Благовещенск",
+                  "count": 1
+                },
+                {
+                  "value": "Гомель",
+                  "count": 1
+                },
+                {
+                  "value": "Шымкент",
+                  "count": 1
+                },
+                {
+                  "value": "Ачхой-Мартан",
+                  "count": 1
+                },
+                {
+                  "value": "Кемерово",
+                  "count": 1
+                },
+                {
+                  "value": "Чебоксары",
+                  "count": 1
+                },
+                {
+                  "value": "Витебск",
+                  "count": 1
+                },
+                {
+                  "value": "Кропоткин",
+                  "count": 1
+                },
+                {
+                  "value": "Майкоп",
+                  "count": 1
+                },
+                {
+                  "value": "Ереван",
+                  "count": 1
+                },
+                {
+                  "value": "Николаев",
+                  "count": 1
+                },
+                {
+                  "value": "Ургенч",
+                  "count": 1
+                },
+                {
+                  "value": "Заринск",
+                  "count": 1
+                },
+                {
+                  "value": "Могилев",
+                  "count": 1
+                },
+                {
+                  "value": "Калининград",
+                  "count": 1
+                },
+                {
+                  "value": "Кострома",
+                  "count": 1
+                },
+                {
+                  "value": "Кишинев",
+                  "count": 1
+                },
+                {
+                  "value": "Волгоград",
+                  "count": 1
+                },
+                {
+                  "value": "Барнаул",
+                  "count": 1
+                },
+                {
+                  "value": "Шушенское",
+                  "count": 1
+                },
+                {
+                  "value": "Бобруйск",
+                  "count": 1
+                },
+                {
+                  "value": "Якутск",
+                  "count": 1
+                },
+                {
+                  "value": "Шахтинск",
+                  "count": 1
+                },
+                {
+                  "value": "Новокузнецк",
+                  "count": 1
+                },
+                {
+                  "value": "Наро-фоминск",
+                  "count": 1
+                },
+                {
+                  "value": "Ноябрьск",
+                  "count": 1
+                },
+                {
+                  "value": "Дербент",
+                  "count": 1
+                },
+                {
+                  "value": "Черкесск",
+                  "count": 1
+                },
+                {
+                  "value": "Благовещенск Амурской области",
+                  "count": 1
+                },
+                {
+                  "value": "Казахстан, Усть-Каменогорск",
+                  "count": 1
+                },
+                {
+                  "value": "Омск",
+                  "count": 1
+                },
+                {
+                  "value": "Южно-Сахалинск",
+                  "count": 1
+                },
+                {
+                  "value": "Шадринск",
+                  "count": 1
+                },
+                {
+                  "value": "Кисловодск",
+                  "count": 1
+                },
+                {
+                  "value": "Бор нижегородская область",
+                  "count": 1
+                },
+                {
+                  "value": "Глазов",
+                  "count": 1
+                },
+                {
+                  "value": "Новороссийск",
+                  "count": 1
+                }
+              ]
+            }
+          },
+          {
+            "graphics": [
+              {
+                "cols": 2,
+                "type": "pie"
+              },
+              {
+                "cols": 2,
+                "type": "table"
+              }
+            ],
+            "name": "Место работы",
+            "question_id": "d24c29eb-5d3f-4d73-b1ad-d8209c04969d",
+            "question_summary": {
+              "results": [
+                {
+                  "value": "Государственное",
+                  "count": 567
+                },
+                {
+                  "value": "Частное",
+                  "count": 158
+                }
+              ]
+            }
+          },
+          {
+            "graphics": [
+              {
+                "cols": 4,
+                "type": "table"
+              }
+            ],
+            "name": "Распределение по специальности",
+            "question_id": "ea8f4679-d9bb-4c76-948f-cae681fc1b7c",
+            "question_summary": {
+              "results": [
+                {
+                  "value": "Дерматолог",
+                  "count": 506
+                },
+                {
+                  "value": "Педиатр",
+                  "count": 491
+                },
+                {
+                  "value": "Дерматовенеролог",
+                  "count": 223
+                },
+                {
+                  "value": "Трихолог",
+                  "count": 186
+                },
+                {
+                  "value": "Аллерголог-иммунолог",
+                  "count": 29
+                },
+                {
+                  "value": "Пульмонолог",
+                  "count": 9
+                },
+                {
+                  "value": "Врач-ординатор/аспирант",
+                  "count": 9
+                },
+                {
+                  "value": "ВОП",
+                  "count": 5
+                },
+                {
+                  "value": "Дерматолог, косметолог",
+                  "count": 5
+                },
+                {
+                  "value": "Инфекционист",
+                  "count": 3
+                },
+                {
+                  "value": "Терапевт",
+                  "count": 3
+                },
+                {
+                  "value": "Детский аллерголог",
+                  "count": 1
+                },
+                {
+                  "value": "Врач-косметолог",
+                  "count": 1
+                },
+                {
+                  "value": "Кардиолог",
+                  "count": 1
+                },
+                {
+                  "value": "Гастроэнтеролог",
+                  "count": 1
+                }
+              ]
+            }
+          },
+          {
+            "graphics": [
+              {
+                "cols": 2,
+                "type": "pie"
+              },
+              {
+                "cols": 2,
+                "type": "table"
+              }
+            ],
+            "name": "Распределение по полу",
+            "question_id": "b83f3aef-cc7c-4343-83b2-9bdea3aced22",
+            "question_summary": {
+              "results": [
+                {
+                  "value": "Женский",
+                  "count": 540
+                },
+                {
+                  "value": "Мужской",
+                  "count": 372
+                }
+              ]
+            }
+          },
+          {
+            "graphics": [
+              {
+                "cols": 4,
+                "type": "bar"
+              }
+            ],
+            "name": "Распределение по возрасту",
+            "question_id": "bc67fa2f-376c-4752-9031-b8db29c6e0e9",
+            "question_summary": {
+              "results": [
+                {
+                  "value": "21",
+                  "count": 1
+                },
+                {
+                  "value": "22",
+                  "count": 1
+                },
+                {
+                  "value": "23",
+                  "count": 8
+                },
+                {
+                  "value": "24",
+                  "count": 18
+                },
+                {
+                  "value": "25",
+                  "count": 15
+                },
+                {
+                  "value": "26",
+                  "count": 9
+                },
+                {
+                  "value": "27",
+                  "count": 18
+                },
+                {
+                  "value": "28",
+                  "count": 20
+                },
+                {
+                  "value": "29",
+                  "count": 13
+                },
+                {
+                  "value": "30",
+                  "count": 7
+                },
+                {
+                  "value": "31",
+                  "count": 14
+                },
+                {
+                  "value": "32",
+                  "count": 10
+                },
+                {
+                  "value": "33",
+                  "count": 7
+                },
+                {
+                  "value": "34",
+                  "count": 4
+                },
+                {
+                  "value": "35",
+                  "count": 4
+                },
+                {
+                  "value": "36",
+                  "count": 6
+                },
+                {
+                  "value": "37",
+                  "count": 7
+                },
+                {
+                  "value": "38",
+                  "count": 8
+                },
+                {
+                  "value": "39",
+                  "count": 8
+                },
+                {
+                  "value": "40",
+                  "count": 2
+                },
+                {
+                  "value": "41",
+                  "count": 4
+                },
+                {
+                  "value": "42",
+                  "count": 7
+                },
+                {
+                  "value": "43",
+                  "count": 9
+                },
+                {
+                  "value": "44",
+                  "count": 5
+                },
+                {
+                  "value": "45",
+                  "count": 6
+                },
+                {
+                  "value": "46",
+                  "count": 9
+                },
+                {
+                  "value": "47",
+                  "count": 2
+                },
+                {
+                  "value": "48",
+                  "count": 4
+                },
+                {
+                  "value": "49",
+                  "count": 3
+                },
+                {
+                  "value": "50",
+                  "count": 3
+                },
+                {
+                  "value": "51",
+                  "count": 7
+                },
+                {
+                  "value": "52",
+                  "count": 1
+                },
+                {
+                  "value": "53",
+                  "count": 2
+                },
+                {
+                  "value": "54",
+                  "count": 2
+                },
+                {
+                  "value": "55",
+                  "count": 2
+                },
+                {
+                  "value": "57",
+                  "count": 1
+                },
+                {
+                  "value": "60",
+                  "count": 1
+                }
+              ],
+              "avg": 34.33467741935484
+            }
+          },
+          {
+            "graphics": [
+              {
+                "cols": 4,
+                "type": "table"
+              }
+            ],
+            "name": "Прием пациентов младше 18 лет",
+            "question_id": "c46bd88d-b21d-4286-b42a-c74539649a32",
+            "question_summary": {
+              "results": [
+                {
+                  "value": "Нет",
+                  "count": 538
+                },
+                {
+                  "value": "Да",
+                  "count": 461
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "icon": "Layers2",
+        "name": "Клиническое позиционирование и ниша Blue Cap",
+        "stats": [
+          {
+            "graphics": [
+              {
+                "cols": 4,
+                "type": "table"
+              }
+            ],
+            "name": "При лечении каких нозологий формат пены (как у Blue Cap) является приоритетным выбором по сравнению с классическими формами (кремы, мази, лосьоны)",
+            "question_id": "f66e7a9a-cf42-4f1d-816b-c30cb15baa24",
+            "question_summary": {
+              "results": []
+            }
+          },
+          {
+            "graphics": [
+              {
+                "cols": 2,
+                "type": "pie"
+              },
+              {
+                "cols": 2,
+                "type": "table"
+              }
+            ],
+            "name": "На каком этапе терапии хронических дерматозов врач считает применение пены Blue Cap наиболее обоснованным?",
+            "question_id": "9ab679e7-5355-4f6b-b0fc-52130a407ccd",
+            "question_summary": {
+              "results": []
+            }
+          },
+          {
+            "graphics": [
+              {
+                "cols": 4,
+                "type": "table"
+              }
+            ],
+            "name": "Как врач оценивает роль пироктон оламина активированного (ключевой компонент Blue Cap) в современных схемах наружной терапии",
+            "question_id": "47f1f299-0bc8-4699-a6ad-fb7ad175a9ab",
+            "question_summary": {
+              "results": []
+            }
+          }
+        ]
+      },
+      {
+        "icon": "SprayCan",
+        "name": "Формат пены и комплаентность ",
+        "stats": [
+          {
+            "graphics": [
+              {
+                "cols": 4,
+                "type": "table"
+              }
+            ],
+            "name": "Как формат пены Blue Cap влияет на комплаентность пациентов, по мнению врача",
+            "question_id": "38d12879-934f-4f58-919f-cef53774797f",
+            "question_summary": {
+              "results": []
+            }
+          },
+          {
+            "graphics": [
+              {
+                "cols": 4,
+                "type": "table"
+              }
+            ],
+            "name": "При какой клинической картине врач быстрее переведет пациента с его текущего средства на пену Blue Cap",
+            "question_id": "f3ca1848-2ec7-4c3d-9bbf-ce85a103e53f",
+            "question_summary": {
+              "results": []
+            }
+          }
+        ]
+      },
+      {
+        "icon": "Star",
+        "name": "Симптоматическая эффективность",
+        "stats": [
+          {
+            "graphics": [
+              {
+                "cols": 4,
+                "type": "table"
+              }
+            ],
+            "name": "Какой клинический симптом, по опыту врача, воздействие пены Blue Cap и пироктон оламина купирует наиболее быстро и эффективно",
+            "question_id": "93866e05-2f7f-4696-9ef8-f889a227ecdb",
+            "question_summary": {
+              "results": []
+            }
+          },
+          {
+            "graphics": [
+              {
+                "cols": 4,
+                "type": "table"
+              }
+            ],
+            "name": "Главная нерешенная проблема у пациентов при поддерживающей терапии (например, при АД или псориазе), которую потенциально поможет устранить Blue Cap?",
+            "question_id": "64d669da-4a9a-4776-a698-e03d5838ef17",
+            "question_summary": {
+              "results": []
+            }
+          }
+        ]
+      },
+      {
+        "icon": "BookOpenCheck",
+        "name": "Опыт, сомнения и запрос на научные данные",
+        "stats": [
+          {
+            "graphics": [
+              {
+                "cols": 4,
+                "type": "table"
+              }
+            ],
+            "name": "Решающий фактор для назначения Блю Кап у детей (после 1 года)",
+            "question_id": "80372e6c-39dd-4110-9e51-dc0bd30be3d4",
+            "question_summary": {
+              "results": []
+            }
+          },
+          {
+            "graphics": [
+              {
+                "cols": 4,
+                "type": "table"
+              }
+            ],
+            "name": "Наиболее убедительный формат научных или клинических данных для расширения практики применения Блю Кап",
+            "question_id": "3fea405c-c2e9-47ec-94ef-62c76baee072",
+            "question_summary": {
+              "results": []
+            }
+          },
+          {
+            "graphics": [
+              {
+                "cols": 4,
+                "type": "table"
+              }
+            ],
+            "name": "Главная ассоциация с препаратом Блю Кап пена",
+            "question_id": "7747a0cf-dcb5-48af-981d-cd3c38e7b069",
+            "question_summary": {
+              "results": []
+            }
+          }
+        ]
+      }
+    ],
+    "description": "Catalysis, S.L. - испанская фармацевтическая и дерматокосметическая компания, которая фокусирует свои усилия на исследовании и разработке продуктов в области космецевтики и диетологии. ",
+    "logo": "https://www.catalysis.es/wp-content/uploads/2019/04/logo-catalysis-1.png",
+    "name": "Catalysis",
+    "password": "bluecap26",
+    "slug": "bluecap",
+    "updated_at": "2026-04-06T18:36:49.710Z"
+  }

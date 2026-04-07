@@ -1,11 +1,11 @@
 import { internalMutation, mutation, query } from "../_generated/server";
+import type { Doc, Id } from "../_generated/dataModel";
 import { v } from "convex/values";
 import {
   analyticsSummaryRange,
   analyticsSummaryResult,
-  cleanupAnalyticsValue,
   getRangeBounds,
-  normalizeAnalyticsValue,
+  normalizeInsightResponseForStorage,
   summarizeAnalyticsResponses,
 } from "../helpers/analytics";
 import { analyticInsightDoc, analyticInsightFields } from "../models/analyticInsight";
@@ -53,19 +53,24 @@ export async function buildQuestionSummary(
   questionId: any,
   startDate?: number,
   endDate?: number,
+  options?: { onlyUserResponses?: boolean },
 ) {
   const question = await db.get(questionId);
   if (!question) {
     throw new Error("Analytic question not found");
   }
 
-  const [insights, rewrites] = await Promise.all([
+  const [rawInsights, rewrites] = await Promise.all([
     listInsightsForQuestion(db, questionId, startDate, endDate),
     db
       .query("analytic_rewrites")
       .withIndex("by_question", (q: any) => q.eq("question_id", questionId))
       .collect(),
   ]);
+
+  const insights = options?.onlyUserResponses
+    ? rawInsights.filter((row: { type?: string }) => row.type === "user")
+    : rawInsights;
 
   const summary = summarizeAnalyticsResponses(question, insights, rewrites);
 
@@ -156,10 +161,14 @@ export const summaryByQuestion = query({
     question_id: v.id("analytic_questions"),
     start_date: v.optional(v.number()),
     end_date: v.optional(v.number()),
+    /** Только инсайты type:user (для админки) */
+    only_user_responses: v.optional(v.boolean()),
   },
   returns: analyticQuestionSummaryResponse,
-  handler: async ({ db }, { question_id, start_date, end_date }) => {
-    return await buildQuestionSummary(db as any, question_id, start_date, end_date);
+  handler: async ({ db }, { question_id, start_date, end_date, only_user_responses }) => {
+    return await buildQuestionSummary(db as any, question_id, start_date, end_date, {
+      onlyUserResponses: only_user_responses === true,
+    });
   },
 });
 
@@ -181,16 +190,24 @@ export const insert = mutation({
   }),
   returns: analyticInsightDoc,
   handler: async ({ db }, args) => {
-    const response = cleanupAnalyticsValue(args.response);
-    if (!response) {
+    const question = (await db.get(
+      args.question_id,
+    )) as Doc<"analytic_questions"> | null;
+    if (!question) {
+      throw new Error("Analytic question not found");
+    }
+
+    const qType = question.type === "numeric" ? "numeric" : "text";
+    const normalized = normalizeInsightResponseForStorage(args.response, qType);
+    if (!normalized) {
       throw new Error("Insight response is required");
     }
 
     const id = await db.insert("analytic_insights", {
       question_id: args.question_id,
       user_id: args.user_id,
-      response,
-      responseNormalized: normalizeAnalyticsValue(response),
+      response: normalized.response,
+      responseNormalized: normalized.responseNormalized,
       type: args.type,
       timestamp: args.timestamp ?? Date.now(),
     });
@@ -214,18 +231,34 @@ export const createManyInternal = internalMutation({
   returns: v.number(),
   handler: async ({ db }, { items }) => {
     let created = 0;
+    const typeCache = new Map<string, "numeric" | "text">();
+
+    async function questionType(
+      qid: Id<"analytic_questions">,
+    ): Promise<"numeric" | "text"> {
+      const key = String(qid);
+      const cached = typeCache.get(key);
+      if (cached) {
+        return cached;
+      }
+      const q = (await db.get(qid)) as Doc<"analytic_questions"> | null;
+      const t = q?.type === "numeric" ? "numeric" : "text";
+      typeCache.set(key, t);
+      return t;
+    }
 
     for (const item of items) {
-      const response = cleanupAnalyticsValue(item.response);
-      if (!response) {
+      const qType = await questionType(item.question_id);
+      const normalized = normalizeInsightResponseForStorage(item.response, qType);
+      if (!normalized) {
         continue;
       }
 
       await db.insert("analytic_insights", {
         question_id: item.question_id,
         user_id: item.user_id,
-        response,
-        responseNormalized: normalizeAnalyticsValue(response),
+        response: normalized.response,
+        responseNormalized: normalized.responseNormalized,
         type: item.type,
         timestamp: item.timestamp,
       });
@@ -276,12 +309,21 @@ export const update = mutation({
     }
 
     if (data.response !== undefined) {
-      const response = cleanupAnalyticsValue(data.response);
-      if (!response) {
+      const targetQuestionId =
+        data.question_id !== undefined ? data.question_id : current.question_id;
+      const question = (await db.get(
+        targetQuestionId,
+      )) as Doc<"analytic_questions"> | null;
+      if (!question) {
+        throw new Error("Analytic question not found");
+      }
+      const qType = question.type === "numeric" ? "numeric" : "text";
+      const normalized = normalizeInsightResponseForStorage(data.response, qType);
+      if (!normalized) {
         throw new Error("Insight response is required");
       }
-      patch.response = response;
-      patch.responseNormalized = normalizeAnalyticsValue(response);
+      patch.response = normalized.response;
+      patch.responseNormalized = normalized.responseNormalized;
     }
 
     await db.patch(id, patch as any);

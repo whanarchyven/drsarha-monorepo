@@ -33,12 +33,15 @@ import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
 
 export interface Stat {
-  value: string;
+  value: string | number;
   count: number;
 }
 
-function normKey(s: string) {
-  return s.trim().toLowerCase();
+function normKey(s: string | number) {
+  if (typeof s === 'number' && Number.isFinite(s)) {
+    return String(s === 0 ? 0 : s);
+  }
+  return String(s).trim().toLowerCase();
 }
 
 export default function MergeTable({
@@ -63,10 +66,12 @@ export default function MergeTable({
     predefinedVariants.map((v) => normKey(v)).filter(Boolean)
   );
 
-  const isPredefinedValue = (value: string) =>
+  const isPredefinedValue = (value: string | number) =>
     predefinedNormSet.has(normKey(value));
 
-  const [rewriteForValue, setRewriteForValue] = useState<string | null>(null);
+  const [rewriteForValue, setRewriteForValue] = useState<
+    string | number | null
+  >(null);
   const [selectedTargetVariant, setSelectedTargetVariant] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [rewritesList, setRewritesList] = useState<
@@ -99,7 +104,7 @@ export default function MergeTable({
       .finally(() => setRewritesLoading(false));
   }, [questionId, fetchRewrites]);
 
-  const openRewriteDialog = (value: string) => {
+  const openRewriteDialog = (value: string | number) => {
     setRewriteForValue(value);
     const firstTarget =
       predefinedVariants.find((v) => normKey(v) !== normKey(value)) ??
@@ -135,21 +140,23 @@ export default function MergeTable({
       );
 
       const existingRewrite = existingRewrites.find(
-        (r) => normKey(r.rewrite_value) === normKey(rewriteForValue)
+        (r) => normKey(r.rewrite_value) === normKey(rewriteForValue!)
       );
+
+      const rewriteValueStr = String(rewriteForValue);
 
       if (existingRewrite) {
         await convexClient.mutation(api.functions.analytic_rewrites.update, {
           id: existingRewrite._id,
           data: {
-            rewrite_value: rewriteForValue,
+            rewrite_value: rewriteValueStr,
             rewrite_target: selectedTargetVariant.trim(),
           },
         });
       } else {
         await convexClient.mutation(api.functions.analytic_rewrites.insert, {
           question_id: questionId as any,
-          rewrite_value: rewriteForValue,
+          rewrite_value: rewriteValueStr,
           rewrite_target: selectedTargetVariant.trim(),
         });
       }

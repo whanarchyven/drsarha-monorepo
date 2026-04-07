@@ -95,11 +95,25 @@ const QuestionsPage = () => {
       return;
     }
 
+    const selectedQuestion = questions.find(
+      (q) => q.id === autoInsightForm.questionId
+    );
+    const rawResponse = autoInsightForm.response.trim();
+    let responsePayload: string | number = rawResponse;
+    if (selectedQuestion?.type === 'numeric') {
+      const n = Number(rawResponse.replace(',', '.'));
+      if (!Number.isFinite(n)) {
+        toast.error('Для числового вопроса укажите число');
+        return;
+      }
+      responsePayload = n;
+    }
+
     try {
       await convexClient.mutation(api.functions.analytic_insights.insert, {
         question_id: autoInsightForm.questionId as any,
         user_id: autoInsightForm.userId.trim(),
-        response: autoInsightForm.response.trim(),
+        response: responsePayload as any,
         type: 'auto',
         timestamp: new Date(autoInsightForm.timestamp).getTime(),
       });
@@ -115,7 +129,8 @@ const QuestionsPage = () => {
   };
 
   const { role } = useAuth();
-  const isAdmin = role === 'admin';
+  const isAdmin = role?.toLowerCase() === 'admin';
+  const showRealUserOnlySwitch = role?.toLowerCase() === 'admin';
 
   // При изменении строки поиска сбрасываем страницу в URL на 1
   useEffect(() => {
@@ -170,6 +185,7 @@ const QuestionsPage = () => {
                     setEditPopOpen(true);
                   }}
                   isAdmin={isAdmin}
+                  showRealUserOnlySwitch={showRealUserOnlySwitch}
                 />
               ))
             )}

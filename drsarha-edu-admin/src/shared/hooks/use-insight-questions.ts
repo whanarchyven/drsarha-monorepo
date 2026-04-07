@@ -77,9 +77,13 @@ export const useInsightQuestions = (
 
   const canCreateSurveyResponse = selectedQuestionsIds.length > 0;
 
-  const getStats = async (questionId: string) => {
+  const getStats = async (
+    questionId: string,
+    opts?: { onlyUserResponses?: boolean }
+  ) => {
     return (await client.query(api.functions.analytic_insights.summaryByQuestion, {
       question_id: questionId as any,
+      only_user_responses: opts?.onlyUserResponses === true ? true : undefined,
     })) as AnalyticsQuestionSummary;
   };
 

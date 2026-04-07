@@ -6,7 +6,11 @@ import {
   getQuestionInsightsHttp,
   getQuestionSummaryHttp,
 } from "./functions/analytic_pipeline";
-import { fillCompaniesHttp, getBySlugInfoHttp } from "./functions/companies";
+import {
+  fillCompaniesHttp,
+  getBySlugInfoHttp,
+  verifyCompanyPasswordHttp,
+} from "./functions/companies";
 import {
   approveConferenceUserHttp,
   countConferenceUsersHttpAction,
@@ -134,6 +138,12 @@ http.route({
   path: "/companies/get-by-slug",
   method: "GET",
   handler: getBySlugInfoHttp,
+});
+
+http.route({
+  path: "/companies/verify-password",
+  method: "POST",
+  handler: verifyCompanyPasswordHttp,
 });
 
 export default http;

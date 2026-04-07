@@ -33,6 +33,8 @@ const initialCompany: Company = {
 export default function DashboardForm() {
   const { role } = useAuth();
   const convexClient = getConvexHttpClient();
+  const formRole =
+    role === 'admin' || role === 'moderator' ? role : 'admin';
 
   const {
     company,
@@ -49,6 +51,11 @@ export default function DashboardForm() {
     setFillDialog,
     fillValue,
     setFillValue,
+    fillDateStart,
+    setFillDateStart,
+    fillDateEnd,
+    setFillDateEnd,
+    isApplyingInsightFill,
     updateCompany,
     handleAddDashboard,
     handleUpdateDashboard,
@@ -69,7 +76,7 @@ export default function DashboardForm() {
     handleRemoveScale,
     handleAddScaleFromVariant,
     handleApplyDefaultDistribution,
-    handleFillValues,
+    handleApplyInsightFill,
     handleFillDialogOpen,
     getQuestionText,
     updateQuestionTitleCache,
@@ -94,15 +101,13 @@ export default function DashboardForm() {
     return null;
   }
 
-  console.log('role!', role);
-
   return (
     <div className="container mx-auto py-8">
       <form onSubmit={handleSubmit} className="space-y-8">
         <CompanyInfoCard
           company={company}
           onUpdate={updateCompany}
-          role={role ?? ''}
+          role={formRole}
         />
 
         <DashboardsCard
@@ -114,7 +119,7 @@ export default function DashboardForm() {
           questionTitleCache={questionTitleCache}
           questionStats={questionStats}
           loadingStats={loadingStats}
-          role={role ?? ''}
+          role={formRole}
           onDashboardAdd={handleAddDashboard}
           onDashboardUpdate={handleUpdateDashboard}
           onDashboardRemove={handleRemoveDashboard}
@@ -135,6 +140,7 @@ export default function DashboardForm() {
           onScaleAddFromVariant={handleAddScaleFromVariant}
           onDefaultDistribution={handleApplyDefaultDistribution}
           onFillValues={handleFillDialogOpen}
+          insightFillEnabled={false}
           getQuestionText={getQuestionText}
           onQuestionTitleUpdate={updateQuestionTitleCache}
         />
@@ -166,9 +172,14 @@ export default function DashboardForm() {
       <FillDialog
         dialog={fillDialog}
         fillValue={fillValue}
+        fillDateStart={fillDateStart}
+        fillDateEnd={fillDateEnd}
+        isApplying={isApplyingInsightFill}
         onOpenChange={(open) => setFillDialog({ ...fillDialog, open })}
         onValueChange={setFillValue}
-        onApply={handleFillValues}
+        onDateStartChange={setFillDateStart}
+        onDateEndChange={setFillDateEnd}
+        onApply={handleApplyInsightFill}
       />
     </div>
   );

@@ -1,6 +1,11 @@
 'use client';
 
-import { Graphic, DashboardType } from '@/entities/company/model';
+import {
+  Graphic,
+  DashboardType,
+  StatTabMode,
+  StatUnit,
+} from '@/entities/company/model';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,12 +18,19 @@ import {
 } from '@/components/ui/select';
 import { PlusCircle, X } from 'lucide-react';
 
+/** Значение селекта Radix: «не задано» → null в данных */
+const STAT_UNIT_SELECT_NONE = '__stat_unit_none__';
+
 interface GraphicsListProps {
   graphics: Graphic[];
   dashboardIndex: number;
   statIndex: number;
   onAdd: () => void;
-  onUpdate: (graphicIndex: number, field: keyof Graphic, value: any) => void;
+  onUpdate: (
+    graphicIndex: number,
+    field: keyof Graphic,
+    value: unknown
+  ) => void;
   onRemove: (graphicIndex: number) => void;
 }
 
@@ -92,6 +104,9 @@ export function GraphicsList({
                       <SelectItem value={DashboardType.TABLE}>
                         Таблица
                       </SelectItem>
+                      <SelectItem value={DashboardType.TAB}>
+                        Вкладка (tab)
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -119,6 +134,162 @@ export function GraphicsList({
                     step="1"
                   />
                 </div>
+                {graphic.type === DashboardType.TAB ? (
+                  <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 border-t border-orange-200/80 dark:border-orange-800/80 mt-1">
+                    <div className="space-y-1 md:col-span-2">
+                      <Label
+                        htmlFor={`graphic-stat-tab-${dashboardIndex}-${statIndex}-${graphicIndex}`}
+                        className="text-xs">
+                        Режим вкладки (stat_tab)
+                      </Label>
+                      <Select
+                        value={
+                          graphic.stat_tab ?? StatTabMode.COUNT_ALL
+                        }
+                        onValueChange={(v) =>
+                          onUpdate(graphicIndex, 'stat_tab', v as StatTabMode)
+                        }>
+                        <SelectTrigger
+                          id={`graphic-stat-tab-${dashboardIndex}-${statIndex}-${graphicIndex}`}
+                          className="h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={StatTabMode.COUNT_ALL}>
+                            Все ответы (count_all)
+                          </SelectItem>
+                          <SelectItem value={StatTabMode.TOP_VARIANT}>
+                            Топ вариант (top_variant)
+                          </SelectItem>
+                          <SelectItem value={StatTabMode.AVERAGE}>
+                            Среднее (average)
+                          </SelectItem>
+                          <SelectItem value={StatTabMode.VARIANT_PERCENT}>
+                            Доля варианта (variant_percent)
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label
+                        htmlFor={`graphic-stat-title-${dashboardIndex}-${statIndex}-${graphicIndex}`}
+                        className="text-xs">
+                        Заголовок (stat_title)
+                      </Label>
+                      <Input
+                        id={`graphic-stat-title-${dashboardIndex}-${statIndex}-${graphicIndex}`}
+                        className="h-8"
+                        value={graphic.stat_title ?? ''}
+                        onChange={(e) =>
+                          onUpdate(
+                            graphicIndex,
+                            'stat_title',
+                            e.target.value
+                          )
+                        }
+                        placeholder="Заголовок"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label
+                        htmlFor={`graphic-stat-subtitle-${dashboardIndex}-${statIndex}-${graphicIndex}`}
+                        className="text-xs">
+                        Подзаголовок (stat_subtitle)
+                      </Label>
+                      <Input
+                        id={`graphic-stat-subtitle-${dashboardIndex}-${statIndex}-${graphicIndex}`}
+                        className="h-8"
+                        value={graphic.stat_subtitle ?? ''}
+                        onChange={(e) =>
+                          onUpdate(
+                            graphicIndex,
+                            'stat_subtitle',
+                            e.target.value
+                          )
+                        }
+                        placeholder="Подзаголовок"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label
+                        htmlFor={`graphic-stat-unit-${dashboardIndex}-${statIndex}-${graphicIndex}`}
+                        className="text-xs">
+                        Единица (stat_unit)
+                      </Label>
+                      <Select
+                        value={
+                          graphic.stat_unit == null
+                            ? STAT_UNIT_SELECT_NONE
+                            : graphic.stat_unit
+                        }
+                        onValueChange={(v) =>
+                          onUpdate(
+                            graphicIndex,
+                            'stat_unit',
+                            v === STAT_UNIT_SELECT_NONE
+                              ? null
+                              : (v as StatUnit)
+                          )
+                        }>
+                        <SelectTrigger
+                          id={`graphic-stat-unit-${dashboardIndex}-${statIndex}-${graphicIndex}`}
+                          className="h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={STAT_UNIT_SELECT_NONE}>
+                            Не задано (null)
+                          </SelectItem>
+                          <SelectItem value={StatUnit.COUNT}>
+                            Количество (count)
+                          </SelectItem>
+                          <SelectItem value={StatUnit.PERCENT}>
+                            Процент (percent)
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {graphic.stat_tab === StatTabMode.VARIANT_PERCENT ? (
+                      <div className="space-y-1 md:col-span-2">
+                        <Label
+                          htmlFor={`graphic-stat-variant-${dashboardIndex}-${statIndex}-${graphicIndex}`}
+                          className="text-xs">
+                          Вариант для доли (stat_variant)
+                        </Label>
+                        <Input
+                          id={`graphic-stat-variant-${dashboardIndex}-${statIndex}-${graphicIndex}`}
+                          className="h-8"
+                          value={
+                            graphic.stat_variant === undefined ||
+                            graphic.stat_variant === null
+                              ? ''
+                              : String(graphic.stat_variant)
+                          }
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            if (raw.trim() === '') {
+                              onUpdate(graphicIndex, 'stat_variant', undefined);
+                              return;
+                            }
+                            const trimmed = raw.trim();
+                            const withDot = trimmed.replace(',', '.');
+                            const n = Number(withDot);
+                            const looksNumeric =
+                              withDot !== '' &&
+                              Number.isFinite(n) &&
+                              !/[a-zа-яё]/i.test(withDot);
+                            onUpdate(
+                              graphicIndex,
+                              'stat_variant',
+                              looksNumeric ? n : trimmed
+                            );
+                          }}
+                          placeholder="Текст варианта или число"
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
               <Button
                 type="button"

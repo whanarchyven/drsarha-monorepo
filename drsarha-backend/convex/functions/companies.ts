@@ -9,9 +9,9 @@ import { companyDoc, companyFields } from "../models/company";
 import {
   cleanupAnalyticsValue,
   getRandomTimestampInRange,
-  normalizeAnalyticsValue,
   parseAnalyticsDate,
 } from "../helpers/analytics";
+import { allocateStatResponses } from "../helpers/companyFill";
 import { internal, api } from "../_generated/api";
 import { buildQuestionSummary } from "./analytic_insights";
 
@@ -50,119 +50,15 @@ function ensureAuthorized(req: Request) {
   }
 }
 
-function normalizeResultValue(value: unknown) {
-  return normalizeAnalyticsValue(value);
-}
-
-function scaleQuestionSummaryResults(
-  results: Array<{ value: string; count: number }>,
-  stat: any,
+/** Для публичного slug API не отдаём sourceCount (только value + count). */
+function stripSourceCountFromSummaryResults(
+  results: Array<{
+    value: string | number;
+    count: number;
+    sourceCount?: number;
+  }>,
 ) {
-  const mergedResults = new Map<string, { value: string; count: number }>();
-
-  for (const item of results) {
-    const normalizedValue = normalizeResultValue(item.value);
-    const cleanedValue = cleanupAnalyticsValue(item.value);
-    if (!cleanedValue) {
-      continue;
-    }
-
-    if (mergedResults.has(normalizedValue)) {
-      mergedResults.get(normalizedValue)!.count += item.count || 0;
-    } else {
-      mergedResults.set(normalizedValue, {
-        value: cleanedValue,
-        count: item.count || 0,
-      });
-    }
-  }
-
-  let scaledResults = Array.from(mergedResults.values()).map((item) => ({
-    ...item,
-    count: item.count * (stat.scaleAll || 1),
-  }));
-
-  if (Array.isArray(stat.scales)) {
-    for (const scale of stat.scales) {
-      const normalizedScaleName = normalizeResultValue(scale.name);
-      const matchingResult = scaledResults.find(
-        (result) => normalizeResultValue(result.value) === normalizedScaleName,
-      );
-
-      if (matchingResult) {
-        if (scale.type === "multiple") {
-          matchingResult.count = matchingResult.count * Number(scale.value || 0);
-        } else if (scale.type === "linear") {
-          matchingResult.count = matchingResult.count + Number(scale.value || 0);
-        }
-      } else {
-        scaledResults.push({
-          value: cleanupAnalyticsValue(scale.name),
-          count: scale.type === "linear" ? Number(scale.value || 0) : 0,
-        });
-      }
-    }
-  }
-
-  scaledResults.sort((a, b) => (b.count || 0) - (a.count || 0));
-  const allNumeric =
-    scaledResults.length > 0 &&
-    scaledResults.every((result) => !Number.isNaN(Number(result.value)));
-
-  if (allNumeric) {
-    scaledResults.sort((a, b) => Number(a.value) - Number(b.value));
-  }
-
-  return scaledResults;
-}
-
-function allocateStatResponses(stat: any, fillValue: number) {
-  const scalesWithDistribution = Array.isArray(stat.scales)
-    ? stat.scales.filter(
-        (scale: any) =>
-          scale.scaleDistribution !== undefined && scale.scaleDistribution > 0,
-      )
-    : [];
-
-  const allocations = new Map<string, number>();
-  const bigScales: Array<{ scale: any; expectedValue: number }> = [];
-  const smallScales: Array<{ scale: any }> = [];
-
-  for (const scale of scalesWithDistribution) {
-    const expectedValue = fillValue * scale.scaleDistribution;
-    if (expectedValue >= 1) {
-      bigScales.push({ scale, expectedValue });
-    } else {
-      smallScales.push({ scale });
-    }
-  }
-
-  let remainder = fillValue;
-
-  for (const { scale, expectedValue } of bigScales) {
-    const fillAmount = Math.floor(expectedValue);
-    if (fillAmount <= 0) {
-      continue;
-    }
-    const key = cleanupAnalyticsValue(scale.name);
-    allocations.set(key, (allocations.get(key) ?? 0) + fillAmount);
-    remainder -= fillAmount;
-  }
-
-  const availableSmallScales = [...smallScales];
-  while (remainder > 0 && availableSmallScales.length > 0) {
-    const randomIndex = Math.floor(Math.random() * availableSmallScales.length);
-    const [selected] = availableSmallScales.splice(randomIndex, 1);
-    const fillAmount = remainder >= 2 ? (Math.random() < 0.5 ? 1 : 2) : 1;
-    const actualFillAmount = Math.min(fillAmount, remainder);
-    const key = cleanupAnalyticsValue(selected.scale.name);
-    allocations.set(key, (allocations.get(key) ?? 0) + actualFillAmount);
-    remainder -= actualFillAmount;
-  }
-
-  return Array.from(allocations.entries())
-    .filter(([response, count]) => Boolean(response) && count > 0)
-    .map(([response, count]) => ({ response, count }));
+  return results.map(({ value, count }) => ({ value, count }));
 }
 
 function createPublicCompanyResponse(company: any) {
@@ -236,6 +132,33 @@ export const getBySlug = query({
   },
 });
 
+/** Только для HTTP: при неверном slug/пароле всегда false (без 404). */
+export const verifyCompanyPasswordInternal = internalQuery({
+  args: {
+    slug: v.string(),
+    password: v.string(),
+  },
+  returns: v.boolean(),
+  handler: async ({ db }, { slug, password }) => {
+    const trimmedSlug = slug.trim();
+    if (!trimmedSlug) {
+      return false;
+    }
+    const one = await (db as any)
+      .query("companies")
+      .withIndex("by_slug", (q: any) => q.eq("slug", trimmedSlug))
+      .unique();
+    if (!one) {
+      return false;
+    }
+    const stored = (one as { password?: string }).password;
+    if (typeof stored !== "string") {
+      return false;
+    }
+    return stored.trim() === password.trim();
+  },
+});
+
 export const getBySlugInfo = query({
   args: {
     slug: v.string(),
@@ -275,7 +198,8 @@ export const getBySlugInfo = query({
         );
 
         stat.question_summary = {
-          results: scaleQuestionSummaryResults(summary.results, stat),
+          results: stripSourceCountFromSummaryResults(summary.results),
+          totalInsights: summary.totalInsights,
         };
 
         delete stat.scales;
@@ -321,11 +245,27 @@ export const update = mutation({
   },
   returns: companyDoc,
   handler: async ({ db }, { id, data }) => {
+    console.log("[CompanySave] companies.update called", {
+      id: String(id),
+      dataKeys: data ? Object.keys(data as object) : [],
+      dashboardsLen: Array.isArray((data as any)?.dashboards)
+        ? (data as any).dashboards.length
+        : "absent",
+    });
     // Фильтруем системные поля, которые не должны быть в data
     const { _id, _creationTime, created_at, ...cleanData } = data as any;
     const patch = { ...cleanData, updated_at: cleanData.updated_at ?? new Date().toISOString() } as any;
-    await db.patch(id, patch);
+    try {
+      await db.patch(id, patch);
+    } catch (patchErr) {
+      console.error("[CompanySave] db.patch failed", patchErr);
+      throw patchErr;
+    }
     const doc = await db.get(id);
+    console.log("[CompanySave] companies.update OK", {
+      id: String(doc?._id),
+      dashboardsLen: (doc as any)?.dashboards?.length,
+    });
     return doc! as any;
   },
 });
@@ -336,6 +276,138 @@ export const remove = mutation({
   handler: async ({ db }, { id }) => {
     await db.delete(id);
     return true;
+  },
+});
+
+const fillInsightsScope = v.union(
+  v.literal("all"),
+  v.object({
+    kind: v.literal("dashboard"),
+    dashboardIndex: v.number(),
+  }),
+  v.object({
+    kind: v.literal("stat"),
+    dashboardIndex: v.number(),
+    statIndex: v.number(),
+  }),
+);
+
+/** Создаёт analytic_insights по распределениям масштабов компании (как HTTP /companies/fill), с учётом области. */
+export const fillInsightsForCompany = mutation({
+  args: {
+    companyId: v.id("companies"),
+    fillValue: v.number(),
+    startDate: v.number(),
+    endDate: v.number(),
+    scope: fillInsightsScope,
+    userId: v.optional(v.string()),
+  },
+  returns: v.object({ createdInsights: v.number() }),
+  handler: async (ctx, args) => {
+    if (!Number.isFinite(args.fillValue) || args.fillValue <= 0) {
+      throw new Error("fillValue must be a positive number");
+    }
+    if (args.endDate < args.startDate) {
+      throw new Error("endDate must be >= startDate");
+    }
+
+    const company = await ctx.db.get(args.companyId);
+    if (!company) {
+      throw new Error("Company not found");
+    }
+
+    const dashboards = (company as any).dashboards as any[];
+    if (!Array.isArray(dashboards)) {
+      throw new Error("Company has no dashboards");
+    }
+
+    const work: { stat: any; effectiveFill: number }[] = [];
+
+    if (args.scope === "all") {
+      for (const dashboard of dashboards) {
+        const dashboardPercent = dashboard.dashboardPercent ?? 1;
+        const dashboardFillValue = Math.floor(args.fillValue * dashboardPercent);
+        for (const stat of dashboard.stats ?? []) {
+          work.push({ stat, effectiveFill: dashboardFillValue });
+        }
+      }
+    } else if (args.scope.kind === "dashboard") {
+      const di = args.scope.dashboardIndex;
+      if (di < 0 || di >= dashboards.length) {
+        throw new Error("Invalid dashboard index");
+      }
+      const ef = Math.floor(args.fillValue);
+      for (const stat of dashboards[di].stats ?? []) {
+        work.push({ stat, effectiveFill: ef });
+      }
+    } else {
+      const di = args.scope.dashboardIndex;
+      const si = args.scope.statIndex;
+      if (di < 0 || di >= dashboards.length) {
+        throw new Error("Invalid dashboard index");
+      }
+      const stats = dashboards[di].stats ?? [];
+      if (si < 0 || si >= stats.length) {
+        throw new Error("Invalid stat index");
+      }
+      work.push({ stat: stats[si], effectiveFill: Math.floor(args.fillValue) });
+    }
+
+    const questionIds = Array.from(
+      new Set(
+        work
+          .map((w) => String(w.stat?.question_id ?? "").trim())
+          .filter(Boolean),
+      ),
+    );
+
+    if (questionIds.length === 0) {
+      return { createdInsights: 0 };
+    }
+
+    const resolvedQuestionIds = await ctx.runQuery(
+      internal.functions.analytic_questions.resolveQuestionIdsInternal,
+      { ids: questionIds },
+    );
+    const questionIdMap = new Map<string, any>();
+    questionIds.forEach((questionId, index) => {
+      questionIdMap.set(questionId, resolvedQuestionIds[index] ?? null);
+    });
+
+    const autoUserId =
+      cleanupAnalyticsValue(args.userId) || "system:auto-fill";
+
+    let createdInsights = 0;
+
+    for (const { stat, effectiveFill } of work) {
+      const qid = String(stat?.question_id ?? "").trim();
+      const questionId = questionIdMap.get(qid);
+      if (!questionId || effectiveFill <= 0) {
+        continue;
+      }
+
+      const allocations = allocateStatResponses(stat, effectiveFill);
+      const items = allocations.flatMap((allocation) =>
+        Array.from({ length: allocation.count }, () => ({
+          question_id: questionId,
+          user_id: `${autoUserId}:${String(company._id)}`,
+          response: allocation.response,
+          type: "auto" as const,
+          timestamp: getRandomTimestampInRange(args.startDate, args.endDate),
+        })),
+      );
+
+      if (items.length === 0) {
+        continue;
+      }
+
+      createdInsights += await ctx.runMutation(
+        internal.functions.analytic_insights.createManyInternal,
+        { items },
+      );
+    }
+
+    return { createdInsights };
   },
 });
 
@@ -579,6 +651,40 @@ export const getBySlugInfoHttp = httpAction(async (ctx, req) => {
       error instanceof Error
         ? error.message
         : "Ошибка при получении компании по слагу";
+    return json({ error: message }, 500);
+  }
+});
+
+/**
+ * POST JSON: { "slug": "...", "password": "..." }
+ * Ответ: JSON `true` / `false` — пароль совпал с паролем компании.
+ * При отсутствии компании или неверном пароле — `false` (без раскрытия факта существования slug).
+ */
+export const verifyCompanyPasswordHttp = httpAction(async (ctx, req) => {
+  try {
+    const body = await req.json().catch(() => ({})) as Record<string, unknown>;
+    const slug = cleanupAnalyticsValue(body?.slug);
+    const password =
+      typeof body?.password === "string" ? body.password : "";
+
+    if (!slug || password === "") {
+      return json(
+        { error: "slug и password обязательны в теле JSON" },
+        400,
+      );
+    }
+
+    const ok = await ctx.runQuery(
+      internal.functions.companies.verifyCompanyPasswordInternal,
+      { slug, password },
+    );
+
+    return json(ok);
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Ошибка при проверке пароля компании";
     return json({ error: message }, 500);
   }
 });

@@ -11,8 +11,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { PlusCircle, AlertCircle } from 'lucide-react';
 import { DashboardAccordion } from './DashboardAccordion';
-import { Dashboard, Stat } from '@/entities/company/model';
+import { Dashboard, Stat, Graphic } from '@/entities/company/model';
 import { QuestionStats, LoadingStats, ExpandedRealResults } from '../types';
+import { canUseAdvancedDashboardTools } from '../utils/dashboard-access';
 
 interface DashboardsCardProps {
   company: Company;
@@ -53,8 +54,8 @@ interface DashboardsCardProps {
     dashboardIndex: number,
     statIndex: number,
     graphicIndex: number,
-    field: 'type' | 'cols',
-    value: any
+    field: keyof Graphic,
+    value: unknown
   ) => void;
   onGraphicRemove: (
     dashboardIndex: number,
@@ -85,6 +86,8 @@ interface DashboardsCardProps {
     dashboardIndex: number,
     statIndex?: number
   ) => void;
+  /** false — скрыть заливку (нет сохранённой компании в Convex) */
+  insightFillEnabled?: boolean;
   getQuestionText: (questionId: string) => string;
   onQuestionTitleUpdate?: (questionId: string, title: string) => void;
 }
@@ -119,9 +122,12 @@ export function DashboardsCard({
   onScaleAddFromVariant,
   onDefaultDistribution,
   onFillValues,
+  insightFillEnabled = true,
   getQuestionText,
   onQuestionTitleUpdate,
 }: DashboardsCardProps) {
+  const advanced = canUseAdvancedDashboardTools(role);
+
   return (
     <Card className="border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/20">
       <CardHeader className="flex flex-row items-center justify-between bg-card z-10 border-b border-purple-200 dark:border-purple-800">
@@ -136,7 +142,7 @@ export function DashboardsCard({
           </CardDescription>
         </div>
         <div className="flex gap-2">
-          {role === 'admin' && (
+          {advanced && insightFillEnabled && (
             <Button
               type="button"
               onClick={() => onFillValues('all', -1)}
@@ -199,6 +205,7 @@ export function DashboardsCard({
             onScaleAddFromVariant={onScaleAddFromVariant}
             onDefaultDistribution={onDefaultDistribution}
             onFillValues={onFillValues}
+            insightFillEnabled={insightFillEnabled}
             getQuestionText={getQuestionText}
             onQuestionTitleUpdate={onQuestionTitleUpdate}
           />

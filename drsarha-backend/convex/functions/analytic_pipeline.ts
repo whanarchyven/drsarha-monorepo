@@ -1,8 +1,10 @@
 import { httpAction, internalAction } from "../_generated/server";
 import { v } from "convex/values";
 import { api, internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
 import {
   cleanupAnalyticsValue,
+  coerceToFiniteNumber,
   parseAnalyticsDate,
 } from "../helpers/analytics";
 
@@ -17,7 +19,7 @@ function json(data: unknown, status = 200) {
   });
 }
 
-function extractVariantsFromPayload(payload: unknown) {
+function extractTextResponsesFromPayload(payload: unknown): string[] {
   if (Array.isArray(payload)) {
     return payload.map(cleanupAnalyticsValue).filter(Boolean);
   }
@@ -58,6 +60,82 @@ function extractVariantsFromPayload(payload: unknown) {
   return [];
 }
 
+function pushNumericFromUnknown(x: unknown, out: number[]) {
+  const n = coerceToFiniteNumber(x);
+  if (n !== null) {
+    out.push(n);
+  }
+}
+
+/** Экстрактор для question_type numeric: массив чисел (или числа в JSON-строке). */
+function extractNumericResponsesFromPayload(payload: unknown): number[] {
+  if (Array.isArray(payload)) {
+    const out: number[] = [];
+    for (const x of payload) {
+      pushNumericFromUnknown(x, out);
+    }
+    return out;
+  }
+
+  if (payload && typeof payload === "object") {
+    const candidate = (payload as any).variants ??
+      (payload as any).responses ??
+      (payload as any).data ??
+      (payload as any).result;
+
+    if (Array.isArray(candidate)) {
+      const out: number[] = [];
+      for (const x of candidate) {
+        pushNumericFromUnknown(x, out);
+      }
+      return out;
+    }
+
+    if (typeof candidate === "string" || typeof candidate === "number") {
+      const out: number[] = [];
+      pushNumericFromUnknown(candidate, out);
+      return out;
+    }
+  }
+
+  if (typeof payload === "number" && Number.isFinite(payload)) {
+    return [payload === 0 ? 0 : payload];
+  }
+
+  if (typeof payload === "string") {
+    const trimmed = payload.trim();
+    if (trimmed.startsWith("[")) {
+      try {
+        const parsed: unknown = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          const out: number[] = [];
+          for (const x of parsed) {
+            pushNumericFromUnknown(x, out);
+          }
+          return out;
+        }
+      } catch {
+        // одиночное число в строке — ниже
+      }
+    }
+    const out: number[] = [];
+    pushNumericFromUnknown(payload, out);
+    return out;
+  }
+
+  return [];
+}
+
+function extractResponsesFromPayload(
+  payload: unknown,
+  questionType: "numeric" | "text",
+): Array<string | number> {
+  if (questionType === "numeric") {
+    return extractNumericResponsesFromPayload(payload);
+  }
+  return extractTextResponsesFromPayload(payload);
+}
+
 export const extractQuestionResponsesInternal = internalAction({
   args: {
     question_ids: v.array(v.id("analytic_questions")),
@@ -66,7 +144,7 @@ export const extractQuestionResponsesInternal = internalAction({
   returns: v.array(
     v.object({
       question_id: v.id("analytic_questions"),
-      responses: v.array(v.string()),
+      responses: v.array(v.union(v.string(), v.number())),
     }),
   ),
   handler: async (ctx, { question_ids, user_response }) => {
@@ -88,8 +166,10 @@ export const extractQuestionResponsesInternal = internalAction({
       { ids: question_ids },
     );
 
-    const results: Array<{ question_id: typeof question_ids[number]; responses: string[] }> =
-      [];
+    const results: Array<{
+      question_id: (typeof question_ids)[number];
+      responses: Array<string | number>;
+    }> = [];
 
     for (const question of questions) {
       if (!question) {
@@ -123,9 +203,10 @@ export const extractQuestionResponsesInternal = internalAction({
       }
 
       const payload = await response.json();
+      const qType = question.type === "numeric" ? "numeric" : "text";
       results.push({
         question_id: question._id,
-        responses: extractVariantsFromPayload(payload),
+        responses: extractResponsesFromPayload(payload, qType),
       });
     }
 
@@ -156,7 +237,9 @@ export const extractUserInsightsHttp = httpAction(async (ctx, req) => {
       { ids: questionIds },
     );
 
-    const invalidIds = questionIds.filter((_, index) => !resolvedIds[index]);
+    const invalidIds = questionIds.filter(
+      (_qid: string, index: number) => !resolvedIds[index],
+    );
     if (invalidIds.length > 0) {
       return json(
         { error: "Some analytic questions were not found", invalidIds },
@@ -170,14 +253,18 @@ export const extractUserInsightsHttp = httpAction(async (ctx, req) => {
     );
 
     const timestamp = Date.now();
-    const items = extracted.flatMap((entry) =>
-      entry.responses.map((response) => ({
-        question_id: entry.question_id,
-        user_id: userId,
-        response,
-        type: "user" as const,
-        timestamp,
-      })),
+    const items = extracted.flatMap(
+      (entry: {
+        question_id: Id<"analytic_questions">;
+        responses: Array<string | number>;
+      }) =>
+        entry.responses.map((response: string | number) => ({
+          question_id: entry.question_id,
+          user_id: userId,
+          response,
+          type: "user" as const,
+          timestamp,
+        })),
     );
 
     const created = await ctx.runMutation(
@@ -289,14 +376,22 @@ export const getQuestionInfoHttp = httpAction(async (ctx, req) => {
       return json({ error: "Analytic question not found" }, 404);
     }
 
+    const type = question.type;
+    const variants = question.variants ?? [];
+
     return json({
       id: String(question._id),
       text: question.text,
-      variants: question.variants ?? [],
-      variants_text: (question.variants ?? []).join(", "),
+      type,
+      variants,
+      variants_text: variants.join(", "),
       formatted: {
+        type,
         question_text: `Текст вопроса - ${question.text}`,
-        variants_text: `Варианты ответа (через запятую) - ${(question.variants ?? []).join(", ")}`,
+        variants_text:
+          type === "numeric"
+            ? "Тип вопроса: числовой (варианты не задаются)"
+            : `Варианты ответа (через запятую) - ${variants.join(", ")}`,
       },
     });
   } catch (error) {

@@ -1,33 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { decodeJwt } from 'jose';
 
-interface TokenPayload {
-  userId: string;
-  expires: number;
-  role: string;
-}
-
-const getCookieValue = (name: string) => {
-  if (typeof document === 'undefined') {
-    return undefined;
-  }
-
-  const cookies = document.cookie.split('; ');
-  for (const cookie of cookies) {
-    const [key, ...rest] = cookie.split('=');
-    if (key === name) {
-      return decodeURIComponent(rest.join('='));
-    }
-  }
-
-  return undefined;
-};
-
-const getAuthToken = () =>
-  getCookieValue('authToken') || getCookieValue('token');
-
+/**
+ * Сессия через GET /api/auth/session: кука `token` httpOnly, в браузере не видна.
+ * JWT от Convex login: { adminId, role, exp }.
+ */
 export const useAuth = () => {
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -35,47 +13,38 @@ export const useAuth = () => {
   const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    const checkAuth = async () => {
+    const loadSession = async () => {
       try {
         setIsLoading(true);
+        const res = await fetch('/api/auth/session', {
+          credentials: 'include',
+        });
+        const data = (await res.json()) as {
+          authenticated?: boolean;
+          role?: string | null;
+          userId?: string | null;
+        };
 
-        const token = getAuthToken();
-
-        if (!token) {
+        if (data.authenticated && data.role) {
+          setIsAuthorized(true);
+          setRole(data.role);
+          setUserId(data.userId ?? null);
+        } else {
           setIsAuthorized(false);
-          setIsLoading(false);
-          return;
+          setRole(null);
+          setUserId(null);
         }
-
-        const decodedToken = decodeJwt(token) as TokenPayload;
-
-        if (!decodedToken) {
-          setIsAuthorized(false);
-          setIsLoading(false);
-          return;
-        }
-
-        const currentTime = Math.floor(Date.now() / 1000);
-        if (decodedToken.expires < currentTime) {
-          setIsAuthorized(false);
-          setIsLoading(false);
-          return;
-        }
-
-        console.log(decodedToken);
-
-        setRole(decodedToken.role);
-        setUserId(decodedToken.userId);
-
-        setIsAuthorized(true);
       } catch (error) {
-        console.error('Ошибка при проверке авторизации:', error);
+        console.error('useAuth: /api/auth/session', error);
         setIsAuthorized(false);
+        setRole(null);
+        setUserId(null);
+      } finally {
         setIsLoading(false);
       }
     };
 
-    checkAuth();
+    void loadSession();
   }, []);
 
   return { isAuthorized, isLoading, role, userId };
