@@ -32,10 +32,9 @@ const initialCompany: Company = {
 };
 
 export default function DashboardForm() {
-  const { role } = useAuth();
+  const { role, userId } = useAuth();
   const convexClient = getConvexHttpClient();
-  const formRole =
-    role === 'admin' || role === 'moderator' ? role : 'admin';
+  const formRole = role ?? undefined;
 
   const {
     company,
@@ -82,7 +81,9 @@ export default function DashboardForm() {
     getQuestionText,
     updateQuestionTitleCache,
     prepareForSubmit,
-  } = useCompanyForm(initialCompany);
+  } = useCompanyForm(initialCompany, {
+    fillActorAdminId: role === 'admin' ? userId : null,
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

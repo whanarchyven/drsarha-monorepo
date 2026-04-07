@@ -557,6 +557,8 @@ const fillInsightsScope = v.union(
 /** Создаёт analytic_insights по распределениям масштабов компании (как HTTP /companies/fill), с учётом области. */
 export const fillInsightsForCompany = mutation({
   args: {
+    /** Вызывающий пользователь из таблицы admin_users; только role === "admin". */
+    actorAdminId: v.id("admin_users"),
     companyId: v.id("companies"),
     fillValue: v.number(),
     startDate: v.number(),
@@ -566,6 +568,11 @@ export const fillInsightsForCompany = mutation({
   },
   returns: v.object({ createdInsights: v.number() }),
   handler: async (ctx, args) => {
+    const actor = await ctx.db.get(args.actorAdminId);
+    if (!actor || actor.role !== "admin") {
+      throw new Error("Только администратор может заливать ответы");
+    }
+
     if (!Number.isFinite(args.fillValue) || args.fillValue <= 0) {
       throw new Error("fillValue must be a positive number");
     }

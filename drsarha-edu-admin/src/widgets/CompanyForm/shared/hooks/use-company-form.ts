@@ -57,7 +57,16 @@ function defaultFillDateRange() {
   return { start: toDatetimeLocalValue(start), end: toDatetimeLocalValue(end) };
 }
 
-export function useCompanyForm(initialCompany: Company | null) {
+export type UseCompanyFormOptions = {
+  /** Convex Id admin_users; передаётся в fillInsightsForCompany для проверки роли admin. */
+  fillActorAdminId?: string | null;
+};
+
+export function useCompanyForm(
+  initialCompany: Company | null,
+  options: UseCompanyFormOptions = {}
+) {
+  const { fillActorAdminId } = options;
   const convexClient = getConvexHttpClient();
   const [company, setCompany] = useState<Company | null>(() =>
     initialCompany ? migrateCompanyData(initialCompany) : null
@@ -520,6 +529,10 @@ export function useCompanyForm(initialCompany: Company | null) {
       toast.error('Сохраните компанию, чтобы создавать инсайты');
       return;
     }
+    if (!fillActorAdminId?.trim()) {
+      toast.error('Заливка доступна только администратору');
+      return;
+    }
 
     const startMs = new Date(fillDateStart).getTime();
     const endMs = new Date(fillDateEnd).getTime();
@@ -561,6 +574,7 @@ export function useCompanyForm(initialCompany: Company | null) {
       const { createdInsights } = await convexClient.mutation(
         api.functions.companies.fillInsightsForCompany,
         {
+          actorAdminId: fillActorAdminId as any,
           companyId: cid as any,
           fillValue: Math.floor(value),
           startDate: startMs,
