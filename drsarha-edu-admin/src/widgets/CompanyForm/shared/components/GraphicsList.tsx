@@ -158,6 +158,9 @@ export function GraphicsList({
                           <SelectItem value={StatTabMode.COUNT_ALL}>
                             Все ответы (count_all)
                           </SelectItem>
+                          <SelectItem value={StatTabMode.COUNT_VARIANTS}>
+                            Число вариантов (count_variants)
+                          </SelectItem>
                           <SelectItem value={StatTabMode.TOP_VARIANT}>
                             Топ вариант (top_variant)
                           </SelectItem>

@@ -8,7 +8,8 @@
   },
   "scripts": {
     "dev": "convex dev",
-    "codegen": "convex codegen"
+    "codegen": "convex codegen",
+    "seed-company": "node scripts/seed-company-from-export.mjs"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

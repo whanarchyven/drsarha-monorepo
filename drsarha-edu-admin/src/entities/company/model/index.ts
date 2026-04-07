@@ -10,6 +10,7 @@ export enum DashboardType {
 /** Режим отображения для графика типа «вкладка» (tab). */
 export enum StatTabMode {
   COUNT_ALL = 'count_all',
+  COUNT_VARIANTS = 'count_variants',
   TOP_VARIANT = 'top_variant',
   AVERAGE = 'average',
   VARIANT_PERCENT = 'variant_percent',

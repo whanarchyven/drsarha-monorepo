@@ -12,6 +12,7 @@ const dashboardType = v.union(
 
 const statTabMode = v.union(
   v.literal("count_all"),
+  v.literal("count_variants"),
   v.literal("top_variant"),
   v.literal("average"),
   v.literal("variant_percent"),

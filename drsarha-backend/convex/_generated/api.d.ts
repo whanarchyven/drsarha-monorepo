@@ -22,6 +22,7 @@ import type * as functions_clinic_atlases from "../functions/clinic_atlases.js";
 import type * as functions_clinic_tasks from "../functions/clinic_tasks.js";
 import type * as functions_collaboration_requests from "../functions/collaboration_requests.js";
 import type * as functions_companies from "../functions/companies.js";
+import type * as functions_company_import from "../functions/company_import.js";
 import type * as functions_conference_ai_text from "../functions/conference_ai_text.js";
 import type * as functions_conference_broadcast from "../functions/conference_broadcast.js";
 import type * as functions_conference_chat from "../functions/conference_chat.js";
@@ -147,6 +148,7 @@ declare const fullApi: ApiFromModules<{
   "functions/clinic_tasks": typeof functions_clinic_tasks;
   "functions/collaboration_requests": typeof functions_collaboration_requests;
   "functions/companies": typeof functions_companies;
+  "functions/company_import": typeof functions_company_import;
   "functions/conference_ai_text": typeof functions_conference_ai_text;
   "functions/conference_broadcast": typeof functions_conference_broadcast;
   "functions/conference_chat": typeof functions_conference_chat;
