@@ -1,4 +1,4 @@
-import { internalMutation, mutation, query } from "../_generated/server";
+import { internalMutation, internalQuery, mutation, query } from "../_generated/server";
 import type { Doc, Id } from "../_generated/dataModel";
 import { v } from "convex/values";
 import {
@@ -52,6 +52,65 @@ async function listInsightsForQuestion(
     .withIndex("by_question", (q: any) => q.eq("question_id", questionId))
     .collect();
 }
+
+const insightSummaryRowValidator = v.object({
+  response: v.union(v.string(), v.number()),
+  specialty: v.optional(v.string()),
+});
+
+/**
+ * Одна страница инсайтов для агрегации summary в action (каждый вызов — отдельный лимит чтений Convex).
+ */
+export const insightsSummaryPageInternal = internalQuery({
+  args: {
+    question_id: v.id("analytic_questions"),
+    start_date: v.optional(v.number()),
+    end_date: v.optional(v.number()),
+    cursor: v.union(v.string(), v.null()),
+    limit: v.number(),
+  },
+  returns: v.object({
+    items: v.array(insightSummaryRowValidator),
+    cursor: v.union(v.string(), v.null()),
+    isDone: v.boolean(),
+  }),
+  handler: async ({ db }, { question_id, start_date, end_date, cursor, limit }) => {
+    const numItems = Math.min(4000, Math.max(1, Math.floor(limit)));
+
+    if (start_date !== undefined || end_date !== undefined) {
+      const { start, end } = getRangeBounds(start_date, end_date);
+      const page = await (db as any)
+        .query("analytic_insights")
+        .withIndex("by_question_timestamp", (q: any) =>
+          q.eq("question_id", question_id).gte("timestamp", start).lte("timestamp", end),
+        )
+        .paginate({ numItems, cursor: cursor ?? null });
+
+      return {
+        items: page.page.map((row: Doc<"analytic_insights">) => ({
+          response: row.response,
+          specialty: row.specialty,
+        })),
+        cursor: page.continueCursor ?? null,
+        isDone: page.isDone,
+      };
+    }
+
+    const page = await (db as any)
+      .query("analytic_insights")
+      .withIndex("by_question", (q: any) => q.eq("question_id", question_id))
+      .paginate({ numItems, cursor: cursor ?? null });
+
+    return {
+      items: page.page.map((row: Doc<"analytic_insights">) => ({
+        response: row.response,
+        specialty: row.specialty,
+      })),
+      cursor: page.continueCursor ?? null,
+      isDone: page.isDone,
+    };
+  },
+});
 
 export async function buildQuestionSummary(
   db: any,

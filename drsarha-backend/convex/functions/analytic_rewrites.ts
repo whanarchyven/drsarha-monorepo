@@ -1,4 +1,4 @@
-import { mutation, query } from "../_generated/server";
+import { internalQuery, mutation, query } from "../_generated/server";
 import { v } from "convex/values";
 import {
   cleanupAnalyticsValue,
@@ -15,6 +15,27 @@ const analyticRewritesListResponse = v.object({
   page: v.number(),
   totalPages: v.number(),
   hasMore: v.boolean(),
+});
+
+const rewritePairValidator = v.object({
+  rewrite_value: v.string(),
+  rewrite_target: v.string(),
+});
+
+/** Для action-сборки summary: только пары значений, без лишних полей. */
+export const listMinimalByQuestionInternal = internalQuery({
+  args: { question_id: v.id("analytic_questions") },
+  returns: v.array(rewritePairValidator),
+  handler: async ({ db }, { question_id }) => {
+    const items = await db
+      .query("analytic_rewrites")
+      .withIndex("by_question", (q) => q.eq("question_id", question_id))
+      .collect();
+    return items.map((r) => ({
+      rewrite_value: r.rewrite_value,
+      rewrite_target: r.rewrite_target,
+    }));
+  },
 });
 
 async function ensureRewriteUniqueness(

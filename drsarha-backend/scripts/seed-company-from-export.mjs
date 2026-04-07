@@ -36,9 +36,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const CONVEX_URL = process.env.CONVEX_URL || process.env.NEXT_PUBLIC_CONVEX_URL;
 
 /** 6 апреля 2026 00:00 UTC */
-const START_MS = Date.UTC(2026, 2, 30, 0, 0, 0, 0);
+const START_MS = Date.UTC(2025, 0, 1, 0, 0, 0, 0);
 /** 30 апреля 2026 23:59:59 UTC */
-const END_MS = Date.UTC(2026, 3, 6, 23, 59, 59, 999);
+const END_MS = Date.UTC(2025, 0, 2, 0, 0, 0, 0);
 
 const CHUNK_SUM_COUNTS = 250;
 const USER_PREFIX = "seed:import";

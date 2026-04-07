@@ -1,5 +1,7 @@
 import {
+  action,
   httpAction,
+  internalAction,
   internalQuery,
   mutation,
   query,
@@ -10,10 +12,12 @@ import {
   cleanupAnalyticsValue,
   getRandomTimestampInRange,
   parseAnalyticsDate,
+  summarizeAnalyticsResponses,
 } from "../helpers/analytics";
 import { allocateStatResponses } from "../helpers/companyFill";
 import { extractSpecialtyWeightsFromCompanyDashboards } from "../helpers/insightSpecialty";
-import { internal, api } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
+import { internal } from "../_generated/api";
 import { buildQuestionSummary } from "./analytic_insights";
 
 declare const process: {
@@ -147,6 +151,164 @@ export const getBySlug = query({
 });
 
 /** Только для HTTP: при неверном slug/пароле всегда false (без 404). */
+/** Первая компания по slug (без .unique() — при дубликатах slug не падаем). */
+export const getCompanyBySlugFirstInternal = internalQuery({
+  args: { slug: v.string() },
+  returns: v.union(companyDoc, v.null()),
+  handler: async ({ db }, { slug }) => {
+    const row = await (db as any)
+      .query("companies")
+      .withIndex("by_slug", (q: any) => q.eq("slug", slug))
+      .first();
+    return row ?? null;
+  },
+});
+
+/**
+ * Сборка getBySlugInfo через action: инсайты читаются страницами (отдельный runQuery на страницу),
+ * чтобы не упираться в лимит 32k чтений за один query.
+ */
+export const getBySlugInfoBatchedInternal = internalAction({
+  args: {
+    slug: v.string(),
+    start_date: v.optional(v.number()),
+    end_date: v.optional(v.number()),
+  },
+  returns: v.any(),
+  handler: async (ctx, { slug, start_date, end_date }) => {
+    const company = await ctx.runQuery(
+      internal.functions.companies.getCompanyBySlugFirstInternal,
+      { slug },
+    );
+    if (!company) {
+      return null;
+    }
+
+    const companyForClient = createPublicCompanyResponse(company);
+    const INSIGHT_PAGE = 3000;
+
+    const rawIdsOrdered: string[] = [];
+    for (const d of companyForClient.dashboards ?? []) {
+      for (const s of d.stats ?? []) {
+        const q = String(s.question_id ?? "").trim();
+        if (q) {
+          rawIdsOrdered.push(q);
+        }
+      }
+    }
+    const uniqueRawIds = [...new Set(rawIdsOrdered)];
+
+    const resolved = await ctx.runQuery(
+      internal.functions.analytic_questions.resolveQuestionIdsInternal,
+      { ids: uniqueRawIds },
+    );
+
+    const rawToConvex = new Map<string, string | null>();
+    uniqueRawIds.forEach((raw, i) => {
+      rawToConvex.set(raw, resolved[i] ? String(resolved[i]) : null);
+    });
+
+    const convexIdSet = new Set<string>();
+    for (const id of rawToConvex.values()) {
+      if (id) {
+        convexIdSet.add(id);
+      }
+    }
+
+    type SummaryRow = Parameters<typeof stripSourceCountFromSummaryResults>[0][number];
+    const summaryByQuestionId = new Map<
+      string,
+      { results: SummaryRow[]; totalInsights: number }
+    >();
+
+    for (const qidStr of convexIdSet) {
+      const questionId = qidStr as Id<"analytic_questions">;
+
+      const [question] = await ctx.runQuery(
+        internal.functions.analytic_questions.getByIdsInternal,
+        { ids: [questionId] },
+      );
+      if (!question) {
+        summaryByQuestionId.set(qidStr, { results: [], totalInsights: 0 });
+        continue;
+      }
+
+      const rewrites = await ctx.runQuery(
+        internal.functions.analytic_rewrites.listMinimalByQuestionInternal,
+        { question_id: questionId },
+      );
+
+      const insights: Array<{
+        response: string | number;
+        specialty?: string;
+      }> = [];
+      let cursor: string | null = null;
+      let done = false;
+      while (!done) {
+        const page = await ctx.runQuery(
+          internal.functions.analytic_insights.insightsSummaryPageInternal,
+          {
+            question_id: questionId,
+            start_date,
+            end_date,
+            cursor,
+            limit: INSIGHT_PAGE,
+          },
+        );
+        insights.push(...page.items);
+        done = page.isDone;
+        cursor = page.cursor;
+      }
+
+      const summary = summarizeAnalyticsResponses(question, insights, rewrites);
+      summaryByQuestionId.set(qidStr, {
+        results: summary.results as SummaryRow[],
+        totalInsights: summary.totalInsights,
+      });
+    }
+
+    for (const dashboard of companyForClient.dashboards ?? []) {
+      for (const stat of dashboard.stats ?? []) {
+        const raw = String(stat.question_id ?? "").trim();
+        const convex = rawToConvex.get(raw);
+        if (!convex) {
+          stat.question_summary = { results: [] };
+          continue;
+        }
+        const cached = summaryByQuestionId.get(convex);
+        if (!cached) {
+          stat.question_summary = { results: [] };
+          continue;
+        }
+        stat.question_summary = {
+          results: stripSourceCountFromSummaryResults(cached.results),
+          totalInsights: cached.totalInsights,
+        };
+        delete stat.scales;
+        delete stat.scaleAll;
+      }
+    }
+
+    return companyForClient;
+  },
+});
+
+/** Публичный action с батчингом (для клиента Convex); то же, что отдаёт HTTP getBySlugInfo. */
+export const fetchCompanyBySlugInfo = action({
+  args: {
+    slug: v.string(),
+    start_date: v.optional(v.number()),
+    end_date: v.optional(v.number()),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    return await ctx.runAction(
+      internal.functions.companies.getBySlugInfoBatchedInternal,
+      args,
+    );
+  },
+});
+
 export const verifyCompanyPasswordInternal = internalQuery({
   args: {
     slug: v.string(),
@@ -173,6 +335,10 @@ export const verifyCompanyPasswordInternal = internalQuery({
   },
 });
 
+/**
+ * Полная выгрузка с question_summary. У Convex лимит ~32k чтений документов на один query —
+ * при больших объёмах инсайтов используйте HTTP getBySlugInfo или action fetchCompanyBySlugInfo.
+ */
 export const getBySlugInfo = query({
   args: {
     slug: v.string(),
@@ -192,6 +358,12 @@ export const getBySlugInfo = query({
 
     const companyForClient = createPublicCompanyResponse(company);
 
+    /** Один question_id часто повторяется в нескольких stats — без кэша каждый раз читаем все инсайты заново и упираемся в лимит 32k документов за вызов. */
+    const summaryByQuestionId = new Map<
+      string,
+      Awaited<ReturnType<typeof buildQuestionSummary>>
+    >();
+
     for (const dashboard of companyForClient.dashboards) {
       for (const stat of dashboard.stats) {
         const normalizedQuestionId = await (db as any).normalizeId(
@@ -204,12 +376,17 @@ export const getBySlugInfo = query({
           continue;
         }
 
-        const summary = await buildQuestionSummary(
-          db as any,
-          normalizedQuestionId,
-          start_date,
-          end_date,
-        );
+        const qKey = String(normalizedQuestionId);
+        let summary = summaryByQuestionId.get(qKey);
+        if (!summary) {
+          summary = await buildQuestionSummary(
+            db as any,
+            normalizedQuestionId,
+            start_date,
+            end_date,
+          );
+          summaryByQuestionId.set(qKey, summary);
+        }
 
         stat.question_summary = {
           results: stripSourceCountFromSummaryResults(summary.results),
@@ -661,11 +838,14 @@ export const getBySlugInfoHttp = httpAction(async (ctx, req) => {
       return json({ error: "slug is required" }, 400);
     }
 
-    const company = await ctx.runQuery(api.functions.companies.getBySlugInfo, {
-      slug,
-      start_date: parseAnalyticsDate(url.searchParams.get("start_date")),
-      end_date: parseAnalyticsDate(url.searchParams.get("end_date")),
-    });
+    const company = await ctx.runAction(
+      internal.functions.companies.getBySlugInfoBatchedInternal,
+      {
+        slug,
+        start_date: parseAnalyticsDate(url.searchParams.get("start_date")),
+        end_date: parseAnalyticsDate(url.searchParams.get("end_date")),
+      },
+    );
 
     if (!company) {
       return json({ error: "Компания не найдена" }, 404);
