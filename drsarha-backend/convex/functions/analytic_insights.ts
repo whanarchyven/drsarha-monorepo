@@ -8,6 +8,11 @@ import {
   normalizeInsightResponseForStorage,
   summarizeAnalyticsResponses,
 } from "../helpers/analytics";
+import {
+  DEFAULT_AUTO_SPECIALTY_WEIGHTS,
+  pickWeightedSpecialty,
+  resolveUserSpecialtyFromDb,
+} from "../helpers/insightSpecialty";
 import { analyticInsightDoc, analyticInsightFields } from "../models/analyticInsight";
 import { analyticQuestionDoc } from "../models/analyticQuestion";
 
@@ -72,7 +77,14 @@ export async function buildQuestionSummary(
     ? rawInsights.filter((row: { type?: string }) => row.type === "user")
     : rawInsights;
 
-  const summary = summarizeAnalyticsResponses(question, insights, rewrites);
+  const summary = summarizeAnalyticsResponses(
+    question,
+    insights.map((row: { response: string | number; specialty?: string }) => ({
+      response: row.response,
+      specialty: row.specialty,
+    })),
+    rewrites,
+  );
 
   return {
     question,
@@ -187,6 +199,7 @@ export const insert = mutation({
     response: analyticInsightFields.response,
     type: analyticInsightFields.type,
     timestamp: v.optional(v.number()),
+    specialty: v.optional(v.string()),
   }),
   returns: analyticInsightDoc,
   handler: async ({ db }, args) => {
@@ -203,6 +216,19 @@ export const insert = mutation({
       throw new Error("Insight response is required");
     }
 
+    let specialty =
+      args.specialty !== undefined && String(args.specialty).trim() !== ""
+        ? String(args.specialty).trim()
+        : undefined;
+
+    if (specialty === undefined) {
+      if (args.type === "user") {
+        specialty = await resolveUserSpecialtyFromDb(db, args.user_id);
+      } else {
+        specialty = pickWeightedSpecialty(DEFAULT_AUTO_SPECIALTY_WEIGHTS);
+      }
+    }
+
     const id = await db.insert("analytic_insights", {
       question_id: args.question_id,
       user_id: args.user_id,
@@ -210,10 +236,16 @@ export const insert = mutation({
       responseNormalized: normalized.responseNormalized,
       type: args.type,
       timestamp: args.timestamp ?? Date.now(),
+      ...(specialty !== undefined ? { specialty } : {}),
     });
 
     return (await db.get(id))!;
   },
+});
+
+const specialtyWeightEntry = v.object({
+  name: v.string(),
+  weight: v.number(),
 });
 
 export const createManyInternal = internalMutation({
@@ -225,13 +257,21 @@ export const createManyInternal = internalMutation({
         response: analyticInsightFields.response,
         type: analyticInsightFields.type,
         timestamp: v.number(),
+        specialty: v.optional(v.string()),
       }),
     ),
+    auto_specialty_weights: v.optional(v.array(specialtyWeightEntry)),
   },
   returns: v.number(),
-  handler: async ({ db }, { items }) => {
+  handler: async ({ db }, { items, auto_specialty_weights }) => {
     let created = 0;
     const typeCache = new Map<string, "numeric" | "text">();
+    const userSpecialtyCache = new Map<string, string | undefined>();
+
+    const autoWeights =
+      auto_specialty_weights && auto_specialty_weights.length > 0
+        ? auto_specialty_weights
+        : DEFAULT_AUTO_SPECIALTY_WEIGHTS;
 
     async function questionType(
       qid: Id<"analytic_questions">,
@@ -254,6 +294,26 @@ export const createManyInternal = internalMutation({
         continue;
       }
 
+      let specialty =
+        item.specialty !== undefined && String(item.specialty).trim() !== ""
+          ? String(item.specialty).trim()
+          : undefined;
+
+      if (specialty === undefined) {
+        if (item.type === "user") {
+          const uid = item.user_id;
+          if (!userSpecialtyCache.has(uid)) {
+            userSpecialtyCache.set(
+              uid,
+              await resolveUserSpecialtyFromDb(db, uid),
+            );
+          }
+          specialty = userSpecialtyCache.get(uid);
+        } else {
+          specialty = pickWeightedSpecialty(autoWeights);
+        }
+      }
+
       await db.insert("analytic_insights", {
         question_id: item.question_id,
         user_id: item.user_id,
@@ -261,6 +321,7 @@ export const createManyInternal = internalMutation({
         responseNormalized: normalized.responseNormalized,
         type: item.type,
         timestamp: item.timestamp,
+        ...(specialty !== undefined ? { specialty } : {}),
       });
       created += 1;
     }
@@ -278,6 +339,7 @@ export const update = mutation({
       response: v.optional(analyticInsightFields.response),
       type: v.optional(analyticInsightFields.type),
       timestamp: v.optional(v.number()),
+      specialty: v.optional(v.string()),
       responseNormalized: v.optional(v.string()),
       _id: v.optional(v.id("analytic_insights")),
       _creationTime: v.optional(v.number()),
@@ -306,6 +368,10 @@ export const update = mutation({
 
     if (data.timestamp !== undefined) {
       patch.timestamp = data.timestamp;
+    }
+
+    if (data.specialty !== undefined) {
+      patch.specialty = data.specialty;
     }
 
     if (data.response !== undefined) {

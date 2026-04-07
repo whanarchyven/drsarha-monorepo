@@ -7,6 +7,7 @@ import {
   StatUnit,
 } from '@/entities/company/model';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -134,6 +135,27 @@ export function GraphicsList({
                     step="1"
                   />
                 </div>
+                {graphic.type === DashboardType.BAR ? (
+                  <div className="md:col-span-2 flex items-center gap-2 pt-1">
+                    <Checkbox
+                      id={`graphic-show-spec-${dashboardIndex}-${statIndex}-${graphicIndex}`}
+                      checked={graphic.show_speciality_distribution === true}
+                      onCheckedChange={(checked) =>
+                        onUpdate(
+                          graphicIndex,
+                          'show_speciality_distribution',
+                          checked === true
+                        )
+                      }
+                    />
+                    <Label
+                      htmlFor={`graphic-show-spec-${dashboardIndex}-${statIndex}-${graphicIndex}`}
+                      className="text-xs font-normal cursor-pointer leading-none">
+                      Показывать распределение по специальностям
+                      (show_speciality_distribution)
+                    </Label>
+                  </div>
+                ) : null}
                 {graphic.type === DashboardType.TAB ? (
                   <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 border-t border-orange-200/80 dark:border-orange-800/80 mt-1">
                     <div className="space-y-1 md:col-span-2">

@@ -41,6 +41,8 @@ export const graphicFields = v.object({
   stat_subtitle: v.optional(v.string()),
   stat_unit: v.optional(v.union(statUnit, v.null())),
   stat_variant: v.optional(v.union(v.string(), v.number())),
+  /** Имеет смысл при type === "bar": показывать распределение по специальностям. */
+  show_speciality_distribution: v.optional(v.boolean()),
 });
 
 export const statFields = v.object({

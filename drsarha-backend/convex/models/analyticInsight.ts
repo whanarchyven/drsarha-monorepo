@@ -9,6 +9,8 @@ export const analyticInsightFields = {
   responseNormalized: v.string(),
   type: analyticsInsightType,
   timestamp: v.number(),
+  /** Специальность автора ответа: из профиля (user) или выбрана по распределению (auto). */
+  specialty: v.optional(v.string()),
 };
 
 export const analyticInsightsTable = defineTable(analyticInsightFields)

@@ -70,6 +70,7 @@ import type * as functions_user_saved_pins from "../functions/user_saved_pins.js
 import type * as functions_users from "../functions/users.js";
 import type * as helpers_analytics from "../helpers/analytics.js";
 import type * as helpers_companyFill from "../helpers/companyFill.js";
+import type * as helpers_insightSpecialty from "../helpers/insightSpecialty.js";
 import type * as helpers_s3 from "../helpers/s3.js";
 import type * as helpers_upload from "../helpers/upload.js";
 import type * as http from "../http.js";
@@ -196,6 +197,7 @@ declare const fullApi: ApiFromModules<{
   "functions/users": typeof functions_users;
   "helpers/analytics": typeof helpers_analytics;
   "helpers/companyFill": typeof helpers_companyFill;
+  "helpers/insightSpecialty": typeof helpers_insightSpecialty;
   "helpers/s3": typeof helpers_s3;
   "helpers/upload": typeof helpers_upload;
   http: typeof http;

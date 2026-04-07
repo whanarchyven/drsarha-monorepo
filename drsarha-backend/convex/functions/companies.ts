@@ -12,6 +12,7 @@ import {
   parseAnalyticsDate,
 } from "../helpers/analytics";
 import { allocateStatResponses } from "../helpers/companyFill";
+import { extractSpecialtyWeightsFromCompanyDashboards } from "../helpers/insightSpecialty";
 import { internal, api } from "../_generated/api";
 import { buildQuestionSummary } from "./analytic_insights";
 
@@ -50,15 +51,28 @@ function ensureAuthorized(req: Request) {
   }
 }
 
-/** Для публичного slug API не отдаём sourceCount (только value + count). */
+type SpecialityDistributionRow = Array<{ specialty: string; percent: number }>;
+
+/** Для публичного slug API не отдаём sourceCount (value, count, speciality_distribution). */
 function stripSourceCountFromSummaryResults(
   results: Array<{
     value: string | number;
     count: number;
     sourceCount?: number;
+    speciality_distribution?: SpecialityDistributionRow;
   }>,
 ) {
-  return results.map(({ value, count }) => ({ value, count }));
+  return results.map(({ value, count, speciality_distribution }) => {
+    const row: {
+      value: string | number;
+      count: number;
+      speciality_distribution?: SpecialityDistributionRow;
+    } = { value, count };
+    if (speciality_distribution !== undefined) {
+      row.speciality_distribution = speciality_distribution;
+    }
+    return row;
+  });
 }
 
 function createPublicCompanyResponse(company: any) {
@@ -377,6 +391,12 @@ export const fillInsightsForCompany = mutation({
     const autoUserId =
       cleanupAnalyticsValue(args.userId) || "system:auto-fill";
 
+    const autoSpecialtyWeights = extractSpecialtyWeightsFromCompanyDashboards(
+      dashboards,
+    );
+    const autoSpecialtyWeightsArg =
+      autoSpecialtyWeights.length > 0 ? autoSpecialtyWeights : undefined;
+
     let createdInsights = 0;
 
     for (const { stat, effectiveFill } of work) {
@@ -403,7 +423,7 @@ export const fillInsightsForCompany = mutation({
 
       createdInsights += await ctx.runMutation(
         internal.functions.analytic_insights.createManyInternal,
-        { items },
+        { items, auto_specialty_weights: autoSpecialtyWeightsArg },
       );
     }
 
@@ -569,6 +589,12 @@ export const fillCompaniesHttp = httpAction(async (ctx, req) => {
           continue;
         }
 
+        const autoSpecialtyWeights = extractSpecialtyWeightsFromCompanyDashboards(
+          company.dashboards,
+        );
+        const autoSpecialtyWeightsArg =
+          autoSpecialtyWeights.length > 0 ? autoSpecialtyWeights : undefined;
+
         for (const dashboard of company.dashboards) {
           const dashboardPercent = dashboard.dashboardPercent ?? 1;
           const dashboardFillValue = Math.floor(baseFillValue * dashboardPercent);
@@ -596,7 +622,7 @@ export const fillCompaniesHttp = httpAction(async (ctx, req) => {
 
             createdInsights += await ctx.runMutation(
               internal.functions.analytic_insights.createManyInternal,
-              { items },
+              { items, auto_specialty_weights: autoSpecialtyWeightsArg },
             );
           }
         }

@@ -112,6 +112,9 @@ export const prepareCompanyForSubmit = (company: Company): Company => {
             delete g.stat_unit;
             delete g.stat_variant;
           }
+          if (g.type !== DashboardType.BAR) {
+            delete g.show_speciality_distribution;
+          }
         });
       }
       // Удаляем старые поля type и cols, если они есть

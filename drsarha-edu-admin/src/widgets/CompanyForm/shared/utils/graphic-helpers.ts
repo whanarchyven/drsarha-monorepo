@@ -43,6 +43,15 @@ export const updateGraphic = (
     } else if (next.stat_tab === undefined) {
       next.stat_tab = StatTabMode.COUNT_ALL;
     }
+    if (next.type !== DashboardType.BAR) {
+      delete next.show_speciality_distribution;
+    }
+  } else if (field === 'show_speciality_distribution') {
+    if (value === true) {
+      next.show_speciality_distribution = true;
+    } else {
+      delete next.show_speciality_distribution;
+    }
   } else if (field === 'stat_tab') {
     next.stat_tab = value as StatTabMode;
     if (next.stat_tab !== StatTabMode.VARIANT_PERCENT) {

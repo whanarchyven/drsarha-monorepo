@@ -45,6 +45,8 @@ export interface Graphic {
   stat_unit?: StatUnit | null;
   /** Учитывается при stat_tab === variant_percent */
   stat_variant?: string | number;
+  /** Только для type === bar: показывать распределение по специальностям */
+  show_speciality_distribution?: boolean;
 }
 
 export interface Stat {
@@ -55,9 +57,10 @@ export interface Stat {
   graphics: Graphic[];
   question_summary?: {
     results: Array<{
-      value: string;
+      value: string | number;
       count: number;
       sourceCount?: number;
+      speciality_distribution?: Array<{ specialty: string; percent: number }>;
     }>;
     totalInsights?: number;
   };

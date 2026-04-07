@@ -5,6 +5,10 @@ import {
   getRandomTimestampInRange,
   normalizeInsightResponseForStorage,
 } from "../helpers/analytics";
+import {
+  DEFAULT_AUTO_SPECIALTY_WEIGHTS,
+  pickWeightedSpecialty,
+} from "../helpers/insightSpecialty";
 
 const insightSeedRow = v.object({
   question_id: v.id("analytic_questions"),
@@ -17,12 +21,18 @@ const insightSeedRow = v.object({
  * Публичная мутация — не вызывайте из клиента в проде без отдельной защиты.
  * Ограничьте сумму count в одном вызове (~300–500), иначе таймаут мутации.
  */
+const specialtyWeightEntry = v.object({
+  name: v.string(),
+  weight: v.number(),
+});
+
 export const importInsightSeeds = mutation({
   args: {
     start_date: v.number(),
     end_date: v.number(),
     user_id_prefix: v.string(),
     rows: v.array(insightSeedRow),
+    auto_specialty_weights: v.optional(v.array(specialtyWeightEntry)),
   },
   returns: v.object({ created: v.number() }),
   handler: async ({ db }, args) => {
@@ -48,6 +58,11 @@ export const importInsightSeeds = mutation({
     let created = 0;
     let seq = 0;
 
+    const autoWeights =
+      args.auto_specialty_weights && args.auto_specialty_weights.length > 0
+        ? args.auto_specialty_weights
+        : DEFAULT_AUTO_SPECIALTY_WEIGHTS;
+
     for (const row of args.rows) {
       if (row.count <= 0) {
         continue;
@@ -67,6 +82,7 @@ export const importInsightSeeds = mutation({
           response: normalized.response,
           responseNormalized: normalized.responseNormalized,
           type: "auto",
+          specialty: pickWeightedSpecialty(autoWeights),
           timestamp: getRandomTimestampInRange(
             args.start_date,
             args.end_date,

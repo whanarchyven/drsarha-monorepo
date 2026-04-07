@@ -66,6 +66,35 @@ function defaultAutoscale() {
   };
 }
 
+/** Совпадает с extractSpecialtyWeightsFromCompanyDashboards в Convex (стат «специальность»). */
+function extractSpecialtyWeightsFromDashboards(dashboards) {
+  const re = /специальност/i;
+  for (const d of dashboards || []) {
+    for (const stat of d.stats || []) {
+      if (typeof stat.name === "string" && re.test(stat.name)) {
+        const out = [];
+        for (const scale of stat.scales || []) {
+          const w = scale?.scaleDistribution;
+          const n = scale?.name;
+          if (
+            typeof n === "string" &&
+            n.trim() &&
+            typeof w === "number" &&
+            Number.isFinite(w) &&
+            w > 0
+          ) {
+            out.push({ name: n.trim(), weight: w });
+          }
+        }
+        if (out.length > 0) {
+          return out;
+        }
+      }
+    }
+  }
+  return [];
+}
+
 function buildScalesFromResults(results) {
   if (!Array.isArray(results) || results.length === 0) {
     return {
@@ -229,6 +258,7 @@ async function main() {
   console.log("Компания создана:", String(company._id), company.slug);
 
   const batches = chunkInsightRows(insightTasks);
+  const autoSpecialtyWeights = extractSpecialtyWeightsFromDashboards(dashboards);
   let totalCreated = 0;
   for (let bi = 0; bi < batches.length; bi++) {
     const rows = batches[bi];
@@ -239,6 +269,9 @@ async function main() {
         end_date: END_MS,
         user_id_prefix: `${USER_PREFIX}:b${bi}`,
         rows,
+        ...(autoSpecialtyWeights.length > 0
+          ? { auto_specialty_weights: autoSpecialtyWeights }
+          : {}),
       },
     );
     totalCreated += res.created;

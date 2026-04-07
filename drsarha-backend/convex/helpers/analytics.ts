@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { specialtyLabelForInsight } from "./insightSpecialty";
 
 export const analyticsQuestionType = v.union(
   v.literal("numeric"),
@@ -15,10 +16,18 @@ export const analyticsCountResult = v.object({
   count: v.number(),
 });
 
+/** Не v.record: ключи специальностей могут быть кириллицей — Convex допускает только ASCII в именах полей объекта. */
+export const analyticsSpecialityDistributionEntry = v.object({
+  specialty: v.string(),
+  percent: v.number(),
+});
+
 export const analyticsSummaryResult = v.object({
   value: v.union(v.string(), v.number()),
   count: v.number(),
   sourceCount: v.optional(v.number()),
+  /** Доля специальностей в строке summary (после rewrites), % с одним знаком после запятой. */
+  speciality_distribution: v.optional(v.array(analyticsSpecialityDistributionEntry)),
 });
 
 export const analyticsSummaryRange = v.union(
@@ -153,7 +162,37 @@ export function sanitizeVariants(variants?: string[]) {
 
 type InsightSummaryInput = {
   response: string | number;
+  specialty?: string | undefined;
 };
+
+function bumpSpecialtyForFinalNorm(
+  specByNorm: Map<string, Map<string, number>>,
+  finalNormKey: string,
+  specialty: string | undefined,
+) {
+  const label = specialtyLabelForInsight(specialty);
+  let inner = specByNorm.get(finalNormKey);
+  if (!inner) {
+    inner = new Map();
+    specByNorm.set(finalNormKey, inner);
+  }
+  inner.set(label, (inner.get(label) ?? 0) + 1);
+}
+
+function buildSpecialityDistribution(
+  specMap: Map<string, number> | undefined,
+  rowCount: number,
+): Array<{ specialty: string; percent: number }> | undefined {
+  if (!specMap || rowCount <= 0) {
+    return undefined;
+  }
+  const entries = [...specMap.entries()].map(([specialty, c]) => ({
+    specialty,
+    percent: Math.round((c / rowCount) * 1000) / 10,
+  }));
+  entries.sort((a, b) => b.percent - a.percent);
+  return entries;
+}
 
 type RewriteSummaryInput = {
   rewrite_value: string;
@@ -182,6 +221,7 @@ function summarizeNumericAnalyticsResponses(
   const directByNorm = new Map<string, number>();
   const finalByNorm = new Map<string, number>();
   const labelByNorm = new Map<string, string | number>();
+  const specByNorm = new Map<string, Map<string, number>>();
 
   for (const variant of variants) {
     const norm = variantNormForLabel(variant);
@@ -235,6 +275,11 @@ function summarizeNumericAnalyticsResponses(
         normalizedResponse,
         (finalByNorm.get(normalizedResponse) ?? 0) + 1,
       );
+      bumpSpecialtyForFinalNorm(
+        specByNorm,
+        normalizedResponse,
+        insight.specialty,
+      );
       continue;
     }
 
@@ -245,6 +290,7 @@ function summarizeNumericAnalyticsResponses(
           rewriteTarget,
           (finalByNorm.get(rewriteTarget) ?? 0) + 1,
         );
+        bumpSpecialtyForFinalNorm(specByNorm, rewriteTarget, insight.specialty);
       } else {
         if (!finalByNorm.has(rewriteTarget)) {
           finalByNorm.set(rewriteTarget, 0);
@@ -258,6 +304,7 @@ function summarizeNumericAnalyticsResponses(
           rewriteTarget,
           (finalByNorm.get(rewriteTarget) ?? 0) + 1,
         );
+        bumpSpecialtyForFinalNorm(specByNorm, rewriteTarget, insight.specialty);
       }
       continue;
     }
@@ -271,19 +318,30 @@ function summarizeNumericAnalyticsResponses(
       normalizedResponse,
       (finalByNorm.get(normalizedResponse) ?? 0) + 1,
     );
+    bumpSpecialtyForFinalNorm(
+      specByNorm,
+      normalizedResponse,
+      insight.specialty,
+    );
   }
 
   const results: Array<{
     value: string | number;
     count: number;
     sourceCount?: number;
+    speciality_distribution?: Array<{ specialty: string; percent: number }>;
   }> = variants.map((variant) => {
     const norm = variantNormForLabel(variant);
     const displayNum = coerceToFiniteNumber(variant);
+    const cnt = finalByNorm.get(norm) ?? 0;
     return {
       value: displayNum !== null ? displayNum : variant,
-      count: finalByNorm.get(norm) ?? 0,
+      count: cnt,
       sourceCount: directByNorm.get(norm) ?? 0,
+      speciality_distribution: buildSpecialityDistribution(
+        specByNorm.get(norm),
+        cnt,
+      ),
     };
   });
 
@@ -315,9 +373,14 @@ function summarizeNumericAnalyticsResponses(
             const parsed = coerceToFiniteNumber(n);
             return parsed !== null ? parsed : n;
           })();
+    const cnt = finalByNorm.get(n) ?? 0;
     results.push({
       value,
-      count: finalByNorm.get(n) ?? 0,
+      count: cnt,
+      speciality_distribution: buildSpecialityDistribution(
+        specByNorm.get(n),
+        cnt,
+      ),
     });
   }
 
@@ -344,6 +407,7 @@ export function summarizeAnalyticsResponses(
   const directByNorm = new Map<string, number>();
   const finalByNorm = new Map<string, number>();
   const labelByNorm = new Map<string, string>();
+  const specByNorm = new Map<string, Map<string, number>>();
 
   for (const variant of variants) {
     const normalized = normalizeAnalyticsValue(variant);
@@ -385,6 +449,11 @@ export function summarizeAnalyticsResponses(
         normalizedResponse,
         (finalByNorm.get(normalizedResponse) ?? 0) + 1,
       );
+      bumpSpecialtyForFinalNorm(
+        specByNorm,
+        normalizedResponse,
+        insight.specialty,
+      );
       continue;
     }
 
@@ -395,6 +464,7 @@ export function summarizeAnalyticsResponses(
           rewriteTarget,
           (finalByNorm.get(rewriteTarget) ?? 0) + 1,
         );
+        bumpSpecialtyForFinalNorm(specByNorm, rewriteTarget, insight.specialty);
       } else {
         if (!finalByNorm.has(rewriteTarget)) {
           finalByNorm.set(rewriteTarget, 0);
@@ -408,6 +478,7 @@ export function summarizeAnalyticsResponses(
           rewriteTarget,
           (finalByNorm.get(rewriteTarget) ?? 0) + 1,
         );
+        bumpSpecialtyForFinalNorm(specByNorm, rewriteTarget, insight.specialty);
       }
       continue;
     }
@@ -421,18 +492,29 @@ export function summarizeAnalyticsResponses(
       normalizedResponse,
       (finalByNorm.get(normalizedResponse) ?? 0) + 1,
     );
+    bumpSpecialtyForFinalNorm(
+      specByNorm,
+      normalizedResponse,
+      insight.specialty,
+    );
   }
 
   const results: Array<{
     value: string | number;
     count: number;
     sourceCount?: number;
+    speciality_distribution?: Array<{ specialty: string; percent: number }>;
   }> = variants.map((variant) => {
     const normalized = normalizeAnalyticsValue(variant);
+    const cnt = finalByNorm.get(normalized) ?? 0;
     return {
       value: variant,
-      count: finalByNorm.get(normalized) ?? 0,
+      count: cnt,
       sourceCount: directByNorm.get(normalized) ?? 0,
+      speciality_distribution: buildSpecialityDistribution(
+        specByNorm.get(normalized),
+        cnt,
+      ),
     };
   });
 
@@ -449,9 +531,14 @@ export function summarizeAnalyticsResponses(
   });
 
   for (const n of extraNorms) {
+    const cnt = finalByNorm.get(n) ?? 0;
     results.push({
       value: labelByNorm.get(n) ?? n,
-      count: finalByNorm.get(n) ?? 0,
+      count: cnt,
+      speciality_distribution: buildSpecialityDistribution(
+        specByNorm.get(n),
+        cnt,
+      ),
     });
   }
 
