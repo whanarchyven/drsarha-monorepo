@@ -13,6 +13,7 @@ import { clinicTasksTable } from "./models/clinicTask";
 import { educationConversationsTable } from "./models/educationConversation";
 import { helpConversationsTable } from "./models/helpConversation";
 import { companiesTable } from "./models/company";
+import { companyGroupsTable } from "./models/companyGroup";
 import { pinTagsTable } from "./models/pinTag";
 import { prizesTable } from "./models/prize";
 import { usersTable } from "./models/user";
@@ -80,6 +81,7 @@ export default defineSchema({
   drsarha_education_conversations: MIGRATION_MODE ? defineTable(v.any()) : educationConversationsTable,
   drsarha_help_conversations: MIGRATION_MODE ? defineTable(v.any()) : helpConversationsTable,
   companies: MIGRATION_MODE ? defineTable(v.any()) : companiesTable,
+  company_groups: MIGRATION_MODE ? defineTable(v.any()) : companyGroupsTable,
   pin_tags: MIGRATION_MODE ? defineTable(v.any()) : pinTagsTable,
   prizes: MIGRATION_MODE ? defineTable(v.any()) : prizesTable,
   users: MIGRATION_MODE ? defineTable(v.any()) : usersTable,

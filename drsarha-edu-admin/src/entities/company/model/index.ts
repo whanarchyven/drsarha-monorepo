@@ -75,6 +75,12 @@ export interface Dashboard {
 
 export interface Company {
   _id: string;
+  /** Привязка к группе компаний (Convex id). */
+  group_id?: string;
+  /** Порядок внутри группы (меньше — раньше). */
+  group_sort_order?: number;
+  /** Подпись в составе группы для внешнего API. */
+  group_member_title?: string;
   name: string;
   slug: string;
   created_at: string;
@@ -87,4 +93,10 @@ export interface Company {
   minGrowth?: number;
   maxGrowth?: number;
   totalGrowth?: number;
+  /** Фиксированный диапазон для агрегаций в getBySlugInfo (игнор query start_date/end_date). */
+  analytics_date_range_fixed?: boolean;
+  /** Начало периода, unix ms. */
+  analytics_start_date?: number;
+  /** Конец периода, unix ms. */
+  analytics_end_date?: number;
 }

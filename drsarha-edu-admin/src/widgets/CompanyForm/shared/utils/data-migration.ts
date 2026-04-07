@@ -217,6 +217,24 @@ export const prepareCompanyForSubmit = (company: Company): Company => {
     companyToSubmit.totalGrowth = Number(companyToSubmit.totalGrowth);
   }
 
+  if (companyToSubmit.analytics_date_range_fixed === true) {
+    const s = companyToSubmit.analytics_start_date;
+    const e = companyToSubmit.analytics_end_date;
+    if (
+      s === undefined ||
+      e === undefined ||
+      !Number.isFinite(s) ||
+      !Number.isFinite(e)
+    ) {
+      throw new Error(
+        'При включённом фиксированном диапазоне укажите дату начала и окончания'
+      );
+    }
+    if (e < s) {
+      throw new Error('Дата окончания не может быть раньше даты начала');
+    }
+  }
+
   if ('_id' in companyToSubmit && !companyToSubmit._id) {
     delete (companyToSubmit as Partial<Company>)._id;
   }

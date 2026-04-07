@@ -12,6 +12,10 @@ import {
   verifyCompanyPasswordHttp,
 } from "./functions/companies";
 import {
+  getCompanySlugsByGroupSlugHttp,
+  verifyGroupPasswordHttp,
+} from "./functions/company_groups";
+import {
   approveConferenceUserHttp,
   countConferenceUsersHttpAction,
   registerConferenceUserHttp,
@@ -144,6 +148,30 @@ http.route({
   path: "/companies/verify-password",
   method: "POST",
   handler: verifyCompanyPasswordHttp,
+});
+
+http.route({
+  path: "/company-groups/by-slug",
+  method: "GET",
+  handler: getCompanySlugsByGroupSlugHttp,
+});
+
+http.route({
+  path: "/company-groups/company-slugs",
+  method: "GET",
+  handler: getCompanySlugsByGroupSlugHttp,
+});
+
+http.route({
+  path: "/company-groups/verify-password",
+  method: "POST",
+  handler: verifyGroupPasswordHttp,
+});
+
+http.route({
+  path: "/company-groups/verify-group-password",
+  method: "POST",
+  handler: verifyGroupPasswordHttp,
 });
 
 export default http;

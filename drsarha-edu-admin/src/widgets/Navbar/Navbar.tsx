@@ -34,6 +34,7 @@ const navItems = [
     children: [
       { name: 'Вопросы', path: '/analytics/questions' },
       { name: 'Компании', path: '/analytics/companies' },
+      { name: 'Группы компаний', path: '/analytics/company-groups' },
     ],
   },
   {

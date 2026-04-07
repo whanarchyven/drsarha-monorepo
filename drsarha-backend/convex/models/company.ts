@@ -75,11 +75,24 @@ export const companyFields = {
   totalGrowth: v.optional(v.number()),
   password: v.string(),
   mongoId: v.optional(v.string()),
+  /** Группа компаний (опционально). */
+  group_id: v.optional(v.id("company_groups")),
+  /** Порядок внутри группы (0 = первый); только при заданном group_id. */
+  group_sort_order: v.optional(v.number()),
+  /** Подпись участника в группе для публичного API (если пусто — берётся name компании). */
+  group_member_title: v.optional(v.string()),
+  /** Если true, getBySlugInfo / HTTP используют analytics_* вместо query start_date/end_date. */
+  analytics_date_range_fixed: v.optional(v.boolean()),
+  /** Начало фиксированного диапазона (unix ms). */
+  analytics_start_date: v.optional(v.number()),
+  /** Конец фиксированного диапазона (unix ms). */
+  analytics_end_date: v.optional(v.number()),
 };
 
 export const companiesTable = defineTable(companyFields)
-  .index("by_slug", ["slug"]) 
-  .index("by_mongo_id", ["mongoId"]);
+  .index("by_slug", ["slug"])
+  .index("by_mongo_id", ["mongoId"])
+  .index("by_group", ["group_id"]);
 
 export const companyDoc = v.object({
   ...companyFields,

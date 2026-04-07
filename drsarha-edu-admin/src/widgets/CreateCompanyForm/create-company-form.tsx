@@ -28,6 +28,7 @@ const initialCompany: Company = {
   minGrowth: undefined,
   maxGrowth: undefined,
   totalGrowth: undefined,
+  analytics_date_range_fixed: false,
 };
 
 export default function DashboardForm() {

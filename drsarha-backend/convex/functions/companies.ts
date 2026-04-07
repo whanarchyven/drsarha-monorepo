@@ -89,6 +89,63 @@ function createPublicCompanyResponse(company: any) {
   return companyForClient;
 }
 
+/** Для агрегаций инсайтов: при фиксированном диапазоне на компании — только он, иначе из запроса. */
+function resolveEffectiveAnalyticsDateRange(
+  company: {
+    analytics_date_range_fixed?: boolean;
+    analytics_start_date?: number;
+    analytics_end_date?: number;
+  },
+  requestStart?: number,
+  requestEnd?: number,
+): { start_date?: number; end_date?: number } {
+  const fixed = company.analytics_date_range_fixed === true;
+  const s = company.analytics_start_date;
+  const e = company.analytics_end_date;
+  if (
+    fixed &&
+    typeof s === "number" &&
+    Number.isFinite(s) &&
+    typeof e === "number" &&
+    Number.isFinite(e)
+  ) {
+    const start = Math.min(s, e);
+    const end = Math.max(s, e);
+    return { start_date: start, end_date: end };
+  }
+  return { start_date: requestStart, end_date: requestEnd };
+}
+
+/** Список компаний для выбора в группе (ограничение по числу строк). */
+export const listBriefForGroupPicker = query({
+  args: { limit: v.optional(v.number()) },
+  returns: v.array(
+    v.object({
+      _id: v.id("companies"),
+      name: v.string(),
+      slug: v.string(),
+      group_id: v.optional(v.id("company_groups")),
+      group_sort_order: v.optional(v.number()),
+      group_member_title: v.optional(v.string()),
+    }),
+  ),
+  handler: async ({ db }, { limit = 1500 }) => {
+    const cap = Math.min(5000, Math.max(1, Math.floor(limit)));
+    const rows = await (db as any)
+      .query("companies")
+      .order("desc")
+      .take(cap);
+    return rows.map((c: any) => ({
+      _id: c._id,
+      name: c.name,
+      slug: c.slug,
+      group_id: c.group_id,
+      group_sort_order: c.group_sort_order,
+      group_member_title: c.group_member_title,
+    }));
+  },
+});
+
 export const list = query({
   args: {
     search: v.optional(v.string()),
@@ -184,6 +241,9 @@ export const getBySlugInfoBatchedInternal = internalAction({
       return null;
     }
 
+    const { start_date: effStart, end_date: effEnd } =
+      resolveEffectiveAnalyticsDateRange(company, start_date, end_date);
+
     const companyForClient = createPublicCompanyResponse(company);
     const INSIGHT_PAGE = 3000;
 
@@ -249,8 +309,8 @@ export const getBySlugInfoBatchedInternal = internalAction({
           internal.functions.analytic_insights.insightsSummaryPageInternal,
           {
             question_id: questionId,
-            start_date,
-            end_date,
+            start_date: effStart,
+            end_date: effEnd,
             cursor,
             limit: INSIGHT_PAGE,
           },
@@ -356,6 +416,9 @@ export const getBySlugInfo = query({
       return null;
     }
 
+    const { start_date: effStart, end_date: effEnd } =
+      resolveEffectiveAnalyticsDateRange(company, start_date, end_date);
+
     const companyForClient = createPublicCompanyResponse(company);
 
     /** Один question_id часто повторяется в нескольких stats — без кэша каждый раз читаем все инсайты заново и упираемся в лимит 32k документов за вызов. */
@@ -382,8 +445,8 @@ export const getBySlugInfo = query({
           summary = await buildQuestionSummary(
             db as any,
             normalizedQuestionId,
-            start_date,
-            end_date,
+            effStart,
+            effEnd,
           );
           summaryByQuestionId.set(qKey, summary);
         }
@@ -430,6 +493,14 @@ export const update = mutation({
       totalGrowth: v.optional(companyFields.totalGrowth),
       password: v.optional(companyFields.password),
       mongoId: v.optional(companyFields.mongoId),
+      group_id: v.optional(companyFields.group_id),
+      group_sort_order: v.optional(companyFields.group_sort_order),
+      group_member_title: v.optional(companyFields.group_member_title),
+      analytics_date_range_fixed: v.optional(
+        companyFields.analytics_date_range_fixed,
+      ),
+      analytics_start_date: v.optional(companyFields.analytics_start_date),
+      analytics_end_date: v.optional(companyFields.analytics_end_date),
       _id: v.optional(v.id("companies")), // Системное поле, игнорируется
       _creationTime: v.optional(v.number()), // Системное поле, игнорируется
     }),
