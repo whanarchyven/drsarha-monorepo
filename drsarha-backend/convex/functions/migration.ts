@@ -164,3 +164,167 @@ export const truncateTable = mutation({
     return deleted;
   },
 });
+
+/** Границы календарного дня UTC: [startMs, endMs) */
+function utcDayBoundsMs(year: number, month: number, day: number) {
+  const startMs = Date.UTC(year, month - 1, day, 0, 0, 0, 0);
+  const endMs = Date.UTC(year, month - 1, day + 1, 0, 0, 0, 0);
+  return { startMs, endMs };
+}
+
+const analyticsCleanupDayArgs = v.object({
+  /** По умолчанию 2026-04-08 UTC (день проблемной миграции). */
+  year: v.optional(v.number()),
+  month: v.optional(v.number()),
+  day: v.optional(v.number()),
+});
+
+const analyticsCleanupDayResult = v.object({
+  analytic_insights: v.number(),
+  analytic_rewrites: v.number(),
+  companies: v.number(),
+  company_groups: v.number(),
+  analytic_questions: v.number(),
+  startMs: v.number(),
+  endMs: v.number(),
+});
+
+async function countDocsInUtcDay(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  table: string,
+  startMs: number,
+  endMs: number,
+) {
+  let count = 0;
+  let cursor: string | null = null;
+  while (true) {
+    const page = await db.query(table).paginate({ numItems: 400, cursor });
+    for (const doc of page.page) {
+      if (doc._creationTime >= startMs && doc._creationTime < endMs) {
+        count += 1;
+      }
+    }
+    if (page.isDone) break;
+    cursor = page.continueCursor ?? null;
+  }
+  return count;
+}
+
+/**
+ * ВРЕМЕННО: только подсчёт документов с `_creationTime` в указанный календарный день UTC.
+ * Удаление — см. `deleteAnalyticsByCreationUtcDay`.
+ */
+export const previewDeleteAnalyticsByCreationUtcDay = query({
+  args: analyticsCleanupDayArgs,
+  returns: analyticsCleanupDayResult,
+  handler: async ({ db }, args) => {
+    const year = args.year ?? 2026;
+    const month = args.month ?? 4;
+    const day = args.day ?? 8;
+    const { startMs, endMs } = utcDayBoundsMs(year, month, day);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const d = db as any;
+    // Convex: в одной функции нельзя параллелить несколько paginate — только по очереди.
+    const analytic_insights = await countDocsInUtcDay(
+      d,
+      "analytic_insights",
+      startMs,
+      endMs,
+    );
+    const analytic_rewrites = await countDocsInUtcDay(
+      d,
+      "analytic_rewrites",
+      startMs,
+      endMs,
+    );
+    const companies = await countDocsInUtcDay(d, "companies", startMs, endMs);
+    const company_groups = await countDocsInUtcDay(
+      d,
+      "company_groups",
+      startMs,
+      endMs,
+    );
+    const analytic_questions = await countDocsInUtcDay(
+      d,
+      "analytic_questions",
+      startMs,
+      endMs,
+    );
+    return {
+      analytic_insights,
+      analytic_rewrites,
+      companies,
+      company_groups,
+      analytic_questions,
+      startMs,
+      endMs,
+    };
+  },
+});
+
+/**
+ * ВРЕМЕННО: удаляет компании, группы компаний, инсайты, вопросы и реврайты, у которых
+ * `_creationTime` попадает в указанный календарный день UTC (по умолчанию 2026-04-08).
+ *
+ * Порядок: insights → rewrites → companies → company_groups → questions (компании
+ * ссылаются на group_id; группы — после компаний того же дня).
+ *
+ * После использования удалите эти экспорты или закройте доступ.
+ *
+ * Запуск:
+ *   npx convex run functions/migration:previewDeleteAnalyticsByCreationUtcDay '{}'
+ *   npx convex run functions/migration:deleteAnalyticsByCreationUtcDay '{}'
+ */
+export const deleteAnalyticsByCreationUtcDay = mutation({
+  args: analyticsCleanupDayArgs,
+  returns: analyticsCleanupDayResult,
+  handler: async ({ db }, args) => {
+    const year = args.year ?? 2026;
+    const month = args.month ?? 4;
+    const day = args.day ?? 8;
+    const { startMs, endMs } = utcDayBoundsMs(year, month, day);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const d = db as any;
+
+    async function collectIds(table: string): Promise<string[]> {
+      const ids: string[] = [];
+      let cursor: string | null = null;
+      while (true) {
+        const page = await d.query(table).paginate({ numItems: 400, cursor });
+        for (const doc of page.page) {
+          if (doc._creationTime >= startMs && doc._creationTime < endMs) {
+            ids.push(doc._id);
+          }
+        }
+        if (page.isDone) break;
+        cursor = page.continueCursor ?? null;
+      }
+      return ids;
+    }
+
+    async function deleteCollected(table: string): Promise<number> {
+      const ids = await collectIds(table);
+      for (const id of ids) {
+        await d.delete(id);
+      }
+      return ids.length;
+    }
+
+    const analytic_insights = await deleteCollected("analytic_insights");
+    const analytic_rewrites = await deleteCollected("analytic_rewrites");
+    const companies = await deleteCollected("companies");
+    const company_groups = await deleteCollected("company_groups");
+    const analytic_questions = await deleteCollected("analytic_questions");
+
+    return {
+      analytic_insights,
+      analytic_rewrites,
+      companies,
+      company_groups,
+      analytic_questions,
+      startMs,
+      endMs,
+    };
+  },
+});

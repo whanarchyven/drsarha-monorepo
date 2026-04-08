@@ -13,6 +13,9 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useInsightQuestions } from '@/shared/hooks/use-insight-questions';
 import { AnalyticsQuestion } from '@/shared/types/analytics';
+import { useDebounce } from '@/shared/hooks/useDebounce';
+import { Pagination } from '@/shared/ui/pagination';
+import { Loader2 } from 'lucide-react';
 
 interface QuestionSelectorProps {
   questionId: string;
@@ -30,10 +33,19 @@ export function QuestionSelector({
   onQuestionTitleUpdate,
 }: QuestionSelectorProps) {
   const [iqPage, setIqPage] = useState(1);
-  const [iqSearch, setIqSearch] = useState('');
-  const iqLimit = 100;
+  const [iqSearchInput, setIqSearchInput] = useState('');
+  const debouncedIqSearch = useDebounce(iqSearchInput, 300);
+  const iqLimit = 20;
   const iqSkip = (iqPage - 1) * iqLimit;
-  const { questions } = useInsightQuestions(iqSearch, iqLimit, iqSkip);
+  const { questions, pagination, isLoadingQuestions } = useInsightQuestions(
+    debouncedIqSearch,
+    iqLimit,
+    iqSkip
+  );
+
+  useEffect(() => {
+    setIqPage(1);
+  }, [debouncedIqSearch]);
 
   // Загружаем текст вопроса, если его нет в кэше, но есть в списке вопросов
   useEffect(() => {
@@ -76,7 +88,10 @@ export function QuestionSelector({
   };
 
   return (
-    <Dialog>
+    <Dialog
+      onOpenChange={(open) => {
+        if (open) setIqPage(1);
+      }}>
       <DialogTrigger asChild>
         <Button variant="outline" className="w-full justify-start">
           {getDisplayText()}
@@ -89,42 +104,44 @@ export function QuestionSelector({
         <div className="mb-2">
           <Input
             placeholder="Поиск вопросов..."
-            value={iqSearch}
-            onChange={(e) => setIqSearch(e.target.value)}
+            value={iqSearchInput}
+            onChange={(e) => setIqSearchInput(e.target.value)}
           />
         </div>
         <ScrollArea className="h-[300px] mt-4">
           <div className="space-y-2">
-            {questions.map((question: AnalyticsQuestion) => (
-              <Button
-                key={question.id}
-                variant={questionId === question.id ? 'default' : 'outline'}
-                className="w-full justify-start text-left"
-                onClick={() => {
-                  handleQuestionSelect(question.id ?? '');
-                }}>
-                {question.text}
-              </Button>
-            ))}
+            {isLoadingQuestions ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              questions.map((question: AnalyticsQuestion) => (
+                <Button
+                  key={question.id}
+                  variant={questionId === question.id ? 'default' : 'outline'}
+                  className="w-full justify-start text-left"
+                  onClick={() => {
+                    handleQuestionSelect(question.id ?? '');
+                  }}>
+                  {question.text}
+                </Button>
+              ))
+            )}
           </div>
         </ScrollArea>
-        <div className="flex justify-end gap-2 mt-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIqPage((p) => Math.max(1, p - 1))}
-            disabled={iqPage === 1}>
-            Назад
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              if (questions.length === iqLimit) setIqPage((p) => p + 1);
-            }}
-            disabled={questions.length < iqLimit}>
-            Вперед
-          </Button>
+        <div className="mt-3 flex flex-col gap-2 border-t pt-3">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>Всего: {pagination.total}</span>
+          </div>
+          {pagination.totalPages > 1 && (
+            <Pagination
+              compact
+              currentPage={pagination.page}
+              totalPages={pagination.totalPages}
+              onPageChange={setIqPage}
+              disabled={isLoadingQuestions}
+            />
+          )}
         </div>
       </DialogContent>
     </Dialog>

@@ -1,28 +1,24 @@
 #!/usr/bin/env node
 /**
- * Импорт компании из JSON-экспорта (как company.json в корне монорепо).
+ * Импорт компании из «расширенного» JSON (ответ getBySlugInfo и аналоги):
+ * у каждого элемента question_summary.results может быть speciality_distribution[]
+ * с { specialty, percent }; в документе бывают _id, totalInsights и др. поля API.
  *
- * Делает по шагам:
- * 1) Создаёт analytic_questions (текст = «{name} - {slug}. {name статистики}» при наличии обоих; иначе без « - »), варианты из question_summary.results).
- * 2) «Возраст» и вопросы, где все значения — 1–3 цифры, помечаются как numeric, инсайты — числа.
- * 3) Собирает dashboards: question_id → новый Convex id, scales[].scaleDistribution = count/сумма.
- * 4) Удаляет question_summary из stats (в схеме компании его нет).
- * 5) companies.insert
- * 6) Пакетами создаёт auto-инсайты с timestamp в заданном диапазоне.
+ * Алгоритм тот же, что у seed-company-from-export.mjs:
+ * вопросы → scales из count → без question_summary в stats → companies.insert → инсайты пакетами.
  *
- * Переменные окружения:
- *   CONVEX_URL или NEXT_PUBLIC_CONVEX_URL — URL деплоя Convex
+ * Отличия от простого экспорта:
+ * - results нормализуются до { value, count } (лишние поля не попадают в логику).
+ * - stat в дашборде пересобирается только из полей схемы Convex (name, question_id, scaleAll, scales, graphics).
+ * - Веса для pickWeightedSpecialty: сначала стат «специальность» по scales; иначе сумма по файлу
+ *   count × (percent/100) по всем speciality_distribution (и specialty_distribution).
  *
  * Пример:
  *   cd drsarha-backend
- *   CONVEX_URL="https://xxxx.convex.cloud" node scripts/seed-company-from-export.mjs ../company.json
+ *   CONVEX_URL="https://xxxx.convex.cloud" node scripts/seed-company-from-rich-export.mjs scripts/problem-company.json
  *
- * Откат «плохого» импорта (компания + вопросы из её stats + инсайты + rewrites):
- *   cd drsarha-backend && npx convex run functions/company_import:rollbackCompanyImportBySlug '{"slug":"bluecap"}'
- *   (slug подставь свой; в Dashboard: Functions → company_import → rollbackCompanyImportBySlug)
- *
- * Диапазон timestamp у инсайтов: по умолчанию широкий (2024–2027 UTC), чтобы getBySlugInfo с типичными
- * фильтрами по датам не отдавал нули. Переопределение: SEED_INSIGHT_START_MS и SEED_INSIGHT_END_MS (unix ms).
+ * Timestamp инсайтов: по умолчанию 2024–2027 UTC (см. resolveInsightTimestampRange), иначе ручка с узким
+ * start_date/end_date не увидит данные. Переопределение: SEED_INSIGHT_START_MS, SEED_INSIGHT_END_MS.
  */
 
 import { readFileSync } from "fs";
@@ -46,20 +42,27 @@ function resolveInsightTimestampRange() {
     }
   }
   return {
-    start: Date.UTC(2026, 2, 31, 0, 0, 0, 0),
-    end: Date.UTC(2026, 3, 8, 0, 0, 0, 0),
+    start: Date.UTC(2026, 2, 15, 0, 0, 0, 0),
+    end: Date.UTC(2026, 3, 7, 0, 0, 0, 0),
   };
 }
 
 const { start: START_MS, end: END_MS } = resolveInsightTimestampRange();
 
 const CHUNK_SUM_COUNTS = 250;
-const USER_PREFIX = "seed:import";
+const USER_PREFIX = "seed:rich-import";
 
-function isNumericStat(stat) {
-  if (!stat?.name || typeof stat.name !== "string") return false;
-  if (/возраст/i.test(stat.name)) return true;
-  const results = stat.question_summary?.results;
+function normalizeResultRow(r) {
+  if (!r || typeof r !== "object") return { value: "", count: 0 };
+  const c = r.count;
+  const count = typeof c === "number" && Number.isFinite(c) ? c : 0;
+  const value = r.value == null ? "" : String(r.value);
+  return { value, count };
+}
+
+function isNumericStatFromResults(statName, results) {
+  if (!statName || typeof statName !== "string") return false;
+  if (/возраст/i.test(statName)) return true;
   if (!Array.isArray(results) || results.length === 0) return false;
   return results.every(
     (r) =>
@@ -68,6 +71,53 @@ function isNumericStat(stat) {
       /^\d{1,3}$/.test(r.value.trim()) &&
       typeof r.count === "number",
   );
+}
+
+function aggregateSpecialtyWeightsFromRawDashboards(dashboards) {
+  const tallies = new Map();
+  for (const dash of dashboards || []) {
+    for (const stat of dash.stats || []) {
+      const raw = stat.question_summary?.results;
+      if (!Array.isArray(raw)) continue;
+      for (const row of raw) {
+        const dist =
+          row?.speciality_distribution ?? row?.specialty_distribution ?? null;
+        if (!Array.isArray(dist) || dist.length === 0) continue;
+        const cnt = typeof row.count === "number" ? row.count : 0;
+        if (cnt <= 0) continue;
+        for (const item of dist) {
+          const name =
+            typeof item?.specialty === "string" ? item.specialty.trim() : "";
+          const pct = Number(item?.percent);
+          if (!name || !Number.isFinite(pct)) continue;
+          tallies.set(name, (tallies.get(name) || 0) + cnt * (pct / 100));
+        }
+      }
+    }
+  }
+  if (tallies.size === 0) return [];
+  return [...tallies.entries()]
+    .filter(([, w]) => w > 0)
+    .map(([name, weight]) => ({ name, weight }));
+}
+
+function sanitizeGraphic(g) {
+  if (!g || typeof g !== "object") {
+    return { type: "tab", cols: 1 };
+  }
+  const out = {
+    type: g.type,
+    cols: typeof g.cols === "number" ? g.cols : 1,
+  };
+  if (g.stat_tab !== undefined) out.stat_tab = g.stat_tab;
+  if (g.stat_title !== undefined) out.stat_title = g.stat_title;
+  if (g.stat_subtitle !== undefined) out.stat_subtitle = g.stat_subtitle;
+  if (g.stat_unit !== undefined) out.stat_unit = g.stat_unit;
+  if (g.stat_variant !== undefined) out.stat_variant = g.stat_variant;
+  if (g.show_speciality_distribution !== undefined) {
+    out.show_speciality_distribution = g.show_speciality_distribution;
+  }
+  return out;
 }
 
 function defaultAutoscale() {
@@ -79,7 +129,6 @@ function defaultAutoscale() {
   };
 }
 
-/** Совпадает с extractSpecialtyWeightsFromCompanyDashboards в Convex (стат «специальность»). */
 function extractSpecialtyWeightsFromDashboards(dashboards) {
   const re = /специальност/i;
   for (const d of dashboards || []) {
@@ -190,7 +239,7 @@ async function main() {
   const argPath = process.argv[2];
   const jsonPath = argPath
     ? resolve(process.cwd(), argPath)
-    : resolve(__dirname, "..", "..", "company.json");
+    : resolve(__dirname, "problem-company.json");
 
   if (!CONVEX_URL) {
     console.error("Нужен CONVEX_URL или NEXT_PUBLIC_CONVEX_URL");
@@ -217,11 +266,15 @@ async function main() {
 
   const insightTasks = [];
   const dashboards = structuredClone(raw.dashboards || []);
+  const rawDashboardsSnapshot = structuredClone(raw.dashboards || []);
 
   for (const dash of dashboards) {
-    for (const stat of dash.stats || []) {
-      const numeric = isNumericStat(stat);
-      const results = stat.question_summary?.results || [];
+    const stats = dash.stats || [];
+    for (let si = 0; si < stats.length; si++) {
+      const stat = stats[si];
+      const resultsRaw = stat.question_summary?.results || [];
+      const results = resultsRaw.map(normalizeResultRow);
+      const numeric = isNumericStatFromResults(stat.name, results);
 
       const variants =
         results.length > 0
@@ -236,13 +289,19 @@ async function main() {
         variants,
       });
       const newId = String(doc._id);
-      stat.question_id = newId;
-
-      delete stat.question_summary;
 
       const { scaleAll, scales } = buildScalesFromResults(results);
-      stat.scaleAll = scaleAll;
-      stat.scales = scales;
+      const graphics = Array.isArray(stat.graphics)
+        ? stat.graphics.map(sanitizeGraphic)
+        : [];
+
+      stats[si] = {
+        name: String(stat.name ?? ""),
+        question_id: newId,
+        scaleAll,
+        scales,
+        graphics,
+      };
 
       for (const r of results) {
         const count = r.count || 0;
@@ -256,7 +315,6 @@ async function main() {
           count,
         });
       }
-
     }
   }
 
@@ -294,7 +352,12 @@ async function main() {
   );
 
   const batches = chunkInsightRows(insightTasks);
-  const autoSpecialtyWeights = extractSpecialtyWeightsFromDashboards(dashboards);
+  let autoSpecialtyWeights = extractSpecialtyWeightsFromDashboards(dashboards);
+  if (autoSpecialtyWeights.length === 0) {
+    autoSpecialtyWeights = aggregateSpecialtyWeightsFromRawDashboards(
+      rawDashboardsSnapshot,
+    );
+  }
   let totalCreated = 0;
   for (let bi = 0; bi < batches.length; bi++) {
     const rows = batches[bi];
@@ -331,14 +394,6 @@ async function main() {
   for (const [qid, n] of totalsByQuestion) {
     console.log(`  ${qid}: ${n}`);
   }
-
-  console.log("\n--- Если бы использовали только fill (fillInsightsForCompany) ---");
-  console.log(
-    "Для каждой статистики задайте fillValue = сумма count по question_summary (число ответов). scaleDistribution уже выставлены как count/сумма.",
-  );
-  console.log(
-    "Из-за Math.floor и случайного распределения остатка заливка НЕ гарантирует те же числа, что в JSON; для точного совпадения используйте импорт инсайтов этим скриптом.",
-  );
 }
 
 main().catch((e) => {

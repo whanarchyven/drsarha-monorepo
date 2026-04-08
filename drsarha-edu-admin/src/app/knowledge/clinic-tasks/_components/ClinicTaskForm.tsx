@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/select';
 import { FeedbackQuestions } from '@/shared/ui/FeedBackQuestions/FeedbackQuestions';
 import { ImagesField } from '@/shared/ui/ImagesField/ImagesField';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { getContentUrl } from '@/shared/utils/url';
 import { DiagnosesField } from './DiagnosesField';
@@ -47,7 +47,9 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { BarChart, Search } from 'lucide-react';
+import { BarChart, Loader2, Search } from 'lucide-react';
+import { useDebounce } from '@/shared/hooks/useDebounce';
+import { Pagination } from '@/shared/ui/pagination';
 import type { BaseInsightQuestionDto } from '@/app/api/client/schemas';
 import { useAction, useQuery } from 'convex/react';
 import { api } from '@convex/_generated/api';
@@ -155,7 +157,6 @@ export function ClinicTaskForm({ initialData }: ClinicTaskFormProps) {
   const [newReferenceUrl, setNewReferenceUrl] = useState('');
 
   // Состояние для аналитических вопросов интервью
-  const [searchQuery, setSearchQuery] = useState('');
   const [isAnalyticDialogOpen, setIsAnalyticDialogOpen] = useState(false);
   const [selectedAnalyticQuestions, setSelectedAnalyticQuestions] = useState<
     string[]
@@ -165,14 +166,16 @@ export function ClinicTaskForm({ initialData }: ClinicTaskFormProps) {
       : []
   );
   const [iqPage, setIqPage] = useState(1);
-  const [iqSearch, setIqSearch] = useState('');
-  const iqLimit = 100;
+  const [iqSearchInput, setIqSearchInput] = useState('');
+  const debouncedIqSearch = useDebounce(iqSearchInput, 300);
+  const iqLimit = 20;
   const iqSkip = (iqPage - 1) * iqLimit;
-  const { questions: analyticQuestionsRaw } = useInsightQuestions(
-    iqSearch,
-    iqLimit,
-    iqSkip
-  );
+  const { questions: analyticQuestionsRaw, pagination: iqPagination, isLoadingQuestions: iqLoading } =
+    useInsightQuestions(debouncedIqSearch, iqLimit, iqSkip);
+
+  useEffect(() => {
+    setIqPage(1);
+  }, [debouncedIqSearch]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -454,7 +457,8 @@ export function ClinicTaskForm({ initialData }: ClinicTaskFormProps) {
 
   // Функции для работы с аналитическими вопросами
   const openAnalyticsDialog = () => {
-    setSearchQuery(''); // Сбрасываем поиск при каждом открытии
+    setIqSearchInput('');
+    setIqPage(1);
     setIsAnalyticDialogOpen(true);
   };
 
@@ -466,10 +470,6 @@ export function ClinicTaskForm({ initialData }: ClinicTaskFormProps) {
     setSelectedAnalyticQuestions((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
-  };
-
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value);
   };
 
   const handleAddInterviewQuestion = () => {
@@ -1052,68 +1052,66 @@ export function ClinicTaskForm({ initialData }: ClinicTaskFormProps) {
               <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Поиск вопросов..."
-                value={searchQuery}
-                onChange={handleSearchChange}
+                value={iqSearchInput}
+                onChange={(e) => setIqSearchInput(e.target.value)}
                 className="pl-8"
               />
             </div>
 
-            <div className="mb-2">
-              <Input
-                placeholder="Поиск вопросов..."
-                value={iqSearch}
-                onChange={(e) => setIqSearch(e.target.value)}
-              />
-            </div>
             <ScrollArea className="h-[400px] pr-4">
               <div className="space-y-4">
-                {analyticQuestions.map((question) => (
-                  <div
-                    key={question.id}
-                    className="flex items-start border rounded-md p-2 space-x-2">
-                    <Checkbox
-                      id={`analytic-${question.id}`}
-                      checked={selectedAnalyticQuestions.includes(question.id)}
-                      onCheckedChange={() =>
-                        toggleAnalyticQuestion(question.id)
-                      }
-                    />
-                    <label
-                      htmlFor={`analytic-${question.id}`}
-                      className="text-sm leading-tight cursor-pointer">
-                      <span className="font-bold">{question.title}</span> <br />{' '}
-                      <br /> {question.prompt}
-                    </label>
+                {iqLoading ? (
+                  <div className="flex justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                   </div>
-                ))}
+                ) : (
+                  <>
+                    {analyticQuestions.map((question) => (
+                      <div
+                        key={question.id}
+                        className="flex items-start border rounded-md p-2 space-x-2">
+                        <Checkbox
+                          id={`analytic-${question.id}`}
+                          checked={selectedAnalyticQuestions.includes(
+                            question.id
+                          )}
+                          onCheckedChange={() =>
+                            toggleAnalyticQuestion(question.id)
+                          }
+                        />
+                        <label
+                          htmlFor={`analytic-${question.id}`}
+                          className="text-sm leading-tight cursor-pointer">
+                          <span className="font-bold">{question.title}</span>{' '}
+                          <br /> <br /> {question.prompt}
+                        </label>
+                      </div>
+                    ))}
 
-                {analyticQuestions.length === 0 && (
-                  <p className="text-sm text-muted-foreground">
-                    {searchQuery
-                      ? 'Нет результатов по вашему запросу'
-                      : 'Нет доступных аналитических вопросов'}
-                  </p>
+                    {analyticQuestions.length === 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        {debouncedIqSearch.trim()
+                          ? 'Нет результатов по вашему запросу'
+                          : 'Нет доступных аналитических вопросов'}
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             </ScrollArea>
-            <div className="flex justify-end gap-2 mt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIqPage((p) => Math.max(1, p - 1))}
-                disabled={iqPage === 1}>
-                Назад
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  if (analyticQuestions.length === iqLimit)
-                    setIqPage((p) => p + 1);
-                }}
-                disabled={analyticQuestions.length < iqLimit}>
-                Вперед
-              </Button>
+            <div className="mt-3 flex flex-col gap-2 border-t pt-3">
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>Всего: {iqPagination.total}</span>
+              </div>
+              {iqPagination.totalPages > 1 && (
+                <Pagination
+                  compact
+                  currentPage={iqPagination.page}
+                  totalPages={iqPagination.totalPages}
+                  onPageChange={setIqPage}
+                  disabled={iqLoading}
+                />
+              )}
             </div>
 
             <DialogFooter>

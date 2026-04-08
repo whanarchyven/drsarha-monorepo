@@ -28,6 +28,9 @@ import {
   analyticQuestionForUi,
   truncateAnalyticLabel,
 } from '@/shared/utils/analytic-question-display';
+import { useDebounce } from '@/shared/hooks/useDebounce';
+import { Pagination } from '@/shared/ui/pagination';
+import { Loader2 } from 'lucide-react';
 
 type AnalyticQuestion = {
   id: string;
@@ -46,19 +49,17 @@ export function FeedbackQuestions() {
     name: 'feedback',
   });
 
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const debouncedSearch = useDebounce(searchInput, 300);
   const [page, setPage] = useState(1);
-  const limit = 100;
+  const limit = 20;
   const skip = (page - 1) * limit;
-  const { questions: analyticQuestionsRaw } = useInsightQuestions(
-    searchQuery,
-    limit,
-    skip
-  );
+  const { questions: analyticQuestionsRaw, pagination, isLoadingQuestions } =
+    useInsightQuestions(debouncedSearch, limit, skip);
 
   useEffect(() => {
     setPage(1);
-  }, [searchQuery]);
+  }, [debouncedSearch]);
 
   // Создаем безопасную версию вопросов с гарантированными полями
   const analyticQuestions: AnalyticQuestion[] =
@@ -78,7 +79,8 @@ export function FeedbackQuestions() {
       watch(`feedback.${questionIndex}.analytic_questions`) || [];
     setSelectedAnalyticQuestions(currentAnalyticQuestions);
     setSelectedQuestionIndex(questionIndex);
-    setSearchQuery(''); // Сбрасываем поиск при каждом открытии
+    setSearchInput(''); // Сбрасываем поиск при каждом открытии
+    setPage(1);
     setIsDialogOpen(true);
   };
 
@@ -98,11 +100,6 @@ export function FeedbackQuestions() {
     setSelectedAnalyticQuestions((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
-  };
-
-  // Обработчик изменения поискового запроса
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value);
   };
 
   return (
@@ -228,59 +225,65 @@ export function FeedbackQuestions() {
             <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Поиск вопросов..."
-              value={searchQuery}
-              onChange={handleSearchChange}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               className="pl-8"
             />
           </div>
 
           <ScrollArea className="h-[400px] pr-4">
             <div className="space-y-4">
-              {analyticQuestions.map((question) => (
-                <div
-                  key={question.id}
-                  className="flex items-start border rounded-md p-2 space-x-2">
-                  <Checkbox
-                    id={`analytic-${question.id}`}
-                    checked={selectedAnalyticQuestions.includes(question.id)}
-                    onCheckedChange={() => toggleAnalyticQuestion(question.id)}
-                  />
-                  <label
-                    htmlFor={`analytic-${question.id}`}
-                    className="text-sm leading-tight cursor-pointer">
-                    <span className="font-bold">{question.title}</span> <br />{' '}
-                    <br /> {question.prompt}
-                  </label>
+              {isLoadingQuestions ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
-              ))}
+              ) : (
+                <>
+                  {analyticQuestions.map((question) => (
+                    <div
+                      key={question.id}
+                      className="flex items-start border rounded-md p-2 space-x-2">
+                      <Checkbox
+                        id={`analytic-${question.id}`}
+                        checked={selectedAnalyticQuestions.includes(question.id)}
+                        onCheckedChange={() =>
+                          toggleAnalyticQuestion(question.id)
+                        }
+                      />
+                      <label
+                        htmlFor={`analytic-${question.id}`}
+                        className="text-sm leading-tight cursor-pointer">
+                        <span className="font-bold">{question.title}</span>{' '}
+                        <br /> <br /> {question.prompt}
+                      </label>
+                    </div>
+                  ))}
 
-              {analyticQuestions.length === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  {searchQuery
-                    ? 'Нет результатов по вашему запросу'
-                    : 'Нет доступных вопросов аналитики'}
-                </p>
+                  {analyticQuestions.length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      {debouncedSearch.trim()
+                        ? 'Нет результатов по вашему запросу'
+                        : 'Нет доступных вопросов аналитики'}
+                    </p>
+                  )}
+                </>
               )}
             </div>
           </ScrollArea>
 
-          <div className="flex justify-end gap-2 mt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}>
-              Назад
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if (analyticQuestions.length === limit) setPage((p) => p + 1);
-              }}
-              disabled={analyticQuestions.length < limit}>
-              Вперед
-            </Button>
+          <div className="mt-3 flex flex-col gap-2 border-t pt-3">
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span>Всего: {pagination.total}</span>
+            </div>
+            {pagination.totalPages > 1 && (
+              <Pagination
+                compact
+                currentPage={pagination.page}
+                totalPages={pagination.totalPages}
+                onPageChange={setPage}
+                disabled={isLoadingQuestions}
+              />
+            )}
           </div>
 
           <DialogFooter>

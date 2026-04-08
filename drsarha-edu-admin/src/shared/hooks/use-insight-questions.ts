@@ -16,6 +16,13 @@ function mapQuestion(question: any): AnalyticsQuestion {
   };
 }
 
+export type InsightQuestionsPagination = {
+  total: number;
+  page: number;
+  totalPages: number;
+  hasMore: boolean;
+};
+
 export const useInsightQuestions = (
   search?: string,
   limit?: number,
@@ -23,27 +30,40 @@ export const useInsightQuestions = (
 ) => {
   const client = useMemo(() => getConvexHttpClient(), []);
   const [questions, setQuestions] = useState<AnalyticsQuestion[]>([]);
+  const [pagination, setPagination] = useState<InsightQuestionsPagination>({
+    total: 0,
+    page: 1,
+    totalPages: 1,
+    hasMore: false,
+  });
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [selectedQuestionsIds, setSelectedQuestionsIds] = useState<string[]>(
     []
   );
 
-  const page = Math.floor((skip ?? 0) / (limit ?? 100)) + 1;
+  const safeLimit = limit && limit > 0 ? limit : 30;
+  const page = Math.floor((skip ?? 0) / safeLimit) + 1;
 
   const loadQuestions = useCallback(async () => {
     setIsLoadingQuestions(true);
     try {
       const result = await client.query(api.functions.analytic_questions.list, {
-        search: search || undefined,
+        search: search?.trim() || undefined,
         page,
-        limit: limit ?? 100,
+        limit: safeLimit,
       });
       setQuestions((result.items ?? []).map(mapQuestion));
+      setPagination({
+        total: result.total,
+        page: result.page,
+        totalPages: result.totalPages,
+        hasMore: result.hasMore,
+      });
     } finally {
       setIsLoadingQuestions(false);
     }
-  }, [client, limit, page, search]);
+  }, [client, safeLimit, page, search]);
 
   useEffect(() => {
     void loadQuestions();
@@ -112,6 +132,7 @@ export const useInsightQuestions = (
 
   return {
     questions,
+    pagination,
     isLoadingQuestions,
     addInsightQuestion,
     updateInsightQuestion,
