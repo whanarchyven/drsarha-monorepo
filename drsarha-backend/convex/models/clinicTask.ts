@@ -1,28 +1,29 @@
 import { defineTable } from "convex/server";
 import { v } from "convex/values";
 
+/** Общая форма вопроса для clinic_tasks и markup_tasks. */
+export const clinicTaskQuestionValidator = v.object({
+  id: v.optional(v.string()), // Сделано optional для миграции
+  type: v.string(),
+  question: v.string(),
+  additional_info: v.string(),
+  answer: v.string(),
+  answers: v.array(
+    v.object({
+      answer: v.string(),
+      isCorrect: v.boolean(),
+    })
+  ),
+  correct_answer_comment: v.string(),
+});
+
 export const clinicTaskFields = {
   name: v.string(),
   difficulty: v.number(),
   cover_image: v.string(),
   images: v.array(v.object({ image: v.string(), is_open: v.boolean() })),
   description: v.string(),
-  questions: v.array(
-    v.object({
-      id: v.optional(v.string()), // Сделано optional для миграции
-      type: v.string(),
-      question: v.string(),
-      additional_info: v.string(),
-      answer: v.string(),
-      answers: v.array(
-        v.object({
-          answer: v.string(),
-          isCorrect: v.boolean(),
-        })
-      ),
-      correct_answer_comment: v.string(),
-    })
-  ),
+  questions: v.array(clinicTaskQuestionValidator),
   additional_info: v.string(),
   ai_scenario: v.string(),
   stars: v.number(),

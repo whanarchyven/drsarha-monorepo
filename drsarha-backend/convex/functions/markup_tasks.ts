@@ -1,11 +1,7 @@
-import { action, mutation, query } from "../_generated/server";
+import { action, internalMutation, mutation, query } from "../_generated/server";
 import { v } from "convex/values";
 import { api, internal } from "../_generated/api";
-import {
-  markupTaskAdditionalTaskFields,
-  markupTaskDoc,
-  markupTaskFields,
-} from "../models/markupTask";
+import { markupTaskDoc, markupTaskFields } from "../models/markupTask";
 
 const sortByIdx = (items: any[]) =>
   items.slice().sort((a, b) => {
@@ -25,6 +21,55 @@ const sortByOrderAsc = (items: any[]) =>
     if (a.order !== b.order) return a.order - b.order;
     return (a._creationTime ?? 0) - (b._creationTime ?? 0);
   });
+
+const ensureQuestionIds = (questions: any[]) =>
+  (questions || []).map((question) => {
+    if (question?.id && typeof question.id === "string") {
+      return question;
+    }
+    return {
+      ...question,
+      id: crypto.randomUUID(),
+    };
+  });
+
+/** Приводит вопрос из админки (в т.ч. QuestionCreator) к документу Convex. */
+function normalizeQuestionForStorage(question: any) {
+  const idField =
+    question?.id && typeof question.id === "string" ? { id: question.id } : {};
+  const type =
+    question?.type === "variants" || question?.type === "text" ? question.type : "text";
+  if (type === "text") {
+    return {
+      ...idField,
+      type: "text",
+      question: String(question?.question ?? ""),
+      additional_info: String(question?.additional_info ?? ""),
+      answer: String(question?.answer ?? ""),
+      answers: [] as { answer: string; isCorrect: boolean }[],
+      correct_answer_comment: String(question?.correct_answer_comment ?? ""),
+    };
+  }
+  const answers = Array.isArray(question?.answers)
+    ? question.answers.map((a: any) => ({
+        answer: String(a?.answer ?? ""),
+        isCorrect: Boolean(a?.isCorrect),
+      }))
+    : [];
+  return {
+    ...idField,
+    type: "variants",
+    question: String(question?.question ?? ""),
+    additional_info: "",
+    answer: "",
+    answers,
+    correct_answer_comment: String(question?.correct_answer_comment ?? ""),
+  };
+}
+
+function normalizeQuestionsPayload(questions: any[]) {
+  return ensureQuestionIds(questions.map(normalizeQuestionForStorage));
+}
 
 export const list = query({
   args: {
@@ -139,7 +184,11 @@ export const insert = mutation({
   args: v.object(markupTaskFields),
   returns: markupTaskDoc,
   handler: async ({ db }, data) => {
-    const id = await db.insert("markup_tasks", data as any);
+    const payload = { ...data } as Record<string, unknown>;
+    if (data.questions !== undefined) {
+      payload.questions = normalizeQuestionsPayload(data.questions as any[]);
+    }
+    const id = await db.insert("markup_tasks", payload as any);
     const doc = await db.get(id);
     return doc!;
   },
@@ -152,7 +201,9 @@ export const update = mutation({
       name: v.optional(v.string()),
       cover_image: v.optional(v.string()),
       description: v.optional(v.string()),
-      additional_tasks: v.optional(v.array(markupTaskAdditionalTaskFields)),
+      patient_info: v.optional(v.string()),
+      ai_scenario: v.optional(v.string()),
+      questions: v.optional(v.array(v.any())),
       idx: v.optional(v.number()),
       app_visible: v.optional(v.boolean()),
       publishAfter: v.optional(v.number()),
@@ -161,7 +212,11 @@ export const update = mutation({
   },
   returns: markupTaskDoc,
   handler: async ({ db }, { id, data }) => {
-    await db.patch(id, data as any);
+    const patch = { ...data } as Record<string, unknown>;
+    if (data.questions !== undefined) {
+      patch.questions = normalizeQuestionsPayload(data.questions as any[]);
+    }
+    await db.patch(id, patch as any);
     const doc = await db.get(id);
     return doc!;
   },
@@ -222,7 +277,9 @@ export const create = action({
     name: v.string(),
     cover: fileOrPathValidator,
     description: v.string(),
-    additional_tasks: v.array(markupTaskAdditionalTaskFields),
+    patient_info: v.optional(v.string()),
+    ai_scenario: v.optional(v.string()),
+    questions: v.optional(v.array(v.any())),
     idx: v.optional(v.number()),
     app_visible: v.optional(v.boolean()),
     publishAfter: v.optional(v.number()),
@@ -235,7 +292,9 @@ export const create = action({
       name: args.name,
       cover_image,
       description: args.description,
-      additional_tasks: args.additional_tasks,
+      patient_info: args.patient_info ?? "",
+      ai_scenario: args.ai_scenario ?? "",
+      questions: normalizeQuestionsPayload(args.questions ?? []),
       ...(args.idx !== undefined ? { idx: args.idx } : {}),
       ...(args.app_visible !== undefined ? { app_visible: args.app_visible } : {}),
       ...(args.publishAfter !== undefined ? { publishAfter: args.publishAfter } : {}),
@@ -249,7 +308,9 @@ export const updateAction = action({
     name: v.optional(v.string()),
     cover: v.optional(fileOrPathValidator),
     description: v.optional(v.string()),
-    additional_tasks: v.optional(v.array(markupTaskAdditionalTaskFields)),
+    patient_info: v.optional(v.string()),
+    ai_scenario: v.optional(v.string()),
+    questions: v.optional(v.array(v.any())),
     idx: v.optional(v.number()),
     app_visible: v.optional(v.boolean()),
     publishAfter: v.optional(v.number()),
@@ -260,7 +321,11 @@ export const updateAction = action({
 
     if (args.name !== undefined) data.name = args.name;
     if (args.description !== undefined) data.description = args.description;
-    if (args.additional_tasks !== undefined) data.additional_tasks = args.additional_tasks;
+    if (args.patient_info !== undefined) data.patient_info = args.patient_info;
+    if (args.ai_scenario !== undefined) data.ai_scenario = args.ai_scenario;
+    if (args.questions !== undefined) {
+      data.questions = normalizeQuestionsPayload(args.questions);
+    }
     if (args.idx !== undefined) data.idx = args.idx;
     if (args.app_visible !== undefined) data.app_visible = args.app_visible;
     if (args.publishAfter !== undefined) data.publishAfter = args.publishAfter;
@@ -272,5 +337,23 @@ export const updateAction = action({
       id: args.id,
       data,
     });
+  },
+});
+
+/** One-off migration: drop legacy `additional_tasks` from all markup_tasks documents. */
+export const stripAdditionalTasksField = internalMutation({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx) => {
+    const tasks = await ctx.db.query("markup_tasks").collect();
+    let count = 0;
+    for (const task of tasks) {
+      if (!("additional_tasks" in task)) continue;
+      const { additional_tasks: _removed, ...withoutAdditional } = task as Record<string, unknown>;
+      const { _id, _creationTime, ...fields } = withoutAdditional;
+      await ctx.db.replace(_id as (typeof tasks)[number]["_id"], fields as any);
+      count++;
+    }
+    return count;
   },
 });

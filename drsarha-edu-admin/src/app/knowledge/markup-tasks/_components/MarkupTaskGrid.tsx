@@ -112,9 +112,6 @@ export function MarkupTaskGrid({
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <Badge variant="outline">
-                  Доп. задач: {task.additional_tasks.length}
-                </Badge>
                 <Badge variant={task.app_visible ? 'default' : 'secondary'}>
                   {task.app_visible ? 'Видима в приложении' : 'Скрыта'}
                 </Badge>

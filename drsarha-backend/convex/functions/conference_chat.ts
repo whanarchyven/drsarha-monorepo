@@ -4,6 +4,7 @@ import {
   conferenceChatMessageDoc,
   conferenceChatReactionType,
 } from "../models/conferenceChat";
+import { Id } from "../_generated/dataModel";
 
 async function getConferenceUserOrThrow(db: any, conferenceUserId: any) {
   const conferenceUser = await db.get(conferenceUserId);
@@ -311,5 +312,38 @@ export const getMyReactions = query({
         messageId: reaction.messageId,
         reaction: reaction.reaction,
       }));
+  },
+});
+
+
+export const topCommenters = query({
+  args: {},
+  handler: async (ctx) => {
+    const comments = await ctx.db.query("conference_chat_messages").collect();
+
+    const counts = new Map<Id<"conference_users">, number>();
+
+    for (const comment of comments) {
+      const userId = comment.conferenceUserId as Id<"conference_users">;
+      counts.set(userId, (counts.get(userId) || 0) + 1);
+    }
+
+    const top = Array.from(counts.entries())
+      .map(([userId, count]) => ({ userId, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    const result = await Promise.all(
+      top.map(async (item) => {
+        const user = await ctx.db.get(item.userId as Id<"conference_users">);
+
+        return {
+          ...item,
+          user,
+        };
+      })
+    );
+
+    return result;
   },
 });

@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useState, type ReactNode } from 'react';
-import { useFieldArray, useForm } from 'react-hook-form';
+import { useEffect, useState, type ReactNode } from 'react';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
@@ -12,6 +12,7 @@ import type { Id } from '@convex/_generated/dataModel';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -22,9 +23,19 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import QuestionCreator from '@/components/question-creator';
 import { getContentUrl } from '@/shared/utils/url';
+import type { Question } from '@/shared/models/types/QuestionType';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { MarkupTaskElementDraft, PolygonEditor } from './PolygonEditor';
+
+const WIZARD_STEPS = [
+  { id: 0, label: 'Основное', description: 'Название, описание, обложка' },
+  { id: 1, label: 'Клиника', description: 'Пациент, ИИ, вопросы' },
+  { id: 2, label: 'Этапы', description: 'Слайды и разметка' },
+] as const;
 
 const publishAfterSchema = z.preprocess(
   (value) =>
@@ -32,17 +43,9 @@ const publishAfterSchema = z.preprocess(
   z.string().optional()
 );
 
-const additionalTaskSchema = z.object({
-  name: z.string().min(1, 'Название обязательно'),
-  description: z.string().default(''),
-  task_id: z.string().min(1, 'ID задачи обязателен'),
-  task_type: z.string().min(1, 'Тип задачи обязателен'),
-});
-
 const formSchema = z.object({
   name: z.string().min(1, 'Название обязательно'),
   description: z.string().min(1, 'Описание обязательно'),
-  cover_image: z.any().optional(),
   publishAfter: publishAfterSchema,
   idx: z.preprocess(
     (value) =>
@@ -52,7 +55,8 @@ const formSchema = z.object({
     z.number().int().nonnegative().optional()
   ),
   app_visible: z.boolean().default(false),
-  additional_tasks: z.array(additionalTaskSchema).default([]),
+  patient_info: z.string().optional().default(''),
+  ai_scenario: z.string().optional().default(''),
 });
 
 interface MarkupTaskPointDraft {
@@ -130,12 +134,9 @@ interface MarkupTaskFull {
   name: string;
   cover_image: string;
   description: string;
-  additional_tasks: Array<{
-    name: string;
-    description: string;
-    task_id: string;
-    task_type: string;
-  }>;
+  patient_info?: string;
+  ai_scenario?: string;
+  questions?: unknown[];
   idx?: number;
   app_visible?: boolean;
   publishAfter?: number;
@@ -195,6 +196,39 @@ const emptyStage = (order: number): MarkupTaskStageDraft => ({
 
 function FieldHint({ children }: { children: ReactNode }) {
   return <p className="text-xs text-muted-foreground">{children}</p>;
+}
+
+type MarkupQuestion = Question & { id?: string };
+
+function docQuestionsToUi(raw: unknown): MarkupQuestion[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((q: any) => {
+    const id = typeof q?.id === 'string' ? q.id : undefined;
+    if (q?.type === 'text') {
+      return {
+        ...(id ? { id } : {}),
+        type: 'text',
+        question: q.question ?? '',
+        answer: q.answer ?? '',
+        additional_info: q.additional_info ?? '',
+        correct_answer_comment: q.correct_answer_comment ?? '',
+      };
+    }
+    const answers = Array.isArray(q?.answers) ? q.answers : [];
+    return {
+      ...(id ? { id } : {}),
+      type: 'variants',
+      question: q.question ?? '',
+      answers:
+        answers.length > 0
+          ? answers.map((a: any) => ({
+              answer: a.answer ?? '',
+              isCorrect: Boolean(a.isCorrect),
+            }))
+          : [{ answer: '', isCorrect: false }],
+      correct_answer_comment: q.correct_answer_comment ?? '',
+    };
+  });
 }
 
 const normalizeElements = (elements?: ExistingElement[]) => {
@@ -327,37 +361,50 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
       ? normalizeStages(initialData.stages)
       : [emptyStage(0)]
   );
-  const [expandedStageIndex, setExpandedStageIndex] = useState(0);
-  const [expandedSlideKey, setExpandedSlideKey] = useState('0-0');
+  const [formWizardStep, setFormWizardStep] = useState(0);
+  const [activeStageIndex, setActiveStageIndex] = useState(0);
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
+  const [questions, setQuestions] = useState<MarkupQuestion[]>(() =>
+    docQuestionsToUi(initialData?.questions)
+  );
+  /** Локальный файл обложки: input не переживает размонтирование шага мастера. */
+  const [coverFileDraft, setCoverFileDraft] = useState<File | null>(null);
+  const [coverBlobUrl, setCoverBlobUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    setActiveSlideIndex(0);
+  }, [activeStageIndex]);
+
+  useEffect(() => {
+    if (!coverFileDraft) {
+      setCoverBlobUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(coverFileDraft);
+    setCoverBlobUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [coverFileDraft]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: initialData?.name ?? '',
       description: initialData?.description ?? '',
-      cover_image: undefined,
       publishAfter: initialData?.publishAfter
         ? String(initialData.publishAfter).slice(0, 10)
         : '',
       idx: initialData?.idx ?? undefined,
       app_visible: initialData?.app_visible ?? false,
-      additional_tasks: initialData?.additional_tasks ?? [],
+      patient_info: initialData?.patient_info ?? '',
+      ai_scenario: initialData?.ai_scenario ?? '',
     },
   });
 
-  const {
-    fields: additionalTaskFields,
-    append: appendAdditionalTask,
-    remove: removeAdditionalTask,
-  } = useFieldArray({
-    control: form.control,
-    name: 'additional_tasks',
-  });
+  const existingCoverUrl = initialData?.cover_image
+    ? getContentUrl(initialData.cover_image)
+    : '';
 
-  const coverPreview = useMemo(() => {
-    if (initialData?.cover_image) return getContentUrl(initialData.cover_image);
-    return '';
-  }, [initialData?.cover_image]);
+  const coverPreviewSrc = coverBlobUrl || existingCoverUrl;
 
   const updateStageDraft = (
     stageIndex: number,
@@ -371,46 +418,87 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
   };
 
   const addStage = () => {
-    setStages((current) => [...current, emptyStage(current.length)]);
-    setExpandedStageIndex(stages.length);
-    setExpandedSlideKey(`${stages.length}-0`);
+    let nextStages: MarkupTaskStageDraft[] = [];
+    setStages((current) => {
+      nextStages = [...current, emptyStage(current.length)];
+      return nextStages;
+    });
+    setActiveStageIndex(nextStages.length - 1);
+    setActiveSlideIndex(0);
   };
 
   const deleteStageDraft = (stageIndex: number) => {
-    setStages((current) =>
-      reorderByOrder(current.filter((_, index) => index !== stageIndex))
-    );
-    setExpandedStageIndex(Math.max(0, stageIndex - 1));
+    let nextStages: MarkupTaskStageDraft[] = [];
+    setStages((current) => {
+      nextStages = reorderByOrder(
+        current.filter((_, index) => index !== stageIndex)
+      );
+      return nextStages;
+    });
+    setActiveStageIndex((prev) => {
+      if (nextStages.length === 0) return 0;
+      if (stageIndex < prev) return prev - 1;
+      if (stageIndex === prev) return Math.min(prev, nextStages.length - 1);
+      return prev;
+    });
+    setActiveSlideIndex(0);
   };
 
   const moveStage = (stageIndex: number, direction: -1 | 1) => {
     const targetIndex = stageIndex + direction;
-    if (targetIndex < 0 || targetIndex >= stages.length) return;
 
     setStages((current) => {
+      if (targetIndex < 0 || targetIndex >= current.length) return current;
       const next = [...current];
       const temp = next[stageIndex];
       next[stageIndex] = next[targetIndex];
       next[targetIndex] = temp;
       return reorderByOrder(next);
     });
-    setExpandedStageIndex(targetIndex);
+    setActiveStageIndex((prev) => {
+      if (prev === stageIndex) return targetIndex;
+      if (prev === targetIndex) return stageIndex;
+      return prev;
+    });
   };
 
   const addSlide = (stageIndex: number) => {
-    updateStageDraft(stageIndex, (stage) => ({
-      ...stage,
-      slides: [...stage.slides, emptySlide(stage.slides.length)],
-    }));
+    let newLen = 0;
+    setStages((current) => {
+      const next = current.map((st, i) => {
+        if (i !== stageIndex) return st;
+        const slides = [...st.slides, emptySlide(st.slides.length)];
+        newLen = slides.length;
+        return { ...st, slides };
+      });
+      return next;
+    });
+    if (stageIndex === activeStageIndex) {
+      setActiveSlideIndex(Math.max(0, newLen - 1));
+    }
   };
 
   const deleteSlideDraft = (stageIndex: number, slideIndex: number) => {
-    updateStageDraft(stageIndex, (stage) => ({
-      ...stage,
-      slides: reorderByOrder(
-        stage.slides.filter((_, index) => index !== slideIndex)
-      ),
-    }));
+    let nextLen = 0;
+    setStages((current) => {
+      const next = current.map((st, i) => {
+        if (i !== stageIndex) return st;
+        const slides = reorderByOrder(
+          st.slides.filter((_, j) => j !== slideIndex)
+        );
+        nextLen = slides.length;
+        return { ...st, slides };
+      });
+      return next;
+    });
+    if (stageIndex === activeStageIndex) {
+      setActiveSlideIndex((prev) => {
+        if (nextLen === 0) return 0;
+        if (slideIndex < prev) return prev - 1;
+        if (slideIndex === prev) return Math.max(0, nextLen - 1);
+        return prev;
+      });
+    }
   };
 
   const moveSlide = (
@@ -418,8 +506,8 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
     slideIndex: number,
     direction: -1 | 1
   ) => {
+    const targetIndex = slideIndex + direction;
     updateStageDraft(stageIndex, (stage) => {
-      const targetIndex = slideIndex + direction;
       if (targetIndex < 0 || targetIndex >= stage.slides.length) return stage;
 
       const nextSlides = [...stage.slides];
@@ -432,6 +520,13 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
         slides: reorderByOrder(nextSlides),
       };
     });
+    if (stageIndex === activeStageIndex) {
+      if (slideIndex === activeSlideIndex) {
+        setActiveSlideIndex(targetIndex);
+      } else if (targetIndex === activeSlideIndex) {
+        setActiveSlideIndex(slideIndex);
+      }
+    }
   };
 
   const updateSlideDraft = (
@@ -677,92 +772,167 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
     }
   };
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    const submitPromise = (async () => {
-      ensureValidStages(stages);
+  const performSave = async (
+    values: z.infer<typeof formSchema>
+  ): Promise<{ mode: 'created' | 'updated' }> => {
+    ensureValidStages(stages);
 
-      const publishAfter =
-        values.publishAfter && values.publishAfter.length
-          ? new Date(values.publishAfter).getTime()
-          : undefined;
+    const publishAfter =
+      values.publishAfter && values.publishAfter.length
+        ? new Date(values.publishAfter).getTime()
+        : undefined;
 
-      const coverFile =
-        values.cover_image?.[0] instanceof File
-          ? values.cover_image[0]
-          : undefined;
+    const coverFile = coverFileDraft ?? undefined;
 
-      let taskId = initialData?._id;
+    let taskId = initialData?._id;
 
-      if (initialData?._id) {
-        const updated = await updateTask({
-          id: initialData._id as Id<'markup_tasks'>,
-          name: values.name,
-          description: values.description,
-          additional_tasks: values.additional_tasks,
-          app_visible: values.app_visible,
-          publishAfter,
-          ...(values.idx !== undefined ? { idx: values.idx } : {}),
-          ...(coverFile
-            ? {
-                cover: {
-                  base64: await fileToBase64(coverFile),
-                  contentType: coverFile.type || 'application/octet-stream',
-                },
-              }
-            : {}),
-        });
-        taskId = String(updated._id);
-      } else {
-        if (!coverFile) {
-          throw new Error('Обложка обязательна при создании задачи');
-        }
-
-        const created = await createTask({
-          name: values.name,
-          description: values.description,
-          additional_tasks: values.additional_tasks,
-          app_visible: values.app_visible,
-          cover: {
-            base64: await fileToBase64(coverFile),
-            contentType: coverFile.type || 'application/octet-stream',
-          },
-          ...(publishAfter !== undefined ? { publishAfter } : {}),
-          ...(values.idx !== undefined ? { idx: values.idx } : {}),
-        });
-        taskId = String(created._id);
-      }
-
-      if (!taskId) {
-        throw new Error('Не удалось определить ID задачи');
-      }
-
-      await syncStages(taskId, stages, initialData?.stages ?? []);
-
-      return { mode: initialData?._id ? 'updated' : 'created' };
-    })();
-
-    try {
-      await toast.promise(submitPromise, {
-        loading: 'Сохранение задачи на разметку...',
-        success: (data) =>
-          data.mode === 'updated'
-            ? 'Задача на разметку обновлена'
-            : 'Задача на разметку создана',
-        error: (error) =>
-          error instanceof Error
-            ? error.message
-            : 'Ошибка сохранения задачи на разметку',
+    if (initialData?._id) {
+      const updated = await updateTask({
+        id: initialData._id as Id<'markup_tasks'>,
+        name: values.name,
+        description: values.description,
+        patient_info: values.patient_info ?? '',
+        ai_scenario: values.ai_scenario ?? '',
+        questions,
+        app_visible: values.app_visible,
+        publishAfter,
+        ...(values.idx !== undefined ? { idx: values.idx } : {}),
+        ...(coverFile
+          ? {
+              cover: {
+                base64: await fileToBase64(coverFile),
+                contentType: coverFile.type || 'application/octet-stream',
+              },
+            }
+          : {}),
       });
+      taskId = String(updated._id);
+    } else {
+      if (!coverFile) {
+        throw new Error('Обложка обязательна при создании задачи');
+      }
+
+      const created = await createTask({
+        name: values.name,
+        description: values.description,
+        patient_info: values.patient_info ?? '',
+        ai_scenario: values.ai_scenario ?? '',
+        questions,
+        app_visible: values.app_visible,
+        cover: {
+          base64: await fileToBase64(coverFile),
+          contentType: coverFile.type || 'application/octet-stream',
+        },
+        ...(publishAfter !== undefined ? { publishAfter } : {}),
+        ...(values.idx !== undefined ? { idx: values.idx } : {}),
+      });
+      taskId = String(created._id);
+    }
+
+    if (!taskId) {
+      throw new Error('Не удалось определить ID задачи');
+    }
+
+    await syncStages(taskId, stages, initialData?.stages ?? []);
+
+    return { mode: initialData?._id ? 'updated' : 'created' };
+  };
+
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    const toastId = toast.loading('Сохранение задачи на разметку...');
+    try {
+      const result = await performSave(values);
+      toast.success(
+        result.mode === 'updated'
+          ? 'Задача на разметку обновлена'
+          : 'Задача на разметку создана',
+        { id: toastId }
+      );
       router.push('/knowledge/markup-tasks');
       router.refresh();
     } catch (error) {
       console.error('Error saving markup task:', error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Ошибка сохранения задачи на разметку',
+        { id: toastId }
+      );
     }
   };
 
+  const activeStage = stages[activeStageIndex];
+  const activeSlide = activeStage?.slides[activeSlideIndex];
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+      <form
+        onSubmit={form.handleSubmit((values) => {
+          void onSubmit(values);
+        })}
+        className="space-y-8">
+        <div className="rounded-xl border bg-card p-4 shadow-sm">
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Шаги мастера
+            </p>
+            {coverPreviewSrc ? (
+              <div className="flex items-center gap-2 rounded-md border bg-muted/30 px-2 py-1.5">
+                <span className="text-xs text-muted-foreground">Обложка</span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={coverPreviewSrc}
+                  alt=""
+                  className="h-10 w-14 rounded object-cover"
+                />
+              </div>
+            ) : (
+              <span className="text-xs text-muted-foreground">
+                Обложка не выбрана
+              </span>
+            )}
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            {WIZARD_STEPS.map((step, index) => {
+              const isActive = formWizardStep === step.id;
+              const isDone = formWizardStep > step.id;
+              return (
+                <button
+                  key={step.id}
+                  type="button"
+                  onClick={() => setFormWizardStep(step.id)}
+                  className={`flex flex-1 items-start gap-3 rounded-lg border p-3 text-left transition-colors ${
+                    isActive
+                      ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
+                      : isDone
+                        ? 'border-muted bg-muted/30 hover:bg-muted/50'
+                        : 'border-border hover:bg-muted/40'
+                  }`}>
+                  <span
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
+                      isActive
+                        ? 'bg-primary text-primary-foreground'
+                        : isDone
+                          ? 'bg-primary/20 text-primary'
+                          : 'bg-muted text-muted-foreground'
+                    }`}>
+                    {index + 1}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-medium leading-tight">
+                      {step.label}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                      {step.description}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {formWizardStep === 0 && (
         <Card className="p-6 space-y-6">
           <FormField
             control={form.control}
@@ -869,591 +1039,562 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
             />
           </div>
 
+          <div className="space-y-2">
+            <div>
+              <Label htmlFor="markup-task-cover-input">Обложка</Label>
+              <FieldHint>
+                Главная картинка задачи для списка и карточки в админке.
+                Файл сохраняется при переходах между шагами.
+              </FieldHint>
+            </div>
+            <Input
+              id="markup-task-cover-input"
+              key={coverFileDraft ? `${coverFileDraft.name}-${coverFileDraft.size}` : 'no-cover'}
+              type="file"
+              accept="image/*"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                setCoverFileDraft(file ?? null);
+              }}
+            />
+            {coverPreviewSrc ? (
+              <div className="space-y-2">
+                <div className="overflow-hidden rounded-md border bg-muted/20">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={coverPreviewSrc}
+                    alt="Превью обложки"
+                    className="max-h-72 w-full object-contain"
+                  />
+                </div>
+                {coverFileDraft ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      Выбрано: {coverFileDraft.name}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCoverFileDraft(null)}>
+                      Убрать файл
+                    </Button>
+                  </div>
+                ) : initialData?.cover_image ? (
+                  <p className="text-xs text-muted-foreground">
+                    Текущая обложка с сервера. Выберите файл, чтобы заменить.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </Card>
+        )}
+
+        {formWizardStep === 1 && (
+        <Card className="space-y-6 p-6">
+          <div>
+            <h2 className="text-xl font-semibold">Клиническая часть</h2>
+            <p className="text-xs text-muted-foreground">
+              Те же поля, что у клинической задачи: данные о пациенте, сценарий ИИ
+              и вопросы.
+            </p>
+          </div>
+
           <FormField
             control={form.control}
-            name="cover_image"
-            render={({ field: { value: _value, onChange, ...field } }) => (
+            name="patient_info"
+            render={({ field }) => (
               <FormItem>
-                <FormLabel>Обложка</FormLabel>
+                <FormLabel>Информация о пациенте</FormLabel>
                 <FieldHint>
-                  Главная картинка задачи для списка и карточки в админке.
+                  Аналог «дополнительной информации» в клинической задаче.
                 </FieldHint>
                 <FormControl>
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={(event) => onChange(event.target.files)}
+                  <Textarea
                     {...field}
+                    placeholder="Контекст кейса, жалобы, анамнез…"
                   />
                 </FormControl>
                 <FormMessage />
-                {coverPreview && (
-                  <div className="overflow-hidden rounded-md border">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={coverPreview}
-                      alt="Cover preview"
-                      className="h-64 w-full object-cover"
-                    />
-                  </div>
-                )}
               </FormItem>
             )}
           />
-        </Card>
 
-        <Card className="p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-semibold">Связанные задачи</h2>
-              <p className="text-xs text-muted-foreground">
-                Дополнительные задания, которые логически связаны с этой
-                разметкой.
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() =>
-                appendAdditionalTask({
-                  name: '',
-                  description: '',
-                  task_id: '',
-                  task_type: '',
-                })
-              }>
-              Добавить задачу
-            </Button>
-          </div>
+          <FormField
+            control={form.control}
+            name="ai_scenario"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>AI сценарий</FormLabel>
+                <FieldHint>Опишите сценарий работы ИИ с пользователем.</FieldHint>
+                <FormControl>
+                  <Textarea {...field} placeholder="Сценарий для модели" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-          <div className="space-y-4">
-            {additionalTaskFields.map((field, index) => (
-              <Card key={field.id} className="p-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <Badge variant="outline">Задача {index + 1}</Badge>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => removeAdditionalTask(index)}>
-                    Удалить
-                  </Button>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name={`additional_tasks.${index}.name`}
-                    render={({ field: itemField }) => (
-                      <FormItem>
-                        <FormLabel>Название</FormLabel>
-                        <FieldHint>
-                          Понятное имя связанной задачи для админки.
-                        </FieldHint>
-                        <FormControl>
-                          <Input {...itemField} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name={`additional_tasks.${index}.task_type`}
-                    render={({ field: itemField }) => (
-                      <FormItem>
-                        <FormLabel>Тип задачи</FormLabel>
-                        <FieldHint>
-                          Например: `clinic_task`, `interactive_task`,
-                          `markup_task`.
-                        </FieldHint>
-                        <FormControl>
-                          <Input
-                            {...itemField}
-                            placeholder="clinic_task / interactive_task"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name={`additional_tasks.${index}.task_id`}
-                    render={({ field: itemField }) => (
-                      <FormItem>
-                        <FormLabel>ID задачи</FormLabel>
-                        <FieldHint>
-                          Идентификатор связанной сущности в базе.
-                        </FieldHint>
-                        <FormControl>
-                          <Input {...itemField} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name={`additional_tasks.${index}.description`}
-                    render={({ field: itemField }) => (
-                      <FormItem>
-                        <FormLabel>Описание</FormLabel>
-                        <FieldHint>
-                          Короткое пояснение, зачем эта связанная задача нужна.
-                        </FieldHint>
-                        <FormControl>
-                          <Input {...itemField} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </Card>
-            ))}
+          <div className="space-y-2">
+            <div className="text-sm font-medium">Вопросы</div>
+            <FieldHint>
+              Формат как у клинической задачи: текстовые ответы или варианты.
+            </FieldHint>
+            <QuestionCreator questions={questions} setQuestions={setQuestions} />
           </div>
         </Card>
+        )}
 
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold">Этапы</h2>
+        {formWizardStep === 2 && activeStage && (
+          <Card className="space-y-6 p-6">
+            <div className="space-y-1">
+              <h2 className="text-xl font-semibold">Этапы разметки</h2>
               <p className="text-xs text-muted-foreground">
-                Каждый этап объединяет свои слайды и контуры разметки.
+                Один этап на экране: сначала свойства, затем слайды по одному.
               </p>
             </div>
-            <Button type="button" onClick={addStage}>
-              Добавить этап
-            </Button>
-          </div>
 
-          {stages.map((stage, stageIndex) => (
-            <Card
-              key={stage.id ?? `stage-${stageIndex}`}
-              className="p-6 space-y-6">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant={
-                      expandedStageIndex === stageIndex ? 'default' : 'outline'
-                    }
-                    onClick={() => setExpandedStageIndex(stageIndex)}>
-                    Этап {stageIndex + 1}
-                  </Button>
-                  <Badge variant="outline">
-                    Слайдов: {stage.slides.length}
-                  </Badge>
+            <div className="flex flex-col gap-4 rounded-lg border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  disabled={activeStageIndex <= 0}
+                  onClick={() => setActiveStageIndex((i) => i - 1)}
+                  aria-label="Предыдущий этап">
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <div className="min-w-0 px-1">
+                  <p className="text-xs text-muted-foreground">
+                    Этап {activeStageIndex + 1} из {stages.length}
+                  </p>
+                  <p className="truncate font-medium">
+                    {activeStage.name.trim() || 'Без названия'}
+                  </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => moveStage(stageIndex, -1)}>
-                    Вверх
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => moveStage(stageIndex, 1)}>
-                    Вниз
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => deleteStageDraft(stageIndex)}>
-                    Удалить этап
-                  </Button>
-                </div>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  disabled={activeStageIndex >= stages.length - 1}
+                  onClick={() => setActiveStageIndex((i) => i + 1)}
+                  aria-label="Следующий этап">
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Badge variant="secondary" className="ml-1">
+                  Слайдов: {activeStage.slides.length}
+                </Badge>
               </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => moveStage(activeStageIndex, -1)}>
+                  Этап вверх
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => moveStage(activeStageIndex, 1)}>
+                  Этап вниз
+                </Button>
+                <Button type="button" variant="secondary" onClick={addStage}>
+                  Добавить этап
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => deleteStageDraft(activeStageIndex)}>
+                  Удалить этап
+                </Button>
+              </div>
+            </div>
 
-              {expandedStageIndex === stageIndex && (
-                <div className="space-y-6">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <div className="text-sm font-medium">Название этапа</div>
-                      <FieldHint>
-                        Видимое имя шага, по которому ориентируется админ.
-                      </FieldHint>
-                      <Input
-                        value={stage.name}
-                        onChange={(event) =>
-                          updateStageDraft(stageIndex, (item) => ({
-                            ...item,
-                            name: event.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="text-sm font-medium">Element name</div>
-                      <FieldHint>
-                        Базовое имя сущности, которую пользователь ищет на
-                        слайдах.
-                      </FieldHint>
-                      <Input
-                        value={stage.element_name}
-                        onChange={(event) =>
-                          updateStageDraft(stageIndex, (item) => ({
-                            ...item,
-                            element_name: event.target.value,
-                          }))
-                        }
-                      />
-                    </div>
+            <Tabs
+              key={activeStageIndex}
+              defaultValue="props"
+              className="w-full">
+              <TabsList className="grid w-full max-w-md grid-cols-2">
+                <TabsTrigger value="props">Свойства этапа</TabsTrigger>
+                <TabsTrigger value="slides">
+                  Слайды ({activeStage.slides.length})
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="props" className="mt-4 space-y-6">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Название этапа</div>
+                    <FieldHint>
+                      Видимое имя шага, по которому ориентируется админ.
+                    </FieldHint>
+                    <Input
+                      value={activeStage.name}
+                      onChange={(event) =>
+                        updateStageDraft(activeStageIndex, (item) => ({
+                          ...item,
+                          name: event.target.value,
+                        }))
+                      }
+                    />
                   </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <div className="text-sm font-medium">Описание этапа</div>
-                      <FieldHint>
-                        Что происходит на этом этапе и чего ждём от
-                        пользователя.
-                      </FieldHint>
-                      <Textarea
-                        value={stage.description}
-                        onChange={(event) =>
-                          updateStageDraft(stageIndex, (item) => ({
-                            ...item,
-                            description: event.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="text-sm font-medium">
-                        Additional info (AI)
-                      </div>
-                      <FieldHint>
-                        Внутренний контекст или подсказка для AI-логики этапа.
-                      </FieldHint>
-                      <Textarea
-                        value={stage.additional_info}
-                        onChange={(event) =>
-                          updateStageDraft(stageIndex, (item) => ({
-                            ...item,
-                            additional_info: event.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <div className="space-y-2">
-                      <div className="text-sm font-medium">Task condition</div>
-                      <FieldHint>
-                        Условие прохождения или правило оценки разметки.
-                      </FieldHint>
-                      <Textarea
-                        value={stage.task_condition}
-                        onChange={(event) =>
-                          updateStageDraft(stageIndex, (item) => ({
-                            ...item,
-                            task_condition: event.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="text-sm font-medium">Справка</div>
-                      <FieldHint>
-                        Справочный текст, который можно показать пользователю.
-                      </FieldHint>
-                      <Textarea
-                        value={stage.info}
-                        onChange={(event) =>
-                          updateStageDraft(stageIndex, (item) => ({
-                            ...item,
-                            info: event.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="text-sm font-medium">Base color</div>
-                      <FieldHint>
-                        Общий цвет всех контуров этого этапа, например
-                        `#ef4444`.
-                      </FieldHint>
-                      <Input
-                        value={stage.base_color}
-                        onChange={(event) =>
-                          updateStageDraft(stageIndex, (item) => ({
-                            ...item,
-                            base_color: event.target.value,
-                          }))
-                        }
-                        placeholder="#ef4444"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-lg font-semibold">Слайды этапа</h3>
-                        <p className="text-xs text-muted-foreground">
-                          У каждого слайда обязательно должно быть изображение.
-                        </p>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => addSlide(stageIndex)}>
-                        Добавить слайд
-                      </Button>
-                    </div>
-
-                    {stage.slides.map((slide, slideIndex) => {
-                      const slideKey = `${stageIndex}-${slideIndex}`;
-
-                      return (
-                        <Card
-                          key={slide.id ?? `slide-${slideKey}`}
-                          className="p-4 space-y-4">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                              <Button
-                                type="button"
-                                variant={
-                                  expandedSlideKey === slideKey
-                                    ? 'default'
-                                    : 'outline'
-                                }
-                                onClick={() => setExpandedSlideKey(slideKey)}>
-                                Слайд {slideIndex + 1}
-                              </Button>
-                              <Badge variant="outline">
-                                Контуров: {slide.elements.length}
-                              </Badge>
-                            </div>
-
-                            <div className="flex flex-wrap gap-2">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                  moveSlide(stageIndex, slideIndex, -1)
-                                }>
-                                Вверх
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                  moveSlide(stageIndex, slideIndex, 1)
-                                }>
-                                Вниз
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="destructive"
-                                size="sm"
-                                onClick={() =>
-                                  deleteSlideDraft(stageIndex, slideIndex)
-                                }>
-                                Удалить слайд
-                              </Button>
-                            </div>
-                          </div>
-
-                          {expandedSlideKey === slideKey && (
-                            <div className="space-y-4">
-                              <div className="grid gap-4 md:grid-cols-2">
-                                <div className="space-y-2">
-                                  <div className="text-sm font-medium">
-                                    Название слайда
-                                  </div>
-                                  <FieldHint>
-                                    Короткое имя слайда для навигации внутри
-                                    этапа.
-                                  </FieldHint>
-                                  <Input
-                                    value={slide.name}
-                                    onChange={(event) =>
-                                      updateSlideDraft(
-                                        stageIndex,
-                                        slideIndex,
-                                        (item) => ({
-                                          ...item,
-                                          name: event.target.value,
-                                        })
-                                      )
-                                    }
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <div className="text-sm font-medium">
-                                    Base height
-                                  </div>
-                                  <FieldHint>
-                                    Базовая высота для калибровки масштаба
-                                    разметки.
-                                  </FieldHint>
-                                  <Input
-                                    type="number"
-                                    min={1}
-                                    value={slide.base_height}
-                                    onChange={(event) =>
-                                      updateSlideDraft(
-                                        stageIndex,
-                                        slideIndex,
-                                        (item) => ({
-                                          ...item,
-                                          base_height: Number(
-                                            event.target.value || 512
-                                          ),
-                                        })
-                                      )
-                                    }
-                                  />
-                                </div>
-                              </div>
-
-                              <div className="space-y-2">
-                                <div className="text-sm font-medium">
-                                  Описание слайда
-                                </div>
-                                <FieldHint>
-                                  Дополнительный контекст по изображению и
-                                  сцене.
-                                </FieldHint>
-                                <Textarea
-                                  value={slide.description}
-                                  onChange={(event) =>
-                                    updateSlideDraft(
-                                      stageIndex,
-                                      slideIndex,
-                                      (item) => ({
-                                        ...item,
-                                        description: event.target.value,
-                                      })
-                                    )
-                                  }
-                                />
-                              </div>
-
-                              <div className="grid gap-4 md:grid-cols-3">
-                                <div className="space-y-2">
-                                  <div className="text-sm font-medium">
-                                    Изображение слайда
-                                  </div>
-                                  <FieldHint>
-                                    Основное изображение, поверх которого
-                                    строятся контуры.
-                                  </FieldHint>
-                                  <Input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={(event) =>
-                                      handleSlideImageChange(
-                                        stageIndex,
-                                        slideIndex,
-                                        event.target.files?.[0]
-                                      )
-                                    }
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <div className="text-sm font-medium">
-                                    Original width
-                                  </div>
-                                  <FieldHint>
-                                    Исходная ширина изображения в пикселях.
-                                  </FieldHint>
-                                  <Input
-                                    type="number"
-                                    value={slide.original_width ?? ''}
-                                    onChange={(event) =>
-                                      updateSlideDraft(
-                                        stageIndex,
-                                        slideIndex,
-                                        (item) => ({
-                                          ...item,
-                                          original_width:
-                                            event.target.value === ''
-                                              ? undefined
-                                              : Number(event.target.value),
-                                        })
-                                      )
-                                    }
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <div className="text-sm font-medium">
-                                    Original height
-                                  </div>
-                                  <FieldHint>
-                                    Исходная высота изображения в пикселях.
-                                  </FieldHint>
-                                  <Input
-                                    type="number"
-                                    value={slide.original_height ?? ''}
-                                    onChange={(event) =>
-                                      updateSlideDraft(
-                                        stageIndex,
-                                        slideIndex,
-                                        (item) => ({
-                                          ...item,
-                                          original_height:
-                                            event.target.value === ''
-                                              ? undefined
-                                              : Number(event.target.value),
-                                        })
-                                      )
-                                    }
-                                  />
-                                </div>
-                              </div>
-
-                              {slide.image && (
-                                <PolygonEditor
-                                  image={slide.image}
-                                  elements={slide.elements}
-                                  defaultColor={stage.base_color}
-                                  onChange={(elements) =>
-                                    updateSlideDraft(
-                                      stageIndex,
-                                      slideIndex,
-                                      (item) => ({
-                                        ...item,
-                                        elements: reorderByOrder(elements),
-                                      })
-                                    )
-                                  }
-                                />
-                              )}
-                            </div>
-                          )}
-                        </Card>
-                      );
-                    })}
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Element name</div>
+                    <FieldHint>
+                      Базовое имя сущности, которую пользователь ищет на
+                      слайдах.
+                    </FieldHint>
+                    <Input
+                      value={activeStage.element_name}
+                      onChange={(event) =>
+                        updateStageDraft(activeStageIndex, (item) => ({
+                          ...item,
+                          element_name: event.target.value,
+                        }))
+                      }
+                    />
                   </div>
                 </div>
-              )}
-            </Card>
-          ))}
-        </div>
 
-        <div className="flex gap-4">
-          <Button type="submit">
-            {initialData ? 'Сохранить изменения' : 'Создать задачу'}
-          </Button>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Описание этапа</div>
+                    <FieldHint>
+                      Что происходит на этом этапе и чего ждём от пользователя.
+                    </FieldHint>
+                    <Textarea
+                      value={activeStage.description}
+                      onChange={(event) =>
+                        updateStageDraft(activeStageIndex, (item) => ({
+                          ...item,
+                          description: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">
+                      Additional info (AI)
+                    </div>
+                    <FieldHint>
+                      Внутренний контекст или подсказка для AI-логики этапа.
+                    </FieldHint>
+                    <Textarea
+                      value={activeStage.additional_info}
+                      onChange={(event) =>
+                        updateStageDraft(activeStageIndex, (item) => ({
+                          ...item,
+                          additional_info: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Task condition</div>
+                    <FieldHint>
+                      Условие прохождения или правило оценки разметки.
+                    </FieldHint>
+                    <Textarea
+                      value={activeStage.task_condition}
+                      onChange={(event) =>
+                        updateStageDraft(activeStageIndex, (item) => ({
+                          ...item,
+                          task_condition: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Справка</div>
+                    <FieldHint>
+                      Справочный текст, который можно показать пользователю.
+                    </FieldHint>
+                    <Textarea
+                      value={activeStage.info}
+                      onChange={(event) =>
+                        updateStageDraft(activeStageIndex, (item) => ({
+                          ...item,
+                          info: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Base color</div>
+                    <FieldHint>
+                      Общий цвет контуров этапа, например #ef4444.
+                    </FieldHint>
+                    <Input
+                      value={activeStage.base_color}
+                      onChange={(event) =>
+                        updateStageDraft(activeStageIndex, (item) => ({
+                          ...item,
+                          base_color: event.target.value,
+                        }))
+                      }
+                      placeholder="#ef4444"
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="slides" className="mt-4 space-y-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Выберите слайд. У каждого должно быть изображение и замкнутые
+                    контуры.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => addSlide(activeStageIndex)}>
+                    Добавить слайд
+                  </Button>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {activeStage.slides.map((slide, slideIndex) => (
+                    <Button
+                      key={slide.id ?? `slide-pick-${slideIndex}`}
+                      type="button"
+                      size="sm"
+                      variant={
+                        activeSlideIndex === slideIndex ? 'default' : 'outline'
+                      }
+                      onClick={() => setActiveSlideIndex(slideIndex)}
+                      className="gap-2">
+                      Слайд {slideIndex + 1}
+                      <Badge variant="secondary" className="font-normal">
+                        {slide.elements.length}
+                      </Badge>
+                    </Button>
+                  ))}
+                </div>
+
+                {activeSlide && (
+                  <Card className="space-y-4 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-sm font-medium">
+                        Слайд {activeSlideIndex + 1}
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            moveSlide(activeStageIndex, activeSlideIndex, -1)
+                          }>
+                          Вверх
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            moveSlide(activeStageIndex, activeSlideIndex, 1)
+                          }>
+                          Вниз
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          onClick={() =>
+                            deleteSlideDraft(activeStageIndex, activeSlideIndex)
+                          }>
+                          Удалить слайд
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium">Название слайда</div>
+                        <FieldHint>
+                          Короткое имя слайда для навигации внутри этапа.
+                        </FieldHint>
+                        <Input
+                          value={activeSlide.name}
+                          onChange={(event) =>
+                            updateSlideDraft(
+                              activeStageIndex,
+                              activeSlideIndex,
+                              (item) => ({
+                                ...item,
+                                name: event.target.value,
+                              })
+                            )
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium">Base height</div>
+                        <FieldHint>
+                          Базовая высота для калибровки масштаба разметки.
+                        </FieldHint>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={activeSlide.base_height}
+                          onChange={(event) =>
+                            updateSlideDraft(
+                              activeStageIndex,
+                              activeSlideIndex,
+                              (item) => ({
+                                ...item,
+                                base_height: Number(
+                                  event.target.value || 512
+                                ),
+                              })
+                            )
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="text-sm font-medium">Описание слайда</div>
+                      <FieldHint>
+                        Дополнительный контекст по изображению и сцене.
+                      </FieldHint>
+                      <Textarea
+                        value={activeSlide.description}
+                        onChange={(event) =>
+                          updateSlideDraft(
+                            activeStageIndex,
+                            activeSlideIndex,
+                            (item) => ({
+                              ...item,
+                              description: event.target.value,
+                            })
+                          )
+                        }
+                      />
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium">
+                          Изображение слайда
+                        </div>
+                        <FieldHint>
+                          Основное изображение для контуров разметки.
+                        </FieldHint>
+                        <Input
+                          type="file"
+                          accept="image/*"
+                          onChange={(event) =>
+                            handleSlideImageChange(
+                              activeStageIndex,
+                              activeSlideIndex,
+                              event.target.files?.[0]
+                            )
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium">Original width</div>
+                        <FieldHint>Ширина в пикселях.</FieldHint>
+                        <Input
+                          type="number"
+                          value={activeSlide.original_width ?? ''}
+                          onChange={(event) =>
+                            updateSlideDraft(
+                              activeStageIndex,
+                              activeSlideIndex,
+                              (item) => ({
+                                ...item,
+                                original_width:
+                                  event.target.value === ''
+                                    ? undefined
+                                    : Number(event.target.value),
+                              })
+                            )
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium">
+                          Original height
+                        </div>
+                        <FieldHint>Высота в пикселях.</FieldHint>
+                        <Input
+                          type="number"
+                          value={activeSlide.original_height ?? ''}
+                          onChange={(event) =>
+                            updateSlideDraft(
+                              activeStageIndex,
+                              activeSlideIndex,
+                              (item) => ({
+                                ...item,
+                                original_height:
+                                  event.target.value === ''
+                                    ? undefined
+                                    : Number(event.target.value),
+                              })
+                            )
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    {activeSlide.image && (
+                      <PolygonEditor
+                        image={activeSlide.image}
+                        elements={activeSlide.elements}
+                        defaultColor={activeStage.base_color}
+                        onChange={(elements) =>
+                          updateSlideDraft(
+                            activeStageIndex,
+                            activeSlideIndex,
+                            (item) => ({
+                              ...item,
+                              elements: reorderByOrder(elements),
+                            })
+                          )
+                        }
+                      />
+                    )}
+                  </Card>
+                )}
+              </TabsContent>
+            </Tabs>
+          </Card>
+        )}
+
+        <div className="flex flex-col gap-3 border-t pt-6 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <Button type="button" variant="outline" onClick={() => router.back()}>
             Отмена
           </Button>
+          <div className="flex flex-wrap gap-2 sm:justify-end">
+            {formWizardStep > 0 && (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setFormWizardStep((s) => s - 1)}>
+                Назад
+              </Button>
+            )}
+            {formWizardStep < 2 && (
+              <Button
+                type="button"
+                onClick={() => setFormWizardStep((s) => s + 1)}>
+                Далее
+              </Button>
+            )}
+            <Button type="submit">
+              {initialData ? 'Сохранить' : 'Создать задачу'}
+            </Button>
+          </div>
         </div>
       </form>
     </Form>
