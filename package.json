@@ -15,5 +15,8 @@
   },
   "devDependencies": {
     "concurrently": "^9.2.0"
+  },
+  "dependencies": {
+    "polygon-clipping": "^0.15.7"
   }
 }

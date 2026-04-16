@@ -1,6 +1,10 @@
 import { query, mutation, internalMutation, internalQuery } from "../_generated/server";
 import { v } from "convex/values";
-import { userCompletionDoc, userCompletionFields } from "../models/userCompletion";
+import {
+  markupTaskCompletionMetadata,
+  userCompletionDoc,
+  userCompletionFields,
+} from "../models/userCompletion";
 import { internal } from "../_generated/api";
 const feedbackItem = v.object({
   analytic_questions: v.optional(v.array(v.string())),
@@ -10,6 +14,37 @@ const feedbackItem = v.object({
   user_answers: v.optional(v.union(v.string(), v.array(v.string()))),
 });
 const feedbackEntry = v.object({ created_at: v.string(), feedback: v.array(feedbackItem) });
+
+const completionResultValidator = v.object({
+  success: v.boolean(),
+  message: v.string(),
+  starsTransaction: v.optional(v.any()),
+});
+
+const createEmptyMarkupTaskMetadata = () => ({
+  kind: "markup_task" as const,
+  markupStage: {
+    completed: false,
+    completed_at: null,
+    last_score: 0,
+    last_score_percent: 0,
+    last_max_score: 0,
+    guessed_element_ids: [],
+    cheats: [],
+    attempts: [],
+  },
+  clinicStage: {
+    completed: false,
+    completed_at: null,
+    attempts: [],
+  },
+});
+
+const isMarkupTaskMetadata = (metadata: unknown): metadata is ReturnType<typeof createEmptyMarkupTaskMetadata> =>
+  !!metadata &&
+  typeof metadata === "object" &&
+  "kind" in metadata &&
+  (metadata as { kind?: string }).kind === "markup_task";
 
 export const create = mutation({
   args: v.object({ user_id: v.string(), knowledge_id: v.string(), type: v.string() }),
@@ -40,17 +75,106 @@ export const setCompleted = mutation({ args: { id: v.id("user_completions") }, r
 // Public: Complete user completion with rewards (stars, exp, notifications, task progress)
 export const complete = mutation({
   args: { id: v.id("user_completions") },
-  returns: v.object({ 
-    success: v.boolean(), 
-    message: v.string(),
-    starsTransaction: v.optional(v.any())
-  }),
+  returns: completionResultValidator,
   handler: async (ctx, { id }) => {
     return await ctx.runMutation(internal.functions.user_completions.completeWithRewards, { id });
   }
 });
 
 export const setMetadata = mutation({ args: { id: v.id("user_completions"), metadata: userCompletionFields.metadata }, returns: userCompletionDoc, handler: async ({ db }, { id, metadata }) => { await db.patch(id, { metadata, updated_at: new Date().toISOString() } as any); return (await db.get(id))!; } });
+
+export const ensureMarkupTaskCompletion = internalMutation({
+  args: { user_id: v.string(), knowledge_id: v.string() },
+  returns: userCompletionDoc,
+  handler: async ({ db }, { user_id, knowledge_id }) => {
+    const hit = await (db as any)
+      .query("user_completions")
+      .withIndex("by_user_knowledge", (q: any) =>
+        q.eq("user_id", user_id).eq("knowledge_id", knowledge_id)
+      )
+      .first();
+
+    const now = new Date().toISOString();
+    if (hit) {
+      if ((hit as any).type !== "markup_task") {
+        throw new Error("Completion already exists with another type");
+      }
+      const nextMetadata = isMarkupTaskMetadata((hit as any).metadata)
+        ? (hit as any).metadata
+        : createEmptyMarkupTaskMetadata();
+      await db.patch((hit as any)._id, {
+        metadata: nextMetadata,
+        updated_at: now,
+      } as any);
+      return (await db.get((hit as any)._id))!;
+    }
+
+    const id = await db.insert("user_completions", {
+      user_id,
+      knowledge_id,
+      type: "markup_task",
+      created_at: now,
+      updated_at: now,
+      is_completed: false,
+      completed_at: null,
+      metadata: createEmptyMarkupTaskMetadata(),
+      feedback: [],
+    } as any);
+
+    return (await db.get(id))!;
+  },
+});
+
+export const setMarkupTaskMetadata = internalMutation({
+  args: {
+    id: v.id("user_completions"),
+    metadata: markupTaskCompletionMetadata,
+  },
+  returns: userCompletionDoc,
+  handler: async ({ db }, { id, metadata }) => {
+    await db.patch(id, {
+      metadata,
+      updated_at: new Date().toISOString(),
+    } as any);
+    return (await db.get(id))!;
+  },
+});
+
+export const finalizeMarkupTaskIfReady = internalMutation({
+  args: { id: v.id("user_completions") },
+  returns: completionResultValidator,
+  handler: async (ctx, { id }) => {
+    const completion = await ctx.db.get(id);
+    if (!completion) {
+      return { success: false, message: "Данные не найдены" };
+    }
+
+    if ((completion as any).is_completed) {
+      return { success: true, message: "Задание уже завершено" };
+    }
+
+    if ((completion as any).type !== "markup_task") {
+      return { success: false, message: "Completion не относится к markup_task" };
+    }
+
+    const metadata = (completion as any).metadata;
+    if (
+      !isMarkupTaskMetadata(metadata) ||
+      !metadata.markupStage.completed ||
+      !metadata.clinicStage.completed
+    ) {
+      return {
+        success: false,
+        message: "Оба этапа задания ещё не завершены",
+      };
+    }
+
+    return await ctx.runMutation(
+      internal.functions.user_completions.completeWithRewards,
+      { id }
+    );
+  },
+});
 
 export const pushFeedback = mutation({ args: { id: v.id("user_completions"), feedbackItem: feedbackEntry }, returns: userCompletionDoc, handler: async ({ db }, { id, feedbackItem }) => { const row: any = await db.get(id); const list: Array<any> = row?.feedback ?? []; list.push(feedbackItem); await db.patch(id, { feedback: list, updated_at: new Date().toISOString() } as any); return (await db.get(id))!; } });
 
@@ -88,7 +212,7 @@ export const getCompletionMetadata = query({
 
 // Internal: get knowledge by type and id
 export const fetchKnowledgeByType = internalQuery({
-  args: { type: v.string(), id: v.union(v.id("lections"), v.id("clinic_tasks"), v.id("interactive_tasks"), v.id("interactive_quizzes"), v.id("interactive_matches"), v.id("brochures"), v.id("clinic_atlases_test"), v.string()) },
+  args: { type: v.string(), id: v.union(v.id("lections"), v.id("clinic_tasks"), v.id("interactive_tasks"), v.id("interactive_quizzes"), v.id("interactive_matches"), v.id("brochures"), v.id("clinic_atlases_test"), v.id("markup_tasks"), v.string()) },
   returns: v.any(),
   handler: async ({ db }, { type, id }) => {
     switch (type) {
@@ -105,6 +229,8 @@ export const fetchKnowledgeByType = internalQuery({
       case "brochure":
         return await db.get(id as any);
       case "clinic_atlas":
+        return await db.get(id as any);
+      case "markup_task":
         return await db.get(id as any);
       default:
         return null;
@@ -302,11 +428,7 @@ export const getNovelty = query({
 // Internal: Complete user completion with rewards
 export const completeWithRewards = internalMutation({
   args: { id: v.id("user_completions") },
-  returns: v.object({ 
-    success: v.boolean(), 
-    message: v.string(),
-    starsTransaction: v.optional(v.any())
-  }),
+  returns: completionResultValidator,
   handler: async (ctx, { id }) => {
     const completion = await ctx.db.get(id);
     if (!completion) {
@@ -317,14 +439,21 @@ export const completeWithRewards = internalMutation({
       return { success: false, message: "Задание уже выполнено" };
     }
 
-    // Mark as completed
-    const now = new Date().toISOString();
-    await ctx.db.patch(id, { is_completed: true, completed_at: now, updated_at: now } as any);
-    
     // Get knowledge details
     const type = (completion as any).type;
     const knowledgeId = (completion as any).knowledge_id;
     const userId = (completion as any).user_id;
+
+    if (type === "markup_task") {
+      const metadata = (completion as any).metadata;
+      if (
+        !isMarkupTaskMetadata(metadata) ||
+        !metadata.markupStage.completed ||
+        !metadata.clinicStage.completed
+      ) {
+        return { success: false, message: "Оба этапа markup_task ещё не завершены" };
+      }
+    }
     
     const knowledge = await ctx.runQuery(internal.functions.user_completions.fetchKnowledgeByType, { 
       type, 
@@ -335,38 +464,42 @@ export const completeWithRewards = internalMutation({
       return { success: false, message: "Данные не найдены" };
     }
 
+    // Mark as completed only after all preconditions passed
+    const now = new Date().toISOString();
+    await ctx.db.patch(id, { is_completed: true, completed_at: now, updated_at: now } as any);
+
     const stars = (knowledge as any).stars || 0;
     const exp = (knowledge as any).exp || 0;
-    
-    // Create stars transaction
-    const starsTransaction = await ctx.runMutation(internal.functions.transactions.createStarsInternal, {
-      user_id: userId,
-      stars,
-      type: "plus" as const,
-      knowledge_id: knowledgeId,
-      created_at: now,
-    } as any);
-    
-    // Update user balance
-    await ctx.runMutation(internal.functions.users.incInternal, { id: userId as any, stars } as any);
-    
-    // Create notification for stars
-    await ctx.runMutation(internal.functions.notifications.createInternal, {
-      userId,
-      type: "Transaction",
-      isViewed: false,
-      data: {
-        transactionType: "stars",
-        amount: stars,
-        operationType: "plus",
-        knowledgeId,
-        knowledgeName: (knowledge as any).name,
-        knowledgeType: type,
-      },
-      createdAt: now,
-      updatedAt: now,
-      mongoId: "",
-    } as any);
+    let starsTransaction: any = undefined;
+
+    if (stars > 0) {
+      starsTransaction = await ctx.runMutation(internal.functions.transactions.createStarsInternal, {
+        user_id: userId,
+        stars,
+        type: "plus" as const,
+        knowledge_id: knowledgeId,
+        created_at: now,
+      } as any);
+      
+      await ctx.runMutation(internal.functions.users.incInternal, { id: userId as any, stars } as any);
+      
+      await ctx.runMutation(internal.functions.notifications.createInternal, {
+        userId,
+        type: "Transaction",
+        isViewed: false,
+        data: {
+          transactionType: "stars",
+          amount: stars,
+          operationType: "plus",
+          knowledgeId,
+          knowledgeName: (knowledge as any).name,
+          knowledgeType: type,
+        },
+        createdAt: now,
+        updatedAt: now,
+        mongoId: "",
+      } as any);
+    }
 
     // If exp exists, create exp transaction
     if (exp > 0) {
@@ -401,15 +534,17 @@ export const completeWithRewards = internalMutation({
     }
 
     // Update task group progress
-    const taskGroupServiceResult = await ctx.runMutation(internal.functions.progress.updateKnowledgeProgress, {
+    await ctx.runMutation(internal.functions.progress.updateKnowledgeProgress, {
       userId: userId as any,
       knowledgeId,
       knowledgeType: type,
     } as any);
     
-    const message = exp > 0 
-      ? `Получено ${stars} звёзд и ${exp} опыта` 
-      : `Получено ${stars} звёзд`;
+    const message = exp > 0
+      ? `Получено ${stars} звёзд и ${exp} опыта`
+      : stars > 0
+        ? `Получено ${stars} звёзд`
+        : "Задание выполнено";
     
     return { 
       success: true, 

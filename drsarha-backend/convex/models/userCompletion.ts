@@ -1,5 +1,6 @@
 import { defineTable } from "convex/server";
 import { v } from "convex/values";
+import { markupTaskGeometryValidator } from "./markupTaskElement";
 
 const feedbackItem = v.object({
   analytic_questions: v.optional(v.array(v.string())),
@@ -39,13 +40,94 @@ const metadataAttempt = v.object({
   created_at: v.string(),
 });
 
+const markupTaskElementIdValidator = v.union(
+  v.id("markup_task_elements"),
+  v.string()
+);
+
+const markupTaskSlideIdValidator = v.union(
+  v.id("markup_task_slides"),
+  v.string()
+);
+
+export const markupTaskUserContourValidator = v.object({
+  markup_task_slide_id: markupTaskSlideIdValidator,
+  geometry: markupTaskGeometryValidator,
+  use_basis: v.optional(v.boolean()),
+});
+
+const markupTaskCheatEntry = v.object({
+  element_id: markupTaskElementIdValidator,
+  markup_task_slide_id: markupTaskSlideIdValidator,
+  geometry: markupTaskGeometryValidator,
+  used_at: v.string(),
+});
+
+const markupTaskMatchEntry = v.object({
+  contour_index: v.number(),
+  element_id: markupTaskElementIdValidator,
+  markup_task_slide_id: markupTaskSlideIdValidator,
+  use_basis: v.boolean(),
+  awarded_score: v.number(),
+  overlap_ratio: v.float64(),
+  area_ratio: v.float64(),
+});
+
+const markupTaskAttempt = v.object({
+  created_at: v.string(),
+  completed: v.boolean(),
+  score: v.number(),
+  score_percent: v.float64(),
+  max_score: v.number(),
+  guessed_element_ids: v.array(markupTaskElementIdValidator),
+  missed_element_ids: v.array(markupTaskElementIdValidator),
+  ignored_cheat_element_ids: v.array(markupTaskElementIdValidator),
+  conturs: v.array(markupTaskUserContourValidator),
+  matches: v.array(markupTaskMatchEntry),
+});
+
+const markupTaskClinicAttempt = v.object({
+  created_at: v.string(),
+  completed: v.boolean(),
+  score: v.optional(v.float64()),
+  score_percent: v.optional(v.float64()),
+});
+
+const markupTaskStageMetadata = v.object({
+  completed: v.boolean(),
+  completed_at: v.union(v.null(), v.string()),
+  last_score: v.number(),
+  last_score_percent: v.float64(),
+  last_max_score: v.number(),
+  guessed_element_ids: v.array(markupTaskElementIdValidator),
+  cheats: v.array(markupTaskCheatEntry),
+  attempts: v.array(markupTaskAttempt),
+});
+
+const markupTaskClinicStageMetadata = v.object({
+  completed: v.boolean(),
+  completed_at: v.union(v.null(), v.string()),
+  attempts: v.array(markupTaskClinicAttempt),
+});
+
+export const markupTaskCompletionMetadata = v.object({
+  kind: v.literal("markup_task"),
+  markupStage: markupTaskStageMetadata,
+  clinicStage: markupTaskClinicStageMetadata,
+});
+
 export const userCompletionFields = {
   completed_at: v.union(v.null(), v.string()),
   created_at: v.string(),
   feedback: v.array(feedbackEntry),
   is_completed: v.boolean(),
   knowledge_id: v.string(),
-  metadata: v.union(v.null(), metadataLection, v.array(metadataAttempt)),
+  metadata: v.union(
+    v.null(),
+    metadataLection,
+    v.array(metadataAttempt),
+    markupTaskCompletionMetadata
+  ),
   mongoId: v.optional(v.string()),
   type: v.string(),
   updated_at: v.string(),

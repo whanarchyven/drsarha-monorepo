@@ -204,6 +204,8 @@ export const update = mutation({
       patient_info: v.optional(v.string()),
       ai_scenario: v.optional(v.string()),
       questions: v.optional(v.array(v.any())),
+      nozologyId: v.optional(v.union(v.id("nozologies"), v.string())),
+      complete_comment: v.optional(v.string()),
       idx: v.optional(v.number()),
       app_visible: v.optional(v.boolean()),
       publishAfter: v.optional(v.number()),
@@ -280,6 +282,8 @@ export const create = action({
     patient_info: v.optional(v.string()),
     ai_scenario: v.optional(v.string()),
     questions: v.optional(v.array(v.any())),
+    nozologyId: v.optional(v.union(v.id("nozologies"), v.string())),
+    complete_comment: v.optional(v.string()),
     idx: v.optional(v.number()),
     app_visible: v.optional(v.boolean()),
     publishAfter: v.optional(v.number()),
@@ -295,6 +299,8 @@ export const create = action({
       patient_info: args.patient_info ?? "",
       ai_scenario: args.ai_scenario ?? "",
       questions: normalizeQuestionsPayload(args.questions ?? []),
+      ...(args.nozologyId !== undefined ? { nozologyId: args.nozologyId } : {}),
+      complete_comment: args.complete_comment ?? "",
       ...(args.idx !== undefined ? { idx: args.idx } : {}),
       ...(args.app_visible !== undefined ? { app_visible: args.app_visible } : {}),
       ...(args.publishAfter !== undefined ? { publishAfter: args.publishAfter } : {}),
@@ -311,6 +317,8 @@ export const updateAction = action({
     patient_info: v.optional(v.string()),
     ai_scenario: v.optional(v.string()),
     questions: v.optional(v.array(v.any())),
+    nozologyId: v.optional(v.union(v.id("nozologies"), v.string())),
+    complete_comment: v.optional(v.string()),
     idx: v.optional(v.number()),
     app_visible: v.optional(v.boolean()),
     publishAfter: v.optional(v.number()),
@@ -326,6 +334,8 @@ export const updateAction = action({
     if (args.questions !== undefined) {
       data.questions = normalizeQuestionsPayload(args.questions);
     }
+    if (args.nozologyId !== undefined) data.nozologyId = args.nozologyId;
+    if (args.complete_comment !== undefined) data.complete_comment = args.complete_comment;
     if (args.idx !== undefined) data.idx = args.idx;
     if (args.app_visible !== undefined) data.app_visible = args.app_visible;
     if (args.publishAfter !== undefined) data.publishAfter = args.publishAfter;

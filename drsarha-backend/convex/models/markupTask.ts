@@ -10,6 +10,9 @@ export const markupTaskFields = {
   patient_info: v.optional(v.string()),
   ai_scenario: v.optional(v.string()),
   questions: v.optional(v.array(clinicTaskQuestionValidator)),
+  nozologyId: v.optional(v.union(v.id("nozologies"), v.string())),
+  /** Текст при завершении задачи (например, поздравление или итог). */
+  complete_comment: v.optional(v.string()),
   idx: v.optional(v.number()),
   app_visible: v.optional(v.boolean()),
   publishAfter: v.optional(v.number()),
@@ -18,7 +21,8 @@ export const markupTaskFields = {
 
 export const markupTasksTable = defineTable(markupTaskFields)
   .index("by_app_visible", ["app_visible"])
-  .index("by_mongo_id", ["mongoId"]);
+  .index("by_mongo_id", ["mongoId"])
+  .index("by_nozology_id", ["nozologyId"]);
 
 export const markupTaskDoc = v.object({
   ...markupTaskFields,

@@ -42,6 +42,7 @@ import type * as functions_interactive_tasks from "../functions/interactive_task
 import type * as functions_lections from "../functions/lections.js";
 import type * as functions_lootbox_claims from "../functions/lootbox_claims.js";
 import type * as functions_lootboxes from "../functions/lootboxes.js";
+import type * as functions_markup_task_checking from "../functions/markup_task_checking.js";
 import type * as functions_markup_task_elements from "../functions/markup_task_elements.js";
 import type * as functions_markup_task_slides from "../functions/markup_task_slides.js";
 import type * as functions_markup_task_stages from "../functions/markup_task_stages.js";
@@ -72,6 +73,7 @@ import type * as functions_users from "../functions/users.js";
 import type * as helpers_analytics from "../helpers/analytics.js";
 import type * as helpers_companyFill from "../helpers/companyFill.js";
 import type * as helpers_insightSpecialty from "../helpers/insightSpecialty.js";
+import type * as helpers_markupTaskChecking from "../helpers/markupTaskChecking.js";
 import type * as helpers_s3 from "../helpers/s3.js";
 import type * as helpers_upload from "../helpers/upload.js";
 import type * as http from "../http.js";
@@ -171,6 +173,7 @@ declare const fullApi: ApiFromModules<{
   "functions/lections": typeof functions_lections;
   "functions/lootbox_claims": typeof functions_lootbox_claims;
   "functions/lootboxes": typeof functions_lootboxes;
+  "functions/markup_task_checking": typeof functions_markup_task_checking;
   "functions/markup_task_elements": typeof functions_markup_task_elements;
   "functions/markup_task_slides": typeof functions_markup_task_slides;
   "functions/markup_task_stages": typeof functions_markup_task_stages;
@@ -201,6 +204,7 @@ declare const fullApi: ApiFromModules<{
   "helpers/analytics": typeof helpers_analytics;
   "helpers/companyFill": typeof helpers_companyFill;
   "helpers/insightSpecialty": typeof helpers_insightSpecialty;
+  "helpers/markupTaskChecking": typeof helpers_markupTaskChecking;
   "helpers/s3": typeof helpers_s3;
   "helpers/upload": typeof helpers_upload;
   http: typeof http;

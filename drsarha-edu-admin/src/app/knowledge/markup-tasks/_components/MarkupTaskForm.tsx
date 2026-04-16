@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { useAction, useMutation } from 'convex/react';
+import { useAction, useMutation, useQuery } from 'convex/react';
 import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,13 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import QuestionCreator from '@/components/question-creator';
@@ -32,7 +39,11 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { MarkupTaskElementDraft, PolygonEditor } from './PolygonEditor';
 
 const WIZARD_STEPS = [
-  { id: 0, label: 'Основное', description: 'Название, описание, обложка' },
+  {
+    id: 0,
+    label: 'Основное',
+    description: 'Название, нозология, комментарий завершения, обложка',
+  },
   { id: 1, label: 'Клиника', description: 'Пациент, ИИ, вопросы' },
   { id: 2, label: 'Этапы', description: 'Слайды и разметка' },
 ] as const;
@@ -57,6 +68,9 @@ const formSchema = z.object({
   app_visible: z.boolean().default(false),
   patient_info: z.string().optional().default(''),
   ai_scenario: z.string().optional().default(''),
+  /** Временно необязательно; позже можно снова сделать `.min(1, …)`. */
+  nozologyId: z.string().optional().default(''),
+  complete_comment: z.string().optional().default(''),
 });
 
 interface MarkupTaskPointDraft {
@@ -137,6 +151,8 @@ interface MarkupTaskFull {
   patient_info?: string;
   ai_scenario?: string;
   questions?: unknown[];
+  nozologyId?: string;
+  complete_comment?: string;
   idx?: number;
   app_visible?: boolean;
   publishAfter?: number;
@@ -344,6 +360,7 @@ const ensureValidStages = (stages: MarkupTaskStageDraft[]) => {
 
 export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
   const router = useRouter();
+  const nozologies = useQuery(api.functions.nozologies.list, {}) ?? [];
   const createTask = useAction(api.functions.markup_tasks.create);
   const updateTask = useAction(api.functions.markup_tasks.updateAction);
   const insertStage = useMutation(api.functions.markup_task_stages.insert);
@@ -397,6 +414,10 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
       app_visible: initialData?.app_visible ?? false,
       patient_info: initialData?.patient_info ?? '',
       ai_scenario: initialData?.ai_scenario ?? '',
+      nozologyId: initialData?.nozologyId
+        ? String(initialData.nozologyId)
+        : '',
+      complete_comment: initialData?.complete_comment ?? '',
     },
   });
 
@@ -794,6 +815,10 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
         patient_info: values.patient_info ?? '',
         ai_scenario: values.ai_scenario ?? '',
         questions,
+        ...(values.nozologyId?.trim()
+          ? { nozologyId: values.nozologyId as Id<'nozologies'> }
+          : {}),
+        complete_comment: values.complete_comment ?? '',
         app_visible: values.app_visible,
         publishAfter,
         ...(values.idx !== undefined ? { idx: values.idx } : {}),
@@ -818,6 +843,10 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
         patient_info: values.patient_info ?? '',
         ai_scenario: values.ai_scenario ?? '',
         questions,
+        ...(values.nozologyId?.trim()
+          ? { nozologyId: values.nozologyId as Id<'nozologies'> }
+          : {}),
+        complete_comment: values.complete_comment ?? '',
         app_visible: values.app_visible,
         cover: {
           base64: await fileToBase64(coverFile),
@@ -962,6 +991,57 @@ export function MarkupTaskForm({ initialData }: MarkupTaskFormProps) {
                 </FieldHint>
                 <FormControl>
                   <Textarea {...field} placeholder="Введите описание задачи" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="nozologyId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Нозология</FormLabel>
+                <FieldHint>Пока необязательно.</FieldHint>
+                <Select
+                  onValueChange={field.onChange}
+                  value={field.value || undefined}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Выберите нозологию" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {nozologies.map((nozology) => (
+                      <SelectItem
+                        key={nozology._id}
+                        value={String(nozology._id)}>
+                        {nozology.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="complete_comment"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Комментарий при завершении</FormLabel>
+                <FieldHint>
+                  Текст, который можно показать пользователю после успешного
+                  прохождения задачи.
+                </FieldHint>
+                <FormControl>
+                  <Textarea
+                    {...field}
+                    placeholder="Например: отличная работа, кейс разобран…"
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
