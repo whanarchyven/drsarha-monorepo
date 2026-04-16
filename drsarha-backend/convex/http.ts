@@ -27,6 +27,7 @@ import {
 import { initHelpConversationHttp } from "./functions/drsarha_help_conversations";
 import { createPaymentHttp } from "./functions/payments";
 import { getPinsSummaryHttp } from "./functions/pins";
+import { collectPromoUserHttp } from "./functions/promo_users";
 
 const http = httpRouter();
 
@@ -70,6 +71,12 @@ http.route({
   path: "/payments/create",
   method: "POST",
   handler: createPaymentHttp,
+});
+
+http.route({
+  path: "/promo-users",
+  method: "POST",
+  handler: collectPromoUserHttp,
 });
 
 http.route({

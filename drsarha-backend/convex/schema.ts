@@ -62,6 +62,8 @@ import {
   conferenceInteractivesTable,
   conferenceInteractiveResponsesTable,
 } from "./models/conferenceInteractive";
+import { promoUsersTable } from "./models/promoUser";
+import { promoUsersCodeMaterialsTable } from "./models/promoUsersCodeMaterial";
 
 // ⚠️ ВРЕМЕННО: Отключена валидация схемы для миграции
 // После завершения миграции и rewrite_links верните строгие валидаторы
@@ -135,6 +137,10 @@ export default defineSchema({
   conference_chat_reactions: MIGRATION_MODE ? defineTable(v.any()) : conferenceChatReactionsTable,
   conference_interactives: MIGRATION_MODE ? defineTable(v.any()) : conferenceInteractivesTable,
   conference_interactive_responses: MIGRATION_MODE ? defineTable(v.any()) : conferenceInteractiveResponsesTable,
+  promo_users: MIGRATION_MODE ? defineTable(v.any()) : promoUsersTable,
+  promo_users_code_materials: MIGRATION_MODE
+    ? defineTable(v.any())
+    : promoUsersCodeMaterialsTable,
 
   // Remaining tables kept loose for now (no dedicated model yet)
   brochures_test: defineTable(v.any()),
