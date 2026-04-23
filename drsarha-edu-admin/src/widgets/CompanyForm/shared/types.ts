@@ -26,7 +26,11 @@ export interface DefaultDistributionDialogState {
 }
 
 export interface QuestionStats {
-  [questionId: string]: { value: string | number; count: number }[];
+  [questionId: string]: {
+    value: string | number;
+    count: number;
+    speciality_distribution?: Array<{ specialty: string; percent: number }>;
+  }[];
 }
 
 export interface LoadingStats {

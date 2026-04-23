@@ -117,6 +117,19 @@ function sanitizeGraphic(g) {
   if (g.show_speciality_distribution !== undefined) {
     out.show_speciality_distribution = g.show_speciality_distribution;
   }
+  if (g.speciality_distribution_mode !== undefined) {
+    out.speciality_distribution_mode = g.speciality_distribution_mode;
+  }
+  if (Array.isArray(g.speciality_distribution_direct)) {
+    out.speciality_distribution_direct = g.speciality_distribution_direct
+      .map((item) => ({
+        specialty: String(item?.specialty ?? "").trim(),
+        percent: Number(item?.percent),
+      }))
+      .filter(
+        (item) => item.specialty.length > 0 && Number.isFinite(item.percent),
+      );
+  }
   return out;
 }
 

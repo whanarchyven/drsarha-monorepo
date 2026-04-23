@@ -18,7 +18,11 @@ interface StatCardProps {
   statIndex: number;
   role?: string;
   questionTitleCache: Record<string, string>;
-  questionStats?: { value: string | number; count: number }[];
+  questionStats?: {
+    value: string | number;
+    count: number;
+    speciality_distribution?: Array<{ specialty: string; percent: number }>;
+  }[];
   loadingStats?: boolean;
   isRealResultsExpanded: boolean;
   onRealResultsExpandedChange: (expanded: boolean) => void;
@@ -155,6 +159,7 @@ export function StatCard({
           graphics={stat.graphics}
           dashboardIndex={dashboardIndex}
           statIndex={statIndex}
+          questionStats={questionStats}
           onAdd={onAddGraphic}
           onUpdate={onUpdateGraphic}
           onRemove={onRemoveGraphic}

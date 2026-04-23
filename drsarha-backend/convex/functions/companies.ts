@@ -57,6 +57,67 @@ function ensureAuthorized(req: Request) {
 
 type SpecialityDistributionRow = Array<{ specialty: string; percent: number }>;
 
+function sanitizeSpecialityDistributionRow(value: unknown): SpecialityDistributionRow {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const cleaned = value
+    .map((item) => ({
+      specialty:
+        item && typeof item === "object" && "specialty" in item
+          ? String((item as { specialty?: unknown }).specialty ?? "").trim()
+          : "",
+      percent:
+        item && typeof item === "object" && "percent" in item
+          ? Number((item as { percent?: unknown }).percent)
+          : Number.NaN,
+    }))
+    .filter((item) => item.specialty.length > 0 && Number.isFinite(item.percent))
+    .map((item) => ({
+      specialty: item.specialty,
+      percent: Math.max(0, item.percent),
+    }));
+
+  const sum = cleaned.reduce((acc, item) => acc + item.percent, 0);
+  if (cleaned.length === 0 || sum <= 0) {
+    return [];
+  }
+
+  const normalized = cleaned.map((item) => ({
+    specialty: item.specialty,
+    percent: Math.round((item.percent / sum) * 1000) / 10,
+  }));
+  const normalizedSum = normalized.reduce((acc, item) => acc + item.percent, 0);
+  const delta = Math.round((100 - normalizedSum) * 10) / 10;
+  normalized[normalized.length - 1].percent =
+    Math.round((normalized[normalized.length - 1].percent + delta) * 10) / 10;
+
+  return normalized;
+}
+
+function getDirectSpecialityDistributionForStat(stat: {
+  graphics?: Array<{
+    type?: unknown;
+    show_speciality_distribution?: unknown;
+    speciality_distribution_mode?: unknown;
+    speciality_distribution_direct?: unknown;
+  }>;
+}) {
+  const graphic = (stat.graphics ?? []).find(
+    (item) =>
+      item?.type === "bar" &&
+      item?.show_speciality_distribution === true &&
+      item?.speciality_distribution_mode === "direct",
+  );
+
+  if (!graphic) {
+    return null;
+  }
+
+  return sanitizeSpecialityDistributionRow(graphic.speciality_distribution_direct);
+}
+
 /** Для публичного slug API не отдаём sourceCount (value, count, speciality_distribution). */
 function stripSourceCountFromSummaryResults(
   results: Array<{
@@ -77,6 +138,35 @@ function stripSourceCountFromSummaryResults(
     }
     return row;
   });
+}
+
+function getSummaryResultsForClient(
+  results: Array<{
+    value: string | number;
+    count: number;
+    sourceCount?: number;
+    speciality_distribution?: SpecialityDistributionRow;
+  }>,
+  stat: {
+    graphics?: Array<{
+      type?: unknown;
+      show_speciality_distribution?: unknown;
+      speciality_distribution_mode?: unknown;
+      speciality_distribution_direct?: unknown;
+    }>;
+  },
+) {
+  const stripped = stripSourceCountFromSummaryResults(results);
+  const directDistribution = getDirectSpecialityDistributionForStat(stat);
+
+  if (!directDistribution || directDistribution.length === 0) {
+    return stripped;
+  }
+
+  return stripped.map((row) => ({
+    ...row,
+    speciality_distribution: directDistribution,
+  }));
 }
 
 function createPublicCompanyResponse(company: any) {
@@ -341,7 +431,7 @@ export const getBySlugInfoBatchedInternal = internalAction({
           continue;
         }
         stat.question_summary = {
-          results: stripSourceCountFromSummaryResults(cached.results),
+          results: getSummaryResultsForClient(cached.results, stat),
           totalInsights: cached.totalInsights,
         };
         delete stat.scales;
@@ -452,7 +542,7 @@ export const getBySlugInfo = query({
         }
 
         stat.question_summary = {
-          results: stripSourceCountFromSummaryResults(summary.results),
+          results: getSummaryResultsForClient(summary.results, stat),
           totalInsights: summary.totalInsights,
         };
 

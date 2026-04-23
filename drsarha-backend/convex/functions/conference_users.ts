@@ -19,8 +19,7 @@ const conferenceUserPatch = {
   password: v.optional(v.union(v.string(), v.null())),
 };
 
-const CONFERENCE_ACCESS_EMAIL_SUBJECT =
-  "Ваши доступы на конференцию Равновесие силы 4 апреля.";
+const CONFERENCE_ACCESS_EMAIL_SUBJECT = "Доступ к трансляции конференции Dr. Sarha";
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -109,40 +108,6 @@ function extractConferencePromocode(payment: any, webhookData: any) {
   return undefined;
 }
 
-async function subscribeConferenceUserToUniSender(user: {
-  email: string;
-  name: string;
-  phone: string;
-  password: string | null;
-}) {
-  const uniSenderApiKey = process.env.UNISENDER_API_KEY;
-  if (!uniSenderApiKey) {
-    return { success: false, skipped: true, reason: "UNISENDER_API_KEY is not configured" };
-  }
-
-  const params = new URLSearchParams({
-    format: "json",
-    api_key: uniSenderApiKey,
-    list_ids: process.env.UNISENDER_CONFERENCE_LIST_ID || "66",
-    "fields[email]": user.email,
-    "fields[Name]": user.name || "",
-    "fields[phone]": user.phone || "",
-    "fields[password]": user.password || "",
-    double_optin: "3",
-  });
-
-  const response = await fetch(
-    `https://api.unisender.com/ru/api/subscribe?${params.toString()}`
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`UniSender subscribe failed: ${errorText}`);
-  }
-
-  return { success: true, skipped: false };
-}
-
 async function sendConferenceAccessEmailToUser(user: {
   email: string;
   password: string | null;
@@ -175,49 +140,11 @@ async function sendConferenceAccessEmailToUser(user: {
 
   const body = `
 <div style="font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.6; color: #1f2937;">
-  <div style="margin-bottom: 24px; text-align: center;">
-    <img
-      src="https://resize.yandex.net/mailservice?url=https%3A%2F%2Fimg.hiteml.com%2Fen%2Fv5%2Fuser-files%3FuserId%3D7429954%26resource%3Dhimg%26disposition%3Dinline%26name%3D6opqn9tojn3ryu4edont8wqw9sjwpg7no4fr64aymu1ado91cjxhsz8sre6ttfbgip4ckuephpsnzr&proxy=yes&key=5db28771fe76f5ed167e3d4df5704bd8"
-      alt="Dr. Sarha conference"
-      style="max-width: 100%; height: auto; border: 0; display: inline-block;"
-    />
-  </div>
-
-  <p>Всё готово — завтра, 4 апреля, мы встречаемся на онлайн-конференции «Равновесие силы: взгляд с двух сторон на терапию кожных заболеваний».</p>
-
-  <p><strong>Ваша ссылка на трансляцию:</strong><br />
-  👉 <a href="https://drsarha.ru/conference/live">https://drsarha.ru/conference/live</a></p>
-
-  <p><strong>Ваш логин:</strong><br />
-  👉 ${user.email}</p>
-
-  <p><strong>Ваш пароль:</strong><br />
-  👉 ${user.password}</p>
-
-  <p><strong>⏰ Начало в 10:00 (МСК)</strong></p>
-
-  <p><strong>📋 Инструкция для подключения</strong></p>
-
-  <ol>
-    <li>Сохраните это письмо, чтобы не искать ссылку в последний момент.</li>
-    <li>Рекомендуем подключиться за 5–10 минут до начала — в 9:50 по МСК, чтобы проверить звук и соединение.</li>
-    <li>Перейдите по ссылке выше — трансляция откроется в браузере. Лучше всего работает Google Chrome, но подойдёт и любой другой современный браузер.</li>
-    <li>Если смотрите с телефона — убедитесь, что вы подключены к стабильному Wi-Fi или мобильному интернету.</li>
-    <li>Включите звук на устройстве и проверьте громкость — трансляция идёт со звуком.</li>
-    <li>Задавайте вопросы спикерам в чате трансляции, чтобы забрать и выиграть призы.</li>
-  </ol>
-
-  <p><strong>⚠️ Если что-то пошло не так</strong></p>
-
-  <p>
-    — Ссылка не открывается? Попробуйте другой браузер или перезагрузите страницу.<br />
-    — Нет звука? Проверьте, не отключён ли звук в браузере (значок динамика на вкладке).<br />
-    — Остались вопросы? Напишите нам: @Alena_Savelova
-  </p>
-
-  <p>Ждём вас завтра в 10:00!</p>
-
-  <p>С теплом,<br />Команда Dr. Sarha</p>
+  <p>Спасибо за интерес к нашей конференции! Вы можете просмотреть трансляцию и историю чата по ссылке:</p>
+  <p><a href="https://drsarha.ru/conference/live">https://drsarha.ru/conference/live</a></p>
+  <p>Ваш доступ:<br />
+  логин: ${user.email}<br />
+  пароль: ${user.password}</p>
 </div>`;
 
   const urlParams = new URLSearchParams({
@@ -878,12 +805,17 @@ export const approveConferenceUserHttp = httpAction(async (ctx, req) => {
         )
       : false;
 
-    const uniSenderResult = await subscribeConferenceUserToUniSender({
+    const accessEmailResult = await sendConferenceAccessEmailToUser({
       email: conferenceUser.email,
-      name: conferenceUser.name,
-      phone: conferenceUser.phone,
       password: conferenceUser.password,
+      log: (message, details) => {
+        console.log("[approveConferenceUserHttp] access email", message, details ?? "");
+      },
     });
+
+    if (!accessEmailResult.success && !accessEmailResult.skipped) {
+      throw new Error(accessEmailResult.reason ?? "Failed to send access email");
+    }
 
     return json(
       {
@@ -891,7 +823,7 @@ export const approveConferenceUserHttp = httpAction(async (ctx, req) => {
         conferenceUser,
         paymentId,
         status: status || "succeeded",
-        uniSender: uniSenderResult,
+        accessEmail: accessEmailResult,
         promocode: promocode ? { code: promocode, marked: promocodeMarked } : null,
       },
       200

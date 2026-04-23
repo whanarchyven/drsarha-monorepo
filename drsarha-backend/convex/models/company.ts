@@ -19,6 +19,14 @@ const statTabMode = v.union(
 );
 
 const statUnit = v.union(v.literal("count"), v.literal("percent"));
+const specialityDistributionMode = v.union(
+  v.literal("auto"),
+  v.literal("direct")
+);
+const specialityDistributionEntry = v.object({
+  specialty: v.string(),
+  percent: v.number(),
+});
 
 export const scaleFields = v.object({
   name: v.string(),
@@ -43,6 +51,10 @@ export const graphicFields = v.object({
   stat_variant: v.optional(v.union(v.string(), v.number())),
   /** Имеет смысл при type === "bar": показывать распределение по специальностям. */
   show_speciality_distribution: v.optional(v.boolean()),
+  /** Режим specialty-distribution: реальный (`auto`) или вручную заданный (`direct`). */
+  speciality_distribution_mode: v.optional(specialityDistributionMode),
+  /** Пользовательское распределение по специальностям для режима `direct`. */
+  speciality_distribution_direct: v.optional(v.array(specialityDistributionEntry)),
 });
 
 export const statFields = v.object({

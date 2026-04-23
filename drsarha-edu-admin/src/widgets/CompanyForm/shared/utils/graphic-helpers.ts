@@ -45,12 +45,34 @@ export const updateGraphic = (
     }
     if (next.type !== DashboardType.BAR) {
       delete next.show_speciality_distribution;
+      delete next.speciality_distribution_mode;
+      delete next.speciality_distribution_direct;
     }
   } else if (field === 'show_speciality_distribution') {
     if (value === true) {
       next.show_speciality_distribution = true;
+      if (next.speciality_distribution_mode === undefined) {
+        next.speciality_distribution_mode = 'auto';
+      }
     } else {
       delete next.show_speciality_distribution;
+      delete next.speciality_distribution_mode;
+      delete next.speciality_distribution_direct;
+    }
+  } else if (field === 'speciality_distribution_mode') {
+    next.speciality_distribution_mode = value as Graphic['speciality_distribution_mode'];
+    if (next.speciality_distribution_mode !== 'direct') {
+      delete next.speciality_distribution_direct;
+    }
+  } else if (field === 'speciality_distribution_direct') {
+    if (Array.isArray(value)) {
+      next.speciality_distribution_direct = value as Graphic['speciality_distribution_direct'];
+      if (next.show_speciality_distribution !== true) {
+        next.show_speciality_distribution = true;
+      }
+      next.speciality_distribution_mode = 'direct';
+    } else {
+      delete next.speciality_distribution_direct;
     }
   } else if (field === 'stat_tab') {
     next.stat_tab = value as StatTabMode;

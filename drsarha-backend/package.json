@@ -9,7 +9,8 @@
   "scripts": {
     "dev": "convex dev",
     "codegen": "convex codegen",
-    "seed-company": "node scripts/seed-company-from-export.mjs"
+    "seed-company": "node scripts/seed-company-from-export.mjs",
+    "send-certificates": "node scripts/send-conference-certificates.mjs"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

@@ -31,6 +31,13 @@ export const migrateCompanyData = (initialCompany: Company): Company => {
                 extremum: 0,
               },
             })),
+            graphics: stat.graphics.map((graphic: any) => ({
+              ...graphic,
+              ...(graphic.show_speciality_distribution === true &&
+              graphic.speciality_distribution_mode === undefined
+                ? { speciality_distribution_mode: 'auto' }
+                : {}),
+            })),
           };
         }
         // Иначе мигрируем из старой структуры
@@ -114,6 +121,34 @@ export const prepareCompanyForSubmit = (company: Company): Company => {
           }
           if (g.type !== DashboardType.BAR) {
             delete g.show_speciality_distribution;
+            delete g.speciality_distribution_mode;
+            delete g.speciality_distribution_direct;
+          } else if (g.show_speciality_distribution === true) {
+            if (
+              g.speciality_distribution_mode !== 'auto' &&
+              g.speciality_distribution_mode !== 'direct'
+            ) {
+              g.speciality_distribution_mode = 'auto';
+            }
+            if (
+              g.speciality_distribution_mode !== 'direct' ||
+              !Array.isArray(g.speciality_distribution_direct)
+            ) {
+              delete g.speciality_distribution_direct;
+            } else {
+              g.speciality_distribution_direct =
+                g.speciality_distribution_direct.map((item) => ({
+                  specialty: String(item.specialty ?? '').trim(),
+                  percent: Number(item.percent),
+                }))
+                .filter(
+                  (item) =>
+                    item.specialty.length > 0 && Number.isFinite(item.percent)
+                );
+            }
+          } else {
+            delete g.speciality_distribution_mode;
+            delete g.speciality_distribution_direct;
           }
         });
       }

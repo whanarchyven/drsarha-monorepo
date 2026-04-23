@@ -22,6 +22,13 @@ export enum StatUnit {
   PERCENT = 'percent',
 }
 
+export type SpecialityDistributionMode = 'auto' | 'direct';
+
+export interface SpecialityDistributionEntry {
+  specialty: string;
+  percent: number;
+}
+
 export interface Scale {
   name: string;
   value: number;
@@ -47,6 +54,8 @@ export interface Graphic {
   stat_variant?: string | number;
   /** Только для type === bar: показывать распределение по специальностям */
   show_speciality_distribution?: boolean;
+  speciality_distribution_mode?: SpecialityDistributionMode;
+  speciality_distribution_direct?: SpecialityDistributionEntry[];
 }
 
 export interface Stat {
@@ -60,7 +69,7 @@ export interface Stat {
       value: string | number;
       count: number;
       sourceCount?: number;
-      speciality_distribution?: Array<{ specialty: string; percent: number }>;
+      speciality_distribution?: SpecialityDistributionEntry[];
     }>;
     totalInsights?: number;
   };

@@ -183,9 +183,11 @@ export function useCompanyForm(
         }
       );
       const results = response?.results;
-      const stats: { value: string | number; count: number }[] = Array.isArray(
-        results
-      )
+      const stats: {
+        value: string | number;
+        count: number;
+        speciality_distribution?: Array<{ specialty: string; percent: number }>;
+      }[] = Array.isArray(results)
         ? results
         : [];
       setQuestionStats((prev) => ({
